@@ -40,6 +40,7 @@ type SidebarContextProps = {
   setOpenMobile: (open: boolean) => void
   isMobile: boolean
   toggleSidebar: () => void
+
 }
 
 const SidebarContext = React.createContext<SidebarContextProps | null>(null)
@@ -66,6 +67,8 @@ function SidebarProvider({
   open?: boolean
   onOpenChange?: (open: boolean) => void
 }) {
+  // const [siderbarWidth , setSidebarWidth] = React.useState<number>(62);
+
   const isMobile = useIsMobile()
   const [openMobile, setOpenMobile] = React.useState(false)
 
@@ -122,6 +125,8 @@ function SidebarProvider({
       openMobile,
       setOpenMobile,
       toggleSidebar,
+
+      
     }),
     [state, open, setOpen, isMobile, openMobile, setOpenMobile, toggleSidebar]
   )

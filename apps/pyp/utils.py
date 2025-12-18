@@ -24,8 +24,8 @@ def create_AttandanceFile(  df):
 
   def attendance_percentage(attendance, totalClasses):
       for record in attendance:
-          record["Percentage"] = round((record["Present_Count"] / totalClasses) * 100, 2)
           record["TotalClasses"] = totalClasses
+          record["Percentage"] = round((record["Present_Count"] / totalClasses) * 100, 2)
       return attendance
 
   attendance = attendance_percentage(attendance, totalClasses)

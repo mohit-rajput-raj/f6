@@ -2,6 +2,7 @@ import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
 
 const privateRoutes =  createRouteMatcher([
     '/projects(.*)',
+    // '/dashboard(.*)',
     
 ])
 export default clerkMiddleware(async (auth, req) => {

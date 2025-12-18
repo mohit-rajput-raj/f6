@@ -20,7 +20,8 @@ import {
 import { Input } from "@repo/ui/components/ui/input";
 import { useRouter } from "next/navigation";
 import { useRouteAuthContextHook } from "@/context/routeContext";
-
+import path from "path";
+import { ta } from "zod/locales";
 
 type Project = {
   name: string;
@@ -32,7 +33,6 @@ type Project = {
 export default  function ProjectList() {
   const [search, setSearch] = useState("");
     const {setDashid}=useRouteAuthContextHook();
-
   const [projects, setProjects] = useState<Project[]>([
     {
       name: "new3",
@@ -79,7 +79,7 @@ export default  function ProjectList() {
 
   const handelR = ({i}:{i:number})=>{
     setDashid(String(i));
-    route.push(`/dashboard/dash/${i}/editor`)
+    window.open(`/dashboard/dash/${i}/editor` , "_blank")
   }
   return (
     <div className="space-y-4 p-10">

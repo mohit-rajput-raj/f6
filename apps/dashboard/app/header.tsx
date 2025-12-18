@@ -31,7 +31,7 @@ const Header = (props: Props) => {
                       </SignUpButton>
                     </SignedOut>
                     <SignedIn>
-                        <Button  onClick={() => router.push(`/projects/${main_id}/projects`)}>dashboard</Button>
+                        <a  href={`/projects/${main_id}/projects`} >dashboard</a>
                       <UserButton />
                     </SignedIn>
                     <ModeToggle/>

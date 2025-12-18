@@ -46,12 +46,29 @@ async def process_csv(file: UploadFile = File(...)):
         media_type="text/csv",
         headers={"Content-Disposition": f"attachment; filename=updated_{file.filename}"}
     )
+from fastapi import UploadFile, File
+import pandas as pd
+import io
+
 @app.post("/process-csv-json")
 async def process_csv_json(file: UploadFile = File(...)):
+
+    filename = file.filename.lower()
     content = await file.read()
-    df = pd.read_csv(io.StringIO(content.decode("utf-8")))
+
+    def load_data(file_bytes, file_ext):
+        if file_ext == ".csv":
+            return pd.read_csv(io.StringIO(file_bytes.decode("utf-8")))
+        if file_ext == ".json":
+            return pd.read_json(io.StringIO(file_bytes.decode("utf-8")))
+        if file_ext in [".xlsx", ".xls"]:
+            return pd.read_excel(io.BytesIO(file_bytes))
+        raise ValueError("Unsupported file format")
+
+    ext = file.filename.split(".")[-1].lower()
+    df = load_data(content, f".{ext}")
+
 
     updated_df = create_AttandanceFile(df)
-
-    # Return JSON instead of CSV file
     return updated_df.to_dict(orient="records")
+

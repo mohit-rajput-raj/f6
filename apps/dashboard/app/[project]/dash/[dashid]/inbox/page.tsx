@@ -1,11 +1,18 @@
-import React from 'react'
+import React from "react";
+import { SpreadsheetComponent } from "@syncfusion/ej2-react-spreadsheet";
+import { registerLicense } from '@syncfusion/ej2-base';
 
-type Props = {}
+registerLicense("YOUR_LICENSE_KEY");
 
-const Inbox = (props: Props) => {
+export default function App() {
   return (
-    <div>Inbox</div>
-  )
+    <div style={{ margin: "20px" }}>
+      <SpreadsheetComponent
+        allowOpen={true}
+        allowSave={true}
+        showRibbon={true}
+        height={600}
+      />
+    </div>
+  );
 }
-
-export default Inbox

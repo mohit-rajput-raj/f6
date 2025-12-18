@@ -10,7 +10,8 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@repo/ui/components/ui/sidebar"
-import { useRouter } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
+import { useRouteAuthContextHook } from "@/context/routeContext"
 
 export function NavMain({
   items,
@@ -23,15 +24,16 @@ export function NavMain({
     icon?: Icon
   }[]
 }) {
-
+const {main_id} = useRouteAuthContextHook();
   const router = useRouter();
+   const pathname = usePathname()
   return (
     <SidebarGroup>
       <SidebarGroupContent className="flex flex-col gap-2">
         <SidebarMenu>
           <SidebarMenuItem className="flex items-center gap-2">
             <SidebarMenuButton
-            onClick={()=>router.push("/projects")}
+            onClick={()=>router.push(`/projects/${main_id}/projects`)}
               tooltip="Quick Create"
               className=" cursor-pointer dark:bg-zinc-300 text-primary-foreground hover:text-primary-foreground active:bg-primary/90 active:text-primary-foreground min-w-8 duration-200 ease-linear"
             >
@@ -50,14 +52,18 @@ export function NavMain({
           </SidebarMenuItem>
         </SidebarMenu>
         <SidebarMenu>
-          {items.map((item) => (
-            <SidebarMenuItem key={item.title}>
-              <SidebarMenuButton className="cursor-pointer" tooltip={item.title} onClick={() => router.push(`/dashboard/dash/${dashid}` + item.url)}>
+          {items.map((item) => {
+            const fullUrl = `/dashboard/dash/${dashid}` + item.url
+            const isActive = pathname === fullUrl
+            return (
+               <SidebarMenuItem key={item.title}>
+              <SidebarMenuButton className={`cursor-pointer ${isActive ? "bg-accent text-accent-foreground" : ""}`} tooltip={item.title} onClick={() => router.push(fullUrl)}>
                 {item.icon && <item.icon />}
                 <span>{item.title}</span>
               </SidebarMenuButton>
             </SidebarMenuItem>
-          ))}
+            )
+          })}
         </SidebarMenu>
       </SidebarGroupContent>
     </SidebarGroup>

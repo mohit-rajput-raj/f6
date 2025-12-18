@@ -11,8 +11,22 @@
   "dependencies": {
     "@clerk/nextjs": "^6.34.5",
     "@dnd-kit/modifiers": "^9.0.0",
+    "@prisma/adapter-pg": "^7.1.0",
+    "@prisma/client": "^7.1.0",
     "@repo/ui": "workspace:*",
+    "@syncfusion/ej2-base": "^31.2.12",
+    "@syncfusion/ej2-buttons": "^31.2.18",
+    "@syncfusion/ej2-calendars": "^31.2.18",
+    "@syncfusion/ej2-dropdowns": "^31.2.18",
+    "@syncfusion/ej2-grids": "^31.2.18",
+    "@syncfusion/ej2-inputs": "^31.2.15",
+    "@syncfusion/ej2-lists": "^31.2.12",
+    "@syncfusion/ej2-navigations": "^31.2.16",
+    "@syncfusion/ej2-popups": "^31.2.12",
+    "@syncfusion/ej2-react-spreadsheet": "^31.2.16",
+    "@syncfusion/ej2-splitbuttons": "^31.2.12",
     "@tabler/icons-react": "^3.35.0",
+    "@tanstack/react-query": "^5.90.12",
     "@tanstack/react-table": "^8.21.3",
     "@xyflow/react": "^12.9.2",
     "axios": "^1.13.2",
@@ -20,6 +34,7 @@
     "papaparse": "^5.5.3",
     "react": "19.2.0",
     "react-dom": "19.2.0",
+    "react-folder-tree": "^5.1.1",
     "react-spreadsheet": "^0.10.1"
   },
   "devDependencies": {
@@ -30,6 +45,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.0.1",
+    "prisma": "^7.1.0",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

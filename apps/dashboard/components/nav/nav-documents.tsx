@@ -25,12 +25,16 @@ import {
   useSidebar,
 } from "@repo/ui/components/ui/sidebar"
 import { useRouter } from "next/navigation"
+import FileTreeDemo from "../files/fele-tree"
+import React from "react"
 
 export function NavDocuments({
   items,
   val ,
-  main_id
+  main_id,
+  dashid
 }: {
+  dashid?:string,
   main_id?:string,
   val?:string,
   items: {
@@ -41,16 +45,21 @@ export function NavDocuments({
 }) {
   const { isMobile } = useSidebar()
   const router = useRouter();
+
+
+  
   return (
     <SidebarGroup className="group-data-[collapsible=icon]:hidden">
       <SidebarGroupLabel>Documents</SidebarGroupLabel>
       <SidebarMenu>
         {items.map((item) => (
           <SidebarMenuItem key={item.name}>
-            <SidebarMenuButton className="cursor-pointer" asChild onClick={() => router.push( "/"+val+ item.url)}>
+            <SidebarMenuButton className="cursor-pointer" asChild onClick={() => router.push( "/"+val+"/dash/"+dashid+ item.url)}>
               <a >
                 <item.icon />
                 <span>{item.name}</span>
+             
+
               </a>
             </SidebarMenuButton>
             <DropdownMenu>
@@ -70,7 +79,7 @@ export function NavDocuments({
               >
                 <DropdownMenuItem>
                   <IconFolder />
-                  <span>Open</span>
+                  <span >Open</span>
                 </DropdownMenuItem>
                 <DropdownMenuItem>
                   <IconShare3 />

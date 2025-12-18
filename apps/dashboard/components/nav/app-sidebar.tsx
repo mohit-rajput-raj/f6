@@ -13,6 +13,7 @@ import {
   IconHelp,
   IconInnerShadowTop,
   IconListDetails,
+  IconPlugConnected,
   IconReport,
   IconSearch,
   IconSettings,
@@ -41,6 +42,98 @@ const data = {
     email: "m@example.com",
     avatar: "/avatars/shadcn.jpg",
   },
+  sampledocuments: [
+    {
+      name: "Data Library",
+      url: "/data-library",
+      icon: IconDatabase,
+    },
+    {
+      name: "Data Library",
+      url: "/data-library",
+      icon: IconDatabase,
+    },
+    {
+      name: "Data Library",
+      url: "/data-library",
+      icon: IconDatabase,
+    },
+    {
+      name: "Data Library",
+      url: "/data-library",
+      icon: IconDatabase,
+    },
+  ],
+  ColapseblenavMain: [
+    {
+      title: "Playground",
+      url: "#",
+      icon: SquareTerminal,
+      isActive: true,
+      items: [
+        {
+      name: "Data Library1",
+      url: "/data-library",
+      
+      icon: IconDatabase,
+    },
+     {
+      name: "Data Library2",
+      url: "/data-library",
+      
+      icon: IconDatabase,
+    },
+     {
+      name: "Data Library3",
+      url: "/data-library",
+      
+      icon: IconDatabase,
+    },
+     {
+      name: "Data Library4",
+      url: "/data-library",
+      
+      icon: IconDatabase,
+    },
+   
+    
+      ],
+    },
+    {
+      title: "Models",
+      url: "#",
+      icon: Bot,
+      items: [
+        {
+      name: "Data Library1",
+      url: "/data-library",
+      
+      icon: IconDatabase,
+    },
+     {
+      name: "Data Library2",
+      url: "/data-library",
+      
+      icon: IconDatabase,
+    },
+     {
+      name: "Data Library3",
+      url: "/data-library",
+      
+      icon: IconDatabase,
+    },
+     {
+      name: "Data Library4",
+      url: "/data-library",
+      
+      icon: IconDatabase,
+    },
+      
+      ],
+    },
+    
+    
+  ],
   navMain: [
     {
       title: "Dashboard",
@@ -134,8 +227,8 @@ const data = {
     },
     // {
     //   title: "Docs",
-    //   url: "/3000",
-    //   icon: DockIcon,
+    //   url: "/3001",
+    //   icon: IconFileDescription,
     // },
   ],
   documents: [
@@ -174,15 +267,22 @@ const data = {
     {
       name:"Integration",
       url:"/integration",
-      icon: IconFileWord,
+      icon: IconInnerShadowTop,
       
     },
     {
       name:"Settings",
       url:"/settings",
-      icon: IconFileWord,
+      icon: IconSettings,
       
-    }
+    },
+    {
+      name:"Plugins",
+      url:"/plugs",
+      icon: IconPlugConnected,
+      
+    },
+    
   ],
 }
 type AppSidebarProps = React.ComponentProps<typeof Sidebar> & {
@@ -191,18 +291,13 @@ type AppSidebarProps = React.ComponentProps<typeof Sidebar> & {
 };
 import { clerkuser } from "@/provider/clerkprovider"
 import { NavProjects } from "./nav-projects"
+import FileTreeDemo from "../files/fele-tree"
+import { ColapsebleNavMain } from "./colapseble-nave-main"
+import { BookOpen, Bot, Settings2, SquareTerminal } from "lucide-react"
 export const  AppSidebar=({ val, ...props }: AppSidebarProps) =>{
   console.log(val);
   const {dash_id , main_id} = useRouteAuthContextHook();
-  // const {userId } =await clerkuser();
-  // React.useEffect(()=>{
-  //   try {
-  //     setmainid(userId || "error");
-      
-  //   } catch (error) {
-  //     toast.message("clerk id is not loaded")
-  //   }
-  // },[userId])
+
   
   return (
     <Sidebar collapsible="offcanvas" {...props}>
@@ -224,8 +319,9 @@ export const  AppSidebar=({ val, ...props }: AppSidebarProps) =>{
      {val==="dashboard" && (
        <SidebarContent>
         <NavMain items={data.navMain} dashid={dash_id}/>
-        <NavDocuments items={data.documents} val={val} />
-        <NavSecondary items={data.navSecondary} className="mt-auto" />
+        <NavDocuments items={data.documents} val={val} dashid={dash_id} />
+        <ColapsebleNavMain items={data.ColapseblenavMain} />
+        <NavSecondary items={data.navSecondary} dashid={dash_id} className="mt-auto" />
       </SidebarContent>
      )}
      {val==="projects" && ( <SidebarContent>
