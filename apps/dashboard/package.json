@@ -11,8 +11,7 @@
   "dependencies": {
     "@clerk/nextjs": "^6.34.5",
     "@dnd-kit/modifiers": "^9.0.0",
-    "@prisma/adapter-pg": "^7.1.0",
-    "@prisma/client": "^7.1.0",
+    "@repo/db": "workspace:*",
     "@repo/ui": "workspace:*",
     "@syncfusion/ej2-base": "^31.2.12",
     "@syncfusion/ej2-buttons": "^31.2.18",
@@ -45,7 +44,6 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.0.1",
-    "prisma": "^7.1.0",
     "tailwindcss": "^4",
     "typescript": "^5"
   }
