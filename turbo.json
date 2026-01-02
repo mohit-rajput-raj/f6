@@ -2,6 +2,20 @@
   "$schema": "https://turborepo.com/schema.json",
   "ui": "tui",
   "tasks": {
+
+    "db:generate":{
+      "cache": false
+    },
+    "db:migrate":{
+      "cache": false,
+      "persistent": true
+    },
+    "db:reset":{
+      "cache": false
+    },
+    "db:deploy":{
+      "cache": false
+    },
     "build": {
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", ".env*"],

@@ -22,7 +22,7 @@ interface LayoutProps {
         "--header-height": "calc(var(--spacing) * 12)",
       } as React.CSSProperties}
     >
-        <AppSidebar variant="inset" val={project} />
+        <AppSidebar  val={project} />
   <SidebarInset>
         <SiteHeader />
         <div className="flex flex-1 flex-col">
