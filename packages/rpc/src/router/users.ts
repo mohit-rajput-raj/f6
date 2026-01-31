@@ -24,15 +24,14 @@ export const listUsers = os
     }),
   )
   .handler(async ({ input }) => {
-    try {
-      const users = await prisma.session.findMany();
-    console.log(users + ".............");
-    } catch (error) {
-      console.log(error);
+    // try {
+    //   const users = await prisma.session.findMany();
+    // console.log(users + ".............");
+    // } catch (error) {
+    //   console.log(error);
       
       
-    }
-    
+    // }
 
     const data = [
       { id: 1, name: "John Doe", email: "john@example.com" },
@@ -41,7 +40,7 @@ export const listUsers = os
       { id: 4, name: "Jane Smith", email: "jane@example.com" },
     ];
     return { users: data };
-
+    // const data = await prisma.;
     // return {
     //   users: data.map((user) => {
     //     return {

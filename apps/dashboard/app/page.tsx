@@ -1,13 +1,14 @@
 'use client'
+import { useEffect } from "react";
 import { SpotlightNewDemo } from "@/components/landing/landingpage";
 import Header from "./header";
 
 
 
 import { client } from "@/lib/orpc";
-import { useEffect } from "react";
+// import { useEffect } from "react";
+export default   function Home() {
 
-export default function Home() {
  useEffect(() => {
   client.users.list().then(console.log);
 }, []);
