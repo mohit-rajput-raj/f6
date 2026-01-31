@@ -13,7 +13,7 @@ interface LayoutProps {
 
  const  layout=async({ children, params }: LayoutProps)=> {
   const session = await auth.api.getSession({
-    headers: await headers(),  // ← this is required!
+    headers: await headers(),  
   });
 
   if (!session?.user) {

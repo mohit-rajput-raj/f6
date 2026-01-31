@@ -1,7 +1,7 @@
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { prisma } from "@repo/db";
-// import "dotenv/config";
+import "dotenv/config";
 
 export const auth = betterAuth({
   database: prismaAdapter(prisma, {
@@ -11,8 +11,8 @@ baseURL: process.env.AUTH_BASE_URL || "http://localhost:3002/",
  socialProviders: {
     google: {
       prompt: "select_account", 
-      clientId: process.env.GOOGLE_CLIENT_ID! || '875086944891-nucqom2nmh4unvge47qi0rgok70gopvb.apps.googleusercontent.com',
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET! || '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',
+      clientId: process.env.GOOGLE_CLIENT_ID! ,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET! ,
     },
    
   },

@@ -5,9 +5,11 @@ import { useRouter } from 'next/navigation'
 import { ModeToggle } from '@repo/ui/components/themes/toogle'
 import { useRouteAuthContextHook } from '@/context/routeContext'
 import { useSession, signOut } from "@/lib/auth-client";
+// import {} from "@repo/orpc"
 type Props = {}
-
+import {client} from '@/lib/orpc';
 const Header = (props: Props) => {
+  // client.users.list().then(console.log);
     const router = useRouter();
     const {main_id}=useRouteAuthContextHook()
     const { data: session } = useSession();

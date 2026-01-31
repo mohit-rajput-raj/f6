@@ -17,8 +17,12 @@ export default function SignInPage() {
       // This redirects the browser to Google
       await signIn.social({
         provider: 'google',
-        callbackURL: '/project/0/projects',          // where to go after successful login (e.g. dashboard)
+        
         // redirect: false,        // optional: if you want to handle redirect manually
+      },{
+        onSuccess: () => {
+          router.push('/');  // redirect to home on success
+        },
       });
       // Note: You usually won't reach here because of the redirect
     } catch (err: any) {
