@@ -12,11 +12,13 @@
   },
   "dependencies": {
     "@repo/ui": "workspace:*",
+    "@repo/db": "workspace:*",
     "next": "^16.0.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
   },
   "devDependencies": {
+    "@repo/orpc": "workspace:*",
     "@repo/eslint-config": "workspace:*",
     "@repo/typescript-config": "workspace:*",
     "@types/node": "^22.15.3",

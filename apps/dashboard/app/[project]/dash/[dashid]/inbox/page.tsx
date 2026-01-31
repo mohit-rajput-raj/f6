@@ -1,8 +1,8 @@
-import React from "react";
+'use client'
 import { SpreadsheetComponent } from "@syncfusion/ej2-react-spreadsheet";
 import { registerLicense } from '@syncfusion/ej2-base';
 
-registerLicense("YOUR_LICENSE_KEY");
+registerLicense(process.env.NEXT_PUBLIC_SYNCFUSION_KEY || "");
 
 export default function App() {
   return (

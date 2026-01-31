@@ -1,9 +1,7 @@
-import { Button } from "@repo/ui/components/ui/button"
 import { Separator } from "@repo/ui/components/ui/separator"
 import { SidebarTrigger } from "@repo/ui/components/ui/sidebar"
 import { ModeToggle } from "@repo/ui/components/themes/toogle"
 import { BreadcrumbWithCustomSeparator } from "../breadcrumb/breadcrumb"
-import { CurrUsers } from "./nav-user"
 
 export function SiteHeader() {
   return (
@@ -26,7 +24,6 @@ export function SiteHeader() {
               GitHub
             </a>
           </Button> */}
-          <CurrUsers />
                              <ModeToggle/>
                              
 

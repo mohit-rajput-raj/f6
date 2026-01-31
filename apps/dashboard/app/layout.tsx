@@ -1,10 +1,11 @@
 import FullStackProvider from "@/provider/FullStackProvider";
-import { ClerkProvider } from "@clerk/nextjs";
 import "@repo/ui/globals.css";
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import { JSX } from "react";
+import '../lib/orpc.server' // for pre-rendering
 
+// Rest of the code
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
@@ -32,7 +33,6 @@ export default function RootLayout({
   children: React.ReactNode;
 }): JSX.Element {
   return (
-    <ClerkProvider>
       <html lang="en" suppressHydrationWarning>
         <body className={inter.className}>
           <FullStackProvider>
@@ -40,6 +40,5 @@ export default function RootLayout({
           </FullStackProvider>
         </body>
       </html>
-    </ClerkProvider>
   );
 }

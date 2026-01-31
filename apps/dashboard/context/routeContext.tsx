@@ -1,6 +1,6 @@
 'use client'
 import React, { useContext, useEffect, useState } from 'react'
-import { useUser } from "@clerk/nextjs";
+// import { useUser } from "@clerk/nextjs";
 import { Skeleton } from '@repo/ui/components/ui/skeleton';
 type InitialValuesProps = {
   main_id: string,
@@ -23,16 +23,16 @@ const authContext = React.createContext(InitialValues)
 const { Provider } = authContext
 
 const AuthRoutesIdProvider =({ children }: { children: React.ReactNode }) => {
- const { user, isLoaded } = useUser();
-  
+//  const { user, isLoaded } = useUser();
+  const isLoaded = true;
   const [main_id, setmainid] = useState<string>("0");
   const [dash_id, setDashid] = useState<string>("0");
 
-  useEffect(() => {
-    if (isLoaded && user) {
-      setmainid(user.id);
-    }
-  }, [isLoaded, user]);
+  // useEffect(() => {
+  //   if (isLoaded && user) {
+  //     setmainid(user.id);
+  //   }
+  // }, [isLoaded, user]);
 
   const values = { main_id, dash_id, setDashid, setmainid , isLoaded }
 

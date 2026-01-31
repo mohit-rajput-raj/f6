@@ -23,7 +23,7 @@ import {
 import { NavDocuments } from "@/components/nav/nav-documents"
 import { NavMain } from "@/components/nav/nav-main"
 import { NavSecondary } from "@/components/nav/nav-secondary"
-import { CurrUsers, NavUser } from "@/components/nav/nav-user"
+// import { CurrUsers, NavUser } from "@/components/nav/nav-user"
 import {
   Sidebar,
   SidebarContent,
@@ -289,9 +289,7 @@ type AppSidebarProps = React.ComponentProps<typeof Sidebar> & {
   val: string;
   
 };
-import { clerkuser } from "@/provider/clerkprovider"
 import { NavProjects } from "./nav-projects"
-import FileTreeDemo from "../files/fele-tree"
 import { ColapsebleNavMain } from "./colapseble-nave-main"
 import { BookOpen, Bot, Settings2, SquareTerminal } from "lucide-react"
 export const  AppSidebar=({ val, ...props }: AppSidebarProps) =>{
@@ -328,10 +326,10 @@ export const  AppSidebar=({ val, ...props }: AppSidebarProps) =>{
         {/* <NavMain items={data.navMain} /> */}
         <NavProjects items={data.projects} main_id={main_id} val={val} />
       </SidebarContent>)}
-      <SidebarFooter className="flex gap-3 justify-between ">
+      {/* <SidebarFooter className="flex gap-3 justify-between ">
         <NavUser user={data.user} />
         <CurrUsers />
-      </SidebarFooter>
+      </SidebarFooter> */}
     </Sidebar>
   )
 }

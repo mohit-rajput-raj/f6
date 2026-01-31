@@ -2,24 +2,43 @@
   "$schema": "https://turborepo.com/schema.json",
   "ui": "tui",
   "tasks": {
-
-    "db:generate":{
+    "typecheck": {
+      "dependsOn": ["^typecheck"],
+      "outputs": []
+    },
+    "db:generate_": {
       "cache": false
     },
-    "db:migrate":{
+    "db:migrate_": {
       "cache": false,
       "persistent": true
     },
-    "db:reset":{
+    "db:deploy_": {
       "cache": false
     },
-    "db:deploy":{
+    "db:studio": {
       "cache": false
     },
+
+    "db:generate": {
+      "cache": false
+    },
+    "db:migrate": {
+      "cache": false,
+      "persistent": true
+    },
+    "db:reset": {
+      "cache": false
+    },
+    "db:deploy": {
+      "cache": false
+    },
+
     "build": {
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "outputs": [".next/**", "!.next/cache/**"]
+      "outputs": [".next/**", "!.next/cache/**"],
+      "env": ["DATABASE_URL"]
     },
     "lint": {
       "dependsOn": ["^lint"]

@@ -9,9 +9,12 @@
     "lint": "eslint"
   },
   "dependencies": {
-    "@clerk/nextjs": "^6.34.5",
     "@dnd-kit/modifiers": "^9.0.0",
+    "@orpc/client": "^1.13.4",
+    "@orpc/server": "^1.13.4",
+    "@repo/auth": "workspace:*",
     "@repo/db": "workspace:*",
+    "@repo/orpc": "workspace:*",
     "@repo/ui": "workspace:*",
     "@syncfusion/ej2-base": "^31.2.12",
     "@syncfusion/ej2-buttons": "^31.2.18",
@@ -29,9 +32,11 @@
     "@tanstack/react-table": "^8.21.3",
     "@xyflow/react": "^12.9.2",
     "axios": "^1.13.2",
+    "better-auth": "^1.4.18",
     "next": "16.0.1",
     "papaparse": "^5.5.3",
     "react": "19.2.0",
+    "react-content-loader": "^7.1.2",
     "react-dom": "19.2.0",
     "react-folder-tree": "^5.1.1",
     "react-spreadsheet": "^0.10.1"

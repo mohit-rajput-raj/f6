@@ -28,7 +28,6 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@repo/ui/components/ui/sidebar"
-import { SignedIn, UserButton } from "@clerk/nextjs"
 
 export function NavUser({
   user,
@@ -71,7 +70,7 @@ export function NavUser({
                   <AvatarFallback className="rounded-lg">CN</AvatarFallback>
                 </Avatar>
                 <div className="grid flex-1 text-left text-sm leading-tight">
-                  <CurrUsers />
+                  {/* <CurrUsers /> */}
                 </div>
               </div>
             </DropdownMenuLabel>
@@ -102,10 +101,10 @@ export function NavUser({
   )
 }
 
-export const CurrUsers =()=>{
-  return (
-    <SignedIn>
-                    <UserButton />
-                  </SignedIn>
-  )
-}
+// export const CurrUsers =()=>{
+//   return (
+//     <SignedIn>
+//                     <UserButton />
+//                   </SignedIn>
+//   )
+// }

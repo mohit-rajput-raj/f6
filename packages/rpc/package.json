@@ -1,0 +1,23 @@
+{
+  "name": "@repo/orpc",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.15.0",
+  "dependencies": {
+    "@orpc/client": "^1.13.4",
+    "@orpc/server": "^1.13.4",
+    "zod": "^4.1.12",
+    "@repo/db": "workspace:*",
+    "@repo/typescript-config": "workspace:*"
+  },
+  "exports":{
+        ".":"./src/index.ts"
+    }
+}

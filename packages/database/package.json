@@ -13,11 +13,13 @@
         "prisma": "^7.2.0"
     },
     "dependencies": {
+        "@neondatabase/serverless": "^1.0.2",
+        "@prisma/adapter-neon": "^7.3.0",
         "@prisma/adapter-pg": "^7.2.0",
         "@prisma/client": "^7.2.0",
         "dotenv": "^17.2.3"
     },
-    "exports":{
-        ".":"./src/index.ts"
+    "exports": {
+        ".": "./src/index.ts"
     }
 }

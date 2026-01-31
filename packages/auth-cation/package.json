@@ -1,0 +1,26 @@
+{
+  "name": "@repo/auth",
+  "type": "module",
+  "version": "0.0.0",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "with-env": "dotenv -e ./.env -- node dist/server.js"
+  },
+  "dependencies": {
+    
+    "@repo/db": "workspace:*",
+    "better-auth": "latest",
+    "dotenv": "^17.2.3",
+    "server-only": "0.0.1",
+    "@repo/typescript-config": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "dotenv-cli": "^11.0.0",
+    "typescript": "latest"
+  }
+}

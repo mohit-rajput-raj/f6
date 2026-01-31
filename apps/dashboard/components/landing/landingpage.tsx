@@ -12,7 +12,7 @@ export function SpotlightNewDemo() {
         </h1>
         <p className="mt-4 font-normal text-base text-neutral-300 max-w-lg text-center mx-auto">
           this is mini3 project for demonstrating a dashboard with react flow and
-          clerk authentication.
+          modern UI components.
         </p>
          <div className="flex gap-4 items-center flex-col sm:flex-row w-full justify-center mt-8">
                 <a
