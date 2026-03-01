@@ -8,3 +8,8 @@ export * from "@repo/ui/components/ui/separator";
 export * from "@repo/ui/components/ui/switch";
 export * from "@repo/ui/components/ui/textarea";
 export * from "@repo/ui/components/ui/tooltip";
+export * from "@repo/ui/components/ui/dialog";
+
+
+
+// export * from "@repo/ui/components/ui";

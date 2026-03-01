@@ -1,4 +1,4 @@
-import ProjectList from '@/components/projects/table'
+import { ProjectList } from '@/components/projects/table'
 import React from 'react'
 
 type Props = {}

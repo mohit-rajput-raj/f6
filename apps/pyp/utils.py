@@ -2,7 +2,7 @@ import pandas as pd
 
 
 
-def create_AttandanceFile(  df):
+def create_AttandanceFile(  df,):
   days = [col for col in df.columns if col not in ["Enrollment_No", "Name"]]
   attendance = []
   for i in range(len(df)):

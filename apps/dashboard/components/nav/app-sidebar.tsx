@@ -12,6 +12,7 @@ import {
   IconFolder,
   IconHelp,
   IconInnerShadowTop,
+  IconLamp,
   IconListDetails,
   IconPlugConnected,
   IconReport,
@@ -292,9 +293,19 @@ type AppSidebarProps = React.ComponentProps<typeof Sidebar> & {
 import { NavProjects } from "./nav-projects"
 import { ColapsebleNavMain } from "./colapseble-nave-main"
 import { BookOpen, Bot, Settings2, SquareTerminal } from "lucide-react"
+import { signOut } from "@/lib/auth-client"
+import { Button } from "@repo/ui/components/ui/button"
+import { usePathname, useRouter } from "next/navigation"
+import { useEditorStore } from "@/stores/user.store"
 export const  AppSidebar=({ val, ...props }: AppSidebarProps) =>{
-  console.log(val);
-  const {dash_id , main_id} = useRouteAuthContextHook();
+  // console.log(val);
+  const navigate = useRouter()
+  const {dash_id , main_id, setDashid} = useRouteAuthContextHook();
+  const dashid = usePathname().split("/")[3]
+  if(dashid){
+    setDashid(dashid)
+  }
+  
 
   
   return (
@@ -307,8 +318,9 @@ export const  AppSidebar=({ val, ...props }: AppSidebarProps) =>{
               className="data-[slot=sidebar-menu-button]:!p-1.5"
             >
               <a href="#">
-                <IconInnerShadowTop className="!size-5" />
-                <span className="text-base font-semibold">SGSITS.</span>
+                <IconLamp className="!size-5" />
+                {/* <IconInnerShadowTop className="!size-5" /> */}
+                <span className="text-base font-semibold">Machine</span>
               </a>
             </SidebarMenuButton>
           </SidebarMenuItem>
@@ -316,20 +328,24 @@ export const  AppSidebar=({ val, ...props }: AppSidebarProps) =>{
       </SidebarHeader>
      {val==="dashboard" && (
        <SidebarContent>
-        <NavMain items={data.navMain} dashid={dash_id}/>
-        <NavDocuments items={data.documents} val={val} dashid={dash_id} />
+        <NavMain items={data.navMain} dashid={dashid}/>
+        <NavDocuments items={data.documents} val={val} dashid={dashid} />
         <ColapsebleNavMain items={data.ColapseblenavMain} />
-        <NavSecondary items={data.navSecondary} dashid={dash_id} className="mt-auto" />
+        <NavSecondary items={data.navSecondary} dashid={dashid} className="mt-auto" />
       </SidebarContent>
      )}
      {val==="projects" && ( <SidebarContent>
         {/* <NavMain items={data.navMain} /> */}
         <NavProjects items={data.projects} main_id={main_id} val={val} />
       </SidebarContent>)}
-      {/* <SidebarFooter className="flex gap-3 justify-between ">
-        <NavUser user={data.user} />
-        <CurrUsers />
-      </SidebarFooter> */}
+      <SidebarFooter className="flex gap-3 justify-between ">
+        <Button asChild variant={'outline'}><button onClick={() => {
+          signOut();
+          navigate.push("/auth/sign-in");
+        }}>Sign out</button></Button>
+        {/* <NavUser user={data.user} /> */}
+        {/* <CurrUsers /> */}
+      </SidebarFooter>
     </Sidebar>
   )
 }

@@ -2,6 +2,8 @@
 import React, { useContext, useEffect, useState } from 'react'
 // import { useUser } from "@clerk/nextjs";
 import { Skeleton } from '@repo/ui/components/ui/skeleton';
+import { useSession } from '@/lib/auth-client';
+import { useEditorStore } from '@/stores/user.store';
 type InitialValuesProps = {
   main_id: string,
   dash_id: string,
@@ -27,12 +29,16 @@ const AuthRoutesIdProvider =({ children }: { children: React.ReactNode }) => {
   const isLoaded = true;
   const [main_id, setmainid] = useState<string>("0");
   const [dash_id, setDashid] = useState<string>("0");
+  const { data: session, isPending: isPending } = useSession();
 
-  // useEffect(() => {
-  //   if (isLoaded && user) {
-  //     setmainid(user.id);
-  //   }
-  // }, [isLoaded, user]);
+  useEffect(() => {
+    if(isPending){
+      return
+    }
+    if ( session?.user) {
+      setmainid(session?.user.id);
+    }
+  }, [session]);
 
   const values = { main_id, dash_id, setDashid, setmainid , isLoaded }
 

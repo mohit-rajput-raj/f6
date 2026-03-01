@@ -76,7 +76,7 @@ export function DrawerDemo() {
             <DrawerTitle>Move Goal</DrawerTitle>
             <DrawerDescription>Set your daily activity goal.</DrawerDescription>
           </DrawerHeader>
-          <div className="p-4 pb-0">
+          {/* <div className="p-4 pb-0">
             <div className="flex items-center justify-center space-x-2">
               <Button
                 variant="outline"
@@ -107,22 +107,8 @@ export function DrawerDemo() {
                 <span className="sr-only">Increase</span>
               </Button>
             </div>
-            <div className="mt-3 h-[120px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={data}>
-                  <Bar
-                    dataKey="goal"
-                    style={
-                      {
-                        fill: "hsl(var(--foreground))",
-                        opacity: 0.9,
-                      } as React.CSSProperties
-                    }
-                  />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
+            
+          </div> */}
           <DrawerFooter>
             <Button>Submit</Button>
             <DrawerClose asChild>

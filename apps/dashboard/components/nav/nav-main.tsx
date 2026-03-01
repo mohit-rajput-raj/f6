@@ -35,7 +35,7 @@ const {main_id} = useRouteAuthContextHook();
             <SidebarMenuButton
             onClick={()=>router.push(`/projects/${main_id}/projects`)}
               tooltip="Quick Create"
-              className=" cursor-pointer dark:bg-zinc-300 text-primary-foreground hover:text-primary-foreground active:bg-primary/90 active:text-primary-foreground min-w-8 duration-200 ease-linear"
+              className=" cursor-pointer bg-background text-foreground hover:text-foreground active:bg-primary/90 active:text-primary-foreground min-w-8 duration-200 ease-linear"
             >
               <IconCirclePlusFilled />
               <span>Quick Create</span>
