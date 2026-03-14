@@ -73,31 +73,31 @@ const data = {
       isActive: true,
       items: [
         {
-      name: "Data Library1",
-      url: "/data-library",
-      
-      icon: IconDatabase,
-    },
-     {
-      name: "Data Library2",
-      url: "/data-library",
-      
-      icon: IconDatabase,
-    },
-     {
-      name: "Data Library3",
-      url: "/data-library",
-      
-      icon: IconDatabase,
-    },
-     {
-      name: "Data Library4",
-      url: "/data-library",
-      
-      icon: IconDatabase,
-    },
-   
-    
+          name: "Data Library1",
+          url: "/data-library",
+
+          icon: IconDatabase,
+        },
+        {
+          name: "Data Library2",
+          url: "/data-library",
+
+          icon: IconDatabase,
+        },
+        {
+          name: "Data Library3",
+          url: "/data-library",
+
+          icon: IconDatabase,
+        },
+        {
+          name: "Data Library4",
+          url: "/data-library",
+
+          icon: IconDatabase,
+        },
+
+
       ],
     },
     {
@@ -106,34 +106,34 @@ const data = {
       icon: Bot,
       items: [
         {
-      name: "Data Library1",
-      url: "/data-library",
-      
-      icon: IconDatabase,
-    },
-     {
-      name: "Data Library2",
-      url: "/data-library",
-      
-      icon: IconDatabase,
-    },
-     {
-      name: "Data Library3",
-      url: "/data-library",
-      
-      icon: IconDatabase,
-    },
-     {
-      name: "Data Library4",
-      url: "/data-library",
-      
-      icon: IconDatabase,
-    },
-      
+          name: "Data Library1",
+          url: "/data-library",
+
+          icon: IconDatabase,
+        },
+        {
+          name: "Data Library2",
+          url: "/data-library",
+
+          icon: IconDatabase,
+        },
+        {
+          name: "Data Library3",
+          url: "/data-library",
+
+          icon: IconDatabase,
+        },
+        {
+          name: "Data Library4",
+          url: "/data-library",
+
+          icon: IconDatabase,
+        },
+
       ],
     },
-    
-    
+
+
   ],
   navMain: [
     {
@@ -266,29 +266,29 @@ const data = {
       icon: IconFileWord,
     },
     {
-      name:"Integration",
-      url:"/integration",
+      name: "Integration",
+      url: "/integration",
       icon: IconInnerShadowTop,
-      
+
     },
     {
-      name:"Settings",
-      url:"/settings",
+      name: "Settings",
+      url: "/settings",
       icon: IconSettings,
-      
+
     },
     {
-      name:"Plugins",
-      url:"/plugs",
+      name: "Plugins",
+      url: "/plugs",
       icon: IconPlugConnected,
-      
+
     },
-    
+
   ],
 }
 type AppSidebarProps = React.ComponentProps<typeof Sidebar> & {
   val: string;
-  
+
 };
 import { NavProjects } from "./nav-projects"
 import { ColapsebleNavMain } from "./colapseble-nave-main"
@@ -297,17 +297,31 @@ import { signOut } from "@/lib/auth-client"
 import { Button } from "@repo/ui/components/ui/button"
 import { usePathname, useRouter } from "next/navigation"
 import { useEditorStore } from "@/stores/user.store"
-export const  AppSidebar=({ val, ...props }: AppSidebarProps) =>{
+export const AppSidebar = ({ val, ...props }: AppSidebarProps) => {
   // console.log(val);
+  const pathname = usePathname(); // ← Call ONCE at top level
   const navigate = useRouter()
-  const {dash_id , main_id, setDashid} = useRouteAuthContextHook();
-  const dashid = usePathname().split("/")[3]
-  if(dashid){
-    setDashid(dashid)
-  }
-  
+  // Derive dashid with useMemo → stable reference if pathname doesn't change
+  const dashid = React.useMemo(() => {
+    const segments = pathname.split("/");
+    return segments[2] === "dash" ? segments[3] || "0" : "0";
+  }, [pathname]); // ← only recompute when pathname actually changes
 
-  
+  const { setDashid, main_id } = useRouteAuthContextHook(); // assuming you don't need dash_id/main_id here
+
+  React.useEffect(() => {
+    // Only set if there's a real value (prevents unnecessary sets)
+    if (dashid && dashid !== "0") {
+      setDashid(dashid);
+    }
+    // Optional: log only in dev to debug
+    if (process.env.NODE_ENV === "development") {
+      console.log("dashid updated:", dashid);
+    }
+  }, [dashid, setDashid]);
+
+
+
   return (
     <Sidebar collapsible="offcanvas" {...props}>
       <SidebarHeader>
@@ -326,15 +340,15 @@ export const  AppSidebar=({ val, ...props }: AppSidebarProps) =>{
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>
-     {val==="dashboard" && (
-       <SidebarContent>
-        <NavMain items={data.navMain} dashid={dashid}/>
-        <NavDocuments items={data.documents} val={val} dashid={dashid} />
-        <ColapsebleNavMain items={data.ColapseblenavMain} />
-        <NavSecondary items={data.navSecondary} dashid={dashid} className="mt-auto" />
-      </SidebarContent>
-     )}
-     {val==="projects" && ( <SidebarContent>
+      {val === "dashboard" && (
+        <SidebarContent>
+          <NavMain items={data.navMain} dashid={dashid} />
+          <NavDocuments items={data.documents} val={val} dashid={dashid} />
+          <ColapsebleNavMain items={data.ColapseblenavMain} />
+          <NavSecondary items={data.navSecondary} dashid={dashid} className="mt-auto" />
+        </SidebarContent>
+      )}
+      {val === "projects" && (<SidebarContent>
         {/* <NavMain items={data.navMain} /> */}
         <NavProjects items={data.projects} main_id={main_id} val={val} />
       </SidebarContent>)}

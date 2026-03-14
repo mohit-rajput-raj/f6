@@ -24,6 +24,7 @@ export type Connection = {
 }
 
 export type EditorCanvasTypes =
+|'FilterNode'
   | 'Email'
   | 'Condition'
   | 'AI'

@@ -7,7 +7,9 @@
     "lint": "turbo lint",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "ui": "pnpm --filter @repo/ui ui",
-    "check-types": "turbo run check-types"
+    "check-types": "turbo run check-types",
+    "clean:turbo": "rm -rf node_modules/.cache/turbo .turbo/cache",
+    "clean": "pnpm clean:turbo && rm -rf node_modules .next dist"
   },
   "devDependencies": {
     "@repo/eslint-config": "workspace:*",

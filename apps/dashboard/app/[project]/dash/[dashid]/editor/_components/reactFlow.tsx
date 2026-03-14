@@ -10,8 +10,8 @@ import {
   applyEdgeChanges,
   applyNodeChanges,
   ReactFlowInstance,
+  Connection,
 } from "@xyflow/react";
-
 import "@xyflow/react/dist/style.css";
 import { IconFileText } from "@tabler/icons-react";
 import { he } from "zod/locales";
@@ -25,11 +25,11 @@ import { OutputNode } from "./nodes/output-node";
 import { InputFileNode } from "./nodes/input-nodes/inputfile";
 import { InputImage } from "./nodes/input-nodes/input-image";
 import { InputText } from "./nodes/input-nodes/text-input";
-import { FilterCsvNode } from "./nodes/calcy-nodes/filter-node";
 import { usePathname } from "next/navigation";
 import { EditorCanvasCardType } from "@/lib/types";
 import { toast } from "sonner";
 export const nodeTypes = {
+  FilterNode:FilterNode,
   InputImage:InputImage,
   TextInputNode:TextInputNode,
   FilterCsvNode:EditorCanvasCardSingle,
@@ -52,10 +52,13 @@ import EditorCanvasCardSingle from "./nodes/input-nodes/canvas-card";
 import { CamelCaseNode, TextInputNode } from "./nodes/input-nodes/test-nodes";
 import { OutputNode2 } from "./nodes/output-nodes/textoutput";
 import { LowercaseNode } from "./nodes/calcy-nodes/lowercase";
+import { FilterNode } from "./nodes/calcy-nodes/filter-node";
+import { debounce } from "./nodes/executions/functions";
 
-const Flow = () => {
+const Flow = ({ handleRuns }: { handleRuns: () => void }) => {
   const nodeTypess = useMemo(
     () => ({
+      FilterNode:FilterNode,
       OutputNode2:OutputNode2,
       LowercaseNode:LowercaseNode,
 
@@ -73,6 +76,7 @@ const Flow = () => {
     }),
     []
   )
+  const debouncedRun = debounce(handleRuns, 800);
   const { minimapOpen } = useUIStore();
 // const [nodes, setNodes] = useState(initialNodes)
 //   const [edges, setEdges] = useState(initialEdges)
@@ -94,6 +98,7 @@ const Flow = () => {
    const onConnect = useCallback(
     (connection : any) => {
       setEdges((oldEdges) => addEdge(connection, oldEdges));
+      debouncedRun();
     },
     [setEdges],
   );
@@ -125,9 +130,7 @@ const Flow = () => {
         return
       }
 
-      // reactFlowInstance.project was renamed to reactFlowInstance.screenToFlowPosition
-      // and you don't need to subtract the reactFlowBounds.left/top anymore
-      // details: https://reactflow.dev/whats-new/2023-11-10
+    
       if (!reactFlowInstance) return
       const position = reactFlowInstance.screenToFlowPosition({
         x: event.clientX,
@@ -175,7 +178,31 @@ const Flow = () => {
 useEffect(() => {
     dispatch({ type: 'LOAD_DATA', payload: { edges, elements: nodes } })
   }, [nodes, edges])
+  const isValidConnection = useCallback((connection: Connection) => {
+    const { source, target, sourceHandle, targetHandle } = connection;
 
+    const sourceNode = nodes.find(n => n.id === source);
+    const targetNode = nodes.find(n => n.id === target);
+
+    if (!sourceNode || !targetNode) return false;
+
+    if (source === target) return false;
+    if (
+      sourceNode.type === 'InputFile' &&
+      targetNode.type === 'OutputNode2'
+    ) {
+      return false;
+    }
+    if (
+      sourceNode.type === 'InputFile' && 
+      !['filter', 'sort', 'aggregate', 'export'].includes(targetNode.type || '')
+    ) {
+      return false;
+    }
+
+    
+    return true;
+  }, [nodes, edges]);
   return (
     <div className="w-full h-[100%]">
       <ContextMenuDemo>
@@ -183,6 +210,7 @@ useEffect(() => {
 
       <ReactFlow
         // nodes={nodes}
+        
         edges={edges}
         onDrop={onDrop}
         onDragOver={onDragOver}
@@ -193,7 +221,11 @@ useEffect(() => {
         onConnect={onConnect}
         onClick={handleClickCanvas}
         onInit={setReactFlowInstance}
+        // isValidConnection={isValidConnection}
+        // isValidConnection={}
         fitView
+        minZoom={0.5}  
+        maxZoom={3}
         >
         <Background />
         <Controls className="dark:text-zinc-800" />

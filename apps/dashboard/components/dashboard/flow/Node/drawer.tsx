@@ -15,6 +15,8 @@ import {
   DrawerTitle,
   DrawerTrigger,
 } from "@repo/ui/components/ui/drawer"
+import { useReactFlow } from "@xyflow/react"
+import { useCallback } from "react"
 
 const data = [
   {
@@ -58,8 +60,13 @@ const data = [
   },
 ]
 
-export function DrawerDemo() {
+export function DrawerDemo({data}: {data: string}) {
+  if (!data) return null;
   const [goal, setGoal] = React.useState(350)
+  const [text, setText] = React.useState('')
+  const { setNodes } = useReactFlow();
+  
+    
 
   function onClick(adjustment: number) {
     setGoal(Math.max(200, Math.min(400, goal + adjustment)))
@@ -76,40 +83,10 @@ export function DrawerDemo() {
             <DrawerTitle>Move Goal</DrawerTitle>
             <DrawerDescription>Set your daily activity goal.</DrawerDescription>
           </DrawerHeader>
-          {/* <div className="p-4 pb-0">
-            <div className="flex items-center justify-center space-x-2">
-              <Button
-                variant="outline"
-                size="icon"
-                className="h-8 w-8 shrink-0 rounded-full"
-                onClick={() => onClick(-10)}
-                disabled={goal <= 200}
-              >
-                <Minus />
-                <span className="sr-only">Decrease</span>
-              </Button>
-              <div className="flex-1 text-center">
-                <div className="text-7xl font-bold tracking-tighter">
-                  {goal}
-                </div>
-                <div className="text-muted-foreground text-[0.70rem] uppercase">
-                  Calories/day
-                </div>
-              </div>
-              <Button
-                variant="outline"
-                size="icon"
-                className="h-8 w-8 shrink-0 rounded-full"
-                onClick={() => onClick(10)}
-                disabled={goal >= 400}
-              >
-                <Plus />
-                <span className="sr-only">Increase</span>
-              </Button>
-            </div>
-            
-          </div> */}
-          <DrawerFooter>
+         <DrawerContent className="p-10 max-h-[400px] overflow-y-auto ">
+          {data}
+         </DrawerContent>
+          <DrawerFooter className="absolute bottom-0 left-0 right-0">
             <Button>Submit</Button>
             <DrawerClose asChild>
               <Button variant="outline">Cancel</Button>

@@ -6,15 +6,15 @@ import React from "react";
 import ProjectList from "./table";
 import Team from "@/components/dashboard/sheet/syncSheet";
 
+
 const Files = () => {
   const [file, setFile] = React.useState<File | null>(null);
-const [resdata, setRes] = React.useState<any[]>([]);
+  const [resdata, setRes] = React.useState<any[]>([]);
 
 
   const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFile(e.target.files?.[0] || null);
   };
-
   const onUpload = async () => {
     if (!file) {
       alert("Please select a file first!");
@@ -32,7 +32,7 @@ const [resdata, setRes] = React.useState<any[]>([]);
 
     setRes(res.data);
     console.log(resdata);
-    
+
   };
 
   const hello = async () => {
@@ -47,10 +47,10 @@ const [resdata, setRes] = React.useState<any[]>([]);
       <input type="file" onChange={onFileChange} />
       <Button onClick={hello}>hello</Button> */}
       {/* <button onClick={onUpload}>Upload</button> */}
-      <Team/>
-      <div className="p-3 w-full h-full overflow-auto">
+      <Team />
+      {/* <div className="p-3 w-full h-full overflow-auto">
         <ProjectList data={resdata} />
-      </div>
+      </div> */}
     </div>
   );
 };

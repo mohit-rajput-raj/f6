@@ -10,11 +10,11 @@ export const OutputNode2 = memo(({ data }: { data: NodeData }) => {
         Output Display
       </div>
 
-      <div className="p-6 min-h-[140px] flex items-center justify-center">
+      <div className="p-6 min-h-[140px]  flex items-center justify-center">
         {data.result ? (
-          <div className="text-center">
+          <div className="text-center overflow-y-scroll">
             <div className="text-xs uppercase tracking-widest text-emerald-600 mb-1">RESULT</div>
-            <div className="font-mono text-lg bg-gray-50 p-4 rounded border border-emerald-200 break-all">
+            <div className="font-mono max-h-[140px] overflow-y-auto text-lg bg-gray-50 p-4 rounded border border-emerald-200 break-all">
               {data.result}
             </div>
           </div>

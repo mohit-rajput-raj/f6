@@ -108,6 +108,7 @@ export type Connection = {
 }
 
 export type EditorCanvasTypes =
+|'FilterNode'
   | 'TextInputNode' 
   | 'CamelCaseNode' | 'OutputNode2' |'LowercaseNode'
   | 'InputImage'

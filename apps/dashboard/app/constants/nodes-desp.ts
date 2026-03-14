@@ -1,4 +1,5 @@
 export const EditorCanvasDefaultCardTypes = {
+  FilterNode: { type: 'Action', description: 'Filter data' },
   InputImage: { type: 'Action', description: 'Send a notification to slack' },
   TextInputNode: { type: 'Action', description: 'Send a notification to slack' },
   CamelCaseNode: { type: 'Action', description: 'Send a notification to slack' },

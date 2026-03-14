@@ -1,6 +1,6 @@
 'use client'
-import { memo, useEffect, useState } from "react";
-import { Handle, Position } from "@xyflow/react";
+import { memo, useCallback, useEffect, useState } from "react";
+import { Handle, Position, useReactFlow } from "@xyflow/react";
 import { Rocket } from "lucide-react";
 import { Upload, FileText, Image, Video, X } from "lucide-react";
 import { useRef } from "react";
@@ -15,23 +15,32 @@ import { NodeMenu } from "../node-menu";
 import { IconTrash } from "@tabler/icons-react";
 import { useDeleteNode } from "../settings/triggers";
 import api from "@/lib/axios";
+import { NodeData } from "./test-nodes";
 
 
-export const InputFileNode = memo(() => {
+export const InputFileNode = memo(({ data, id }: { data: NodeData; id: string }) => {
   const [file, setFile] = useState<File | null>(null);
   const handleDelete = useDeleteNode();
-
+const { setNodes } = useReactFlow();
   useEffect(() => {
     if(!file) return;
     const form = new FormData();
     form.append("file", file);
     const res =async () => {
-      const data = await api.post("/process-csv-json",form);
+      const data = await api.post("/process-json-stream",form);
+      updateText(data.data);
       console.log(data);
     };
     res();
     
   }, [file]);
+  const updateText = useCallback((newText: string) => {
+      setNodes((nds) =>
+        nds.map((node) =>
+          node.id === id ? { ...node, data: { ...node.data, text: newText } } : node
+        )
+      );
+    }, [id, setNodes]);
 
   return (
     <>
