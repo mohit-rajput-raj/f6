@@ -6,17 +6,17 @@ import { ErrorBoundary } from "react-error-boundary";
 import DemoCamelCaseFlow from "./_components/nodes/input-nodes/test-nodes";
 
 type Props = {
-  params: Promise<{ 
-    project: string; 
+  params: Promise<{
+    project: string;
     dashid: string;
   }>;
 };
 
 const Page = async ({ params }: Props) => {
   const resolvedParams = await params;
-  const id = resolvedParams.dashid; 
-  
-  
+  const id = resolvedParams.dashid;
+
+
   if (!id) {
     return <div>Invalid dashboard ID</div>;
   }
@@ -25,10 +25,9 @@ const Page = async ({ params }: Props) => {
     <div className="w-full h-screen p-1 flex flex-col gap-1">
       <ErrorBoundary fallback={<p>Something went wrong</p>}>
         <Suspense fallback={<p>Loading workflow...</p>}>
-          <EditorWorkFlowContextProvider>
-            <WorkFlowEditor  />
-           
-          </EditorWorkFlowContextProvider>
+
+          <WorkFlowEditor />
+
         </Suspense>
       </ErrorBoundary>
     </div>

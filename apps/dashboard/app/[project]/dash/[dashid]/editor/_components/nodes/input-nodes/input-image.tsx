@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useState, useRef, useEffect, useCallback } from "react";
+import { memo, useState, useRef, useEffect } from "react";
 import { Handle, Position, useNodeId } from "@xyflow/react";
 import { Image as ImageIcon, Upload, X } from "lucide-react";
 import { Button } from "@repo/ui/components/ui/button";
@@ -14,31 +14,18 @@ import {
 import { NodeMenu } from "../node-menu";
 import { IconTrash } from "@tabler/icons-react";
 import { useDeleteNode } from "../settings/triggers";
-import { useEditorWorkFlow } from "@/context/WorkFlowContextProvider";
 
 export const InputImage = memo(() => {
   const [file, setFile] = useState<File | null>(null);
   const handleDelete = useDeleteNode();
-const { dispatch, state } = useEditorWorkFlow()
-const nodeId = useNodeId()
+
   return (
     <>
       <div className="flex justify-between items-center ">
         <NodeMenu />
         <IconTrash className="size-4 cursor-pointer p-0 text-red-300" onClick={handleDelete} />
       </div>
-      <BaseNode
-      onClick={(e) => {
-          e.stopPropagation()
-          const val = state.editor.elements.find((n) => n.id === nodeId)
-          if (val)
-            dispatch({
-              type: 'SELECTED_ELEMENT',
-              payload: {
-                element: val,
-              },
-            })
-        }}>
+      <BaseNode>
         <BaseNodeHeader className="border-b flex items-center gap-2">
           <ImageIcon className="size-4" />
           <BaseNodeHeaderTitle>Input Image</BaseNodeHeaderTitle>
@@ -55,7 +42,6 @@ const nodeId = useNodeId()
 });
 
 InputImage.displayName = "InputImage";
-
 
 type ImageInputProps = {
   file: File | null;

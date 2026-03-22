@@ -13,7 +13,7 @@ type InitialValuesProps = {
 }
 
 const InitialValues: InitialValuesProps = {
-  main_id: "0",
+  main_id: "0", 
   dash_id: "0",
   setDashid: () => undefined,
   setmainid: () => undefined,

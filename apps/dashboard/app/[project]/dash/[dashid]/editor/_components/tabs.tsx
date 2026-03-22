@@ -14,20 +14,16 @@ import { useCallback, useState } from "react"
 export function TabsDemo() {
   return (
     <div className="flex w-full h-full flex-col gap-6 ">
-      <Tabs defaultValue="account">
+      <Tabs defaultValue="node">
         <TabsList>
-          <TabsTrigger value="account">Editor Settings</TabsTrigger>
-          <TabsTrigger value="node">nodes</TabsTrigger>
-          <TabsTrigger value="nodes">nodes</TabsTrigger>
+          <TabsTrigger value="account">Settings</TabsTrigger>
+          <TabsTrigger value="node">Nodes</TabsTrigger>
         </TabsList>
         <TabsContent value="account">
           <PanelSettings />
         </TabsContent>
         <TabsContent value="node">
           <ItemImage />
-        </TabsContent>
-        <TabsContent value="nodes">
-          <TabsNodesOnly />
         </TabsContent>
       </Tabs>
     </div>
@@ -60,10 +56,12 @@ export function TabsNodesOnly() {
   };
   return (
     <div className="flex w-full h-full flex-col gap-6 ">
-      <Tabs defaultValue="input">
+      <Tabs defaultValue="Input">
         <TabsList>
           <TabsTrigger value="Input">Input</TabsTrigger>
-          <TabsTrigger value="Process">Process</TabsTrigger>
+          <TabsTrigger value="Transform">Transform</TabsTrigger>
+          <TabsTrigger value="Math">Math</TabsTrigger>
+          <TabsTrigger value="Combine">Combine</TabsTrigger>
           <TabsTrigger value="Output">Output</TabsTrigger>
         </TabsList>
         {
@@ -110,12 +108,25 @@ import {
   ItemTitle,
 } from "@repo/ui/components/ui/item"
 import { PanelSettings } from "./panel-settings";
-import { Node, useReactFlow } from "@xyflow/react";
 import { useEditorWorkFlow } from "@/context/WorkFlowContextProvider";
 import React from "react";
-import { nodeTypes } from "./reactFlow";
-import { IconCalculator, IconFile, IconPencil, IconTextCaption } from "@tabler/icons-react";
-import { description } from "@/components/nav/chart-area-interactive";
+import {
+  IconArrowsSort,
+  IconCalculator,
+  IconChartBar,
+  IconColumns3,
+  IconFile,
+  IconFileExport,
+  IconFileText,
+  IconFilter,
+  IconGitMerge,
+  IconMathFunction,
+  IconPencil,
+  IconRowInsertBottom,
+  IconTextCaption,
+  IconTransform,
+  IconTypography,
+} from "@tabler/icons-react";
 import { EditorCanvasTypes } from "@/lib/types";
 import {
   Accordion,
@@ -130,95 +141,132 @@ const nodes = [
     title: "Input",
     types: [
       {
-        title: "File",
+        title: "File Input",
         type: "InputFileNode",
         icon: <IconFile />,
-        description: "add file",
+        description: "Upload .xlsx/.csv file",
       },
       {
-        title: "Text",
-        type: "InputText",
-        icon: <IconPencil />,
-        description: "add text",
-      },
-      {
-        title: "Image",
-        type: "InputImage",
-        icon: <IconPencil />,
-        description: "add image",
-      },
-      {
-        title: "Text",
+        title: "Text Input",
         type: "TextInputNode",
         icon: <IconPencil />,
-        description: "add text",
-      }
+        description: "Enter text data",
+      },
     ]
-
-
   },
   {
-    title: "Process",
+    title: "Transform",
     types: [
       {
-        title: "File",
-        type: "baseNodebar",
-        icon: <IconFile />,
-        description: "add file",
-      },
-      {
-        title: "Text",
-        type: "CamelCaseNode",
-        icon: <IconPencil />,
-        description: "add text",
-      }, {
-        title: "Calculation",
+        title: "Filter",
         type: "FilterNode",
-        icon: <IconCalculator />,
-        description: "add text",
+        icon: <IconFilter />,
+        description: "Filter rows by condition",
       },
       {
-        title: "LowercaseNode",
+        title: "Sort",
+        type: "SortNode",
+        icon: <IconArrowsSort />,
+        description: "Sort by column",
+      },
+      {
+        title: "Rename Column",
+        type: "RenameColumnNode",
+        icon: <IconTypography />,
+        description: "Rename a column",
+      },
+      {
+        title: "Select Columns",
+        type: "SelectColumnsNode",
+        icon: <IconColumns3 />,
+        description: "Pick or drop columns",
+      },
+      {
+        title: "Uppercase",
+        type: "CamelCaseNode",
+        icon: <IconTransform />,
+        description: "Convert to camelCase",
+      },
+      {
+        title: "Lowercase",
         type: "LowercaseNode",
-        icon: <IconPencil />,
-        description: "add text",
-      }
+        icon: <IconTransform />,
+        description: "Convert to lowercase",
+      },
+    ]
+  },
+  {
+    title: "Math",
+    types: [
+      {
+        title: "Math (Column)",
+        type: "MathColumnNode",
+        icon: <IconCalculator />,
+        description: "Add/Sub/Mul/Div on column",
+      },
+      {
+        title: "Math (Row)",
+        type: "MathRowNode",
+        icon: <IconRowInsertBottom />,
+        description: "Sum/Avg/Min/Max across rows",
+      },
+      {
+        title: "Formula",
+        type: "FormulaNode",
+        icon: <IconMathFunction />,
+        description: "Custom formula expression",
+      },
+      {
+        title: "Aggregate",
+        type: "AggregateNode",
+        icon: <IconChartBar />,
+        description: "Group by + aggregate",
+      },
+    ]
+  },
+  {
+    title: "Combine",
+    types: [
+      {
+        title: "Merge / Join",
+        type: "MergeNode",
+        icon: <IconGitMerge />,
+        description: "Join two datasets",
+      },
     ]
   },
   {
     title: "Output",
     types: [
       {
-        title: "File",
-        type: "baseOutput",
-        icon: <IconFile />,
-        description: "add file",
-      },
-      {
-        title: "Text",
-        type: "baseOutput",
-        icon: <IconPencil />,
-        description: "add text",
-      },
-      {
-        title: "Text",
+        title: "Text Output",
         type: "OutputNode2",
         icon: <IconTextCaption />,
-        description: "add text",
-      }
+        description: "Display text/data result",
+      },
+      {
+        title: "File Output",
+        type: "FileOutputNode",
+        icon: <IconFileExport />,
+        description: "Export as CSV file",
+      },
+      {
+        title: "Output Display",
+        type: "baseOutput",
+        icon: <IconFileText />,
+        description: "Basic output display",
+      },
     ]
   }
-
 ]
 
 
 
-
-
 export function ItemImage() {
-  const { setNodes } = useEditorWorkFlow();
+  const { setNodes, pushHistory } = useEditorWorkFlow();
 
   const onItemClick = (type: string) => {
+    pushHistory();
     setNodes((nodes) => [
       ...nodes,
       {
@@ -242,7 +290,7 @@ export function ItemImage() {
 
   return (
     <div className="w-full max-w-md px-1">
-      <Accordion type="multiple" className="w-full">
+      <Accordion type="multiple" defaultValue={["Input", "Transform", "Math", "Combine", "Output"]} className="w-full">
         {nodes.map((group) => (
           <AccordionItem
             key={group.title}
@@ -253,12 +301,12 @@ export function ItemImage() {
             </AccordionTrigger>
 
             <AccordionContent>
-              <div className="flex flex-col gap-3">
+              <div className="flex flex-col gap-2">
                 {group.types.map((item, i) => (
                   <button
                     key={i}
                     onClick={() => onItemClick(item.type)}
-                    className="flex items-center gap-3 rounded-md border p-3 text-left hover:bg-muted transition"
+                    className="flex items-center gap-3 rounded-md border p-2.5 text-left hover:bg-muted transition"
                   >
                     <span className="text-muted-foreground">
                       {item.icon}
