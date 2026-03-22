@@ -54,16 +54,7 @@ const data = {
       url: "/data-library",
       icon: IconDatabase,
     },
-    {
-      name: "Data Library",
-      url: "/data-library",
-      icon: IconDatabase,
-    },
-    {
-      name: "Data Library",
-      url: "/data-library",
-      icon: IconDatabase,
-    },
+
   ],
   ColapseblenavMain: [
     {
@@ -72,18 +63,7 @@ const data = {
       icon: SquareTerminal,
       isActive: true,
       items: [
-        {
-          name: "Data Library1",
-          url: "/data-library",
 
-          icon: IconDatabase,
-        },
-        {
-          name: "Data Library2",
-          url: "/data-library",
-
-          icon: IconDatabase,
-        },
         {
           name: "Data Library3",
           url: "/data-library",
@@ -344,7 +324,7 @@ export const AppSidebar = ({ val, ...props }: AppSidebarProps) => {
         <SidebarContent>
           <NavMain items={data.navMain} dashid={dashid} />
           <NavDocuments items={data.documents} val={val} dashid={dashid} />
-          <ColapsebleNavMain items={data.ColapseblenavMain} />
+          <ColapsebleNavMain items={data.ColapseblenavMain} main_id={dashid} />
           <NavSecondary items={data.navSecondary} dashid={dashid} className="mt-auto" />
         </SidebarContent>
       )}

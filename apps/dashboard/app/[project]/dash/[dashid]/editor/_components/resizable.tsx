@@ -15,10 +15,10 @@ import { useSession } from "@/lib/auth-client";
 import { usegetWorkFlow } from "../_actions/editor.queryes";
 import { useParams } from "next/navigation";
 import { executeWorkflow } from "./nodes/executions/nodeExecutions";
-import { useEdgesState, useNodesState } from "@xyflow/react";
 import React from "react";
 import { TabsBottom } from "./tabsBottom";
 import { SidebarTrigger } from "@repo/ui/components/ui/sidebar";
+
 export function WorkFlowEditor() {
   const params = useParams();
   const flowId = params?.dashid as string | undefined;
@@ -34,15 +34,18 @@ export function WorkFlowEditor() {
     );
   }
 
-
   const { data: s, isLoading } = usegetWorkFlow(flowId);
-  const { setSidebarOpen, sidebarOpen, bottombarOpen, setBottombarOpen } = useUIStore();
+  const { setSidebarOpen, sidebarOpen, bottombarOpen, setBottombarOpen } =
+    useUIStore();
   const { data: session, isPending } = useSession();
-  const { edges, nodes, setEdges, setNodes, state, dispatch, handleRun } = useEditorWorkFlow()
+  const { edges, nodes, setEdges, setNodes, undo, redo, canUndo, canRedo, pushHistory } =
+    useEditorWorkFlow();
   const [isRunning, setIsRunning] = React.useState(false);
+
   if (isLoading || isPending) {
     return <p className="p-10">Loading workflow...</p>;
   }
+
   const handleRuns = async () => {
     setIsRunning(true);
     try {
@@ -52,34 +55,41 @@ export function WorkFlowEditor() {
     }
   };
 
-  const userId = session?.user?.id;
-  const id = session?.user?.id
-
   return (
     <>
       <div className="flex justify-between">
         <div className="flex gap-1">
           <SidebarTrigger className="-ml-1" />
           <SheetDemo />
-          <Button onClick={handleRun}>
-            Fetch
+          <Button onClick={handleRuns} disabled={isRunning}>
+            {isRunning ? "Running..." : "▶ Execute"}
           </Button>
-          <Button onClick={handleRuns}>
-            Execute
+          <Button
+            variant="outline"
+            onClick={undo}
+            disabled={!canUndo}
+          >
+            Undo
           </Button>
-          <Button onClick={() => dispatch({ type: "UNDO" })}>
-            undo
+          <Button
+            variant="outline"
+            onClick={redo}
+            disabled={!canRedo}
+          >
+            Redo
           </Button>
-          <Button onClick={() => dispatch({ type: "REDO" })}>
-            redo
-          </Button>
-
         </div>
         <div>
-          <Button variant={"ghost"} onClick={() => setSidebarOpen(!sidebarOpen)}>
+          <Button
+            variant={"ghost"}
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+          >
             <IconDirectionHorizontal />
           </Button>
-          <Button variant={"ghost"} onClick={() => setBottombarOpen(!bottombarOpen)}>
+          <Button
+            variant={"ghost"}
+            onClick={() => setBottombarOpen(!bottombarOpen)}
+          >
             <IconDirectionHorizontal className="rotate-z-90" />
           </Button>
         </div>
@@ -120,7 +130,12 @@ export function WorkFlowEditor() {
         <ResizableHandle />
 
         {/* BOTTOM PANEL */}
-        <ResizablePanel defaultSize={30} minSize={10} maxSize={100} className={`${bottombarOpen ? "hidden" : ""}`}>
+        <ResizablePanel
+          defaultSize={30}
+          minSize={10}
+          maxSize={100}
+          className={`${bottombarOpen ? "hidden" : ""}`}
+        >
           <div className="flex h-full w-full p-1 min-w-[250px]">
             <TabsBottom />
           </div>

@@ -5,29 +5,9 @@ import CustomHandle from '../custom-hook'
 import { Card, CardDescription, CardHeader, CardTitle } from '@repo/ui/components/ui/card'
 import { Badge } from 'lucide-react'
 import { cn } from '@repo/ui/lib/utils'
-// import { useEditor } from '@/providers/editor-provider'
-// import React, { useMemo } from 'react'
-// import { Position, useNodeId } from 'reactflow'
-// import EditorCanvasIconHelper from './editor-canvas-card-icon-hepler'
-// import CustomHandle from './custom-handle'
-// import { Badge } from '@/components/ui/badge'
-
-// import {
-//   Card,
-//   CardDescription,
-//   CardHeader,
-//   CardTitle,
-// } from '@/components/ui/card'
-// import clsx from 'clsx'
-
-type Props = {}
 
 const EditorCanvasCardSingle = ({ data }: { data: EditorCanvasCardType }) => {
-  const { dispatch, state } = useEditorWorkFlow()
   const nodeId = useNodeId()
-//   const logo = useMemo(() => {
-//     return <EditorCanvasIconHelper type={data.type} />
-//   }, [data])
 
   return (
     <>
@@ -39,18 +19,7 @@ const EditorCanvasCardSingle = ({ data }: { data: EditorCanvasCardType }) => {
         />
       )}
       <Card
-        onClick={(e) => {
-          e.stopPropagation()
-          const val = state.editor.elements.find((n) => n.id === nodeId)
-          if (val)
-            dispatch({
-              type: 'SELECTED_ELEMENT',
-              payload: {
-                element: val,
-              },
-            })
-        }}
-        className="relative  dark:border-muted-foreground/70"
+        className="relative dark:border-muted-foreground/70"
       >
         <CardHeader className="flex flex-row items-center gap-4">
           <div>logo</div>
@@ -66,7 +35,6 @@ const EditorCanvasCardSingle = ({ data }: { data: EditorCanvasCardType }) => {
           </div>
         </CardHeader>
         <Badge
-        //   variant="secondary"
           className="absolute right-2 top-2"
         >
           {data.type}

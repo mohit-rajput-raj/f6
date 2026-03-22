@@ -6,44 +6,49 @@ import React from 'react'
 import { auth } from "@repo/auth";
 import { redirect } from "next/navigation";
 import { headers } from 'next/headers';
+import { EditorWorkFlowContextProvider } from '@/context/WorkFlowContextProvider';
 interface LayoutProps {
   children: React.ReactNode;
   params: Promise<{ project: string }>
 }
 
- const  layout=async({ children, params }: LayoutProps)=> {
+const layout = async ({ children, params }: LayoutProps) => {
   const session = await auth.api.getSession({
-    headers: await headers(),  
+    headers: await headers(),
   });
 
   if (!session?.user) {
     redirect("/auth/sign-in");
   }
-  const { project   } =await params;
+  const { project } = await params;
   console.log(project);
-  
+
 
 
   return (
-    <SidebarProvider
-      style={{
-        "--sidebar-width": "calc(var(--spacing) * 62)",
-        "--header-height": "calc(var(--spacing) * 12)",
-      } as React.CSSProperties}
-    >
-        <AppSidebar  val={project} />
-  <SidebarInset>
-        <SiteHeader />
-        <div className="flex flex-1 flex-col">
-          <div className="@container/main flex flex-1 flex-col gap-2">
-            <div className="flex flex-col max-h-screen ">
-              {children}
+    <EditorWorkFlowContextProvider>
+
+      <SidebarProvider
+        style={{
+          "--sidebar-width": "calc(var(--spacing) * 62)",
+          "--header-height": "calc(var(--spacing) * 12)",
+        } as React.CSSProperties}
+      >
+        <AppSidebar val={project} />
+        <SidebarInset>
+          <SiteHeader />
+          <div className="flex flex-1 flex-col">
+            <div className="@container/main flex flex-1 flex-col gap-2">
+              <div className="flex flex-col max-h-screen ">
+
+                {children}
+              </div>
             </div>
           </div>
-        </div>
-      </SidebarInset>
-      
-    </SidebarProvider>
+        </SidebarInset>
+
+      </SidebarProvider>
+    </EditorWorkFlowContextProvider>
   );
 }
 export default layout

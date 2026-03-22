@@ -30,13 +30,13 @@ import React from "react"
 
 export function NavDocuments({
   items,
-  val ,
+  val,
   main_id,
   dashid
 }: {
-  dashid?:string,
-  main_id?:string,
-  val?:string,
+  dashid?: string,
+  main_id?: string,
+  val?: string,
   items: {
     name: string
     url: string
@@ -47,18 +47,18 @@ export function NavDocuments({
   const router = useRouter();
 
 
-  
+
   return (
     <SidebarGroup className="group-data-[collapsible=icon]:hidden">
       <SidebarGroupLabel>Documents</SidebarGroupLabel>
       <SidebarMenu>
         {items.map((item) => (
           <SidebarMenuItem key={item.name}>
-            <SidebarMenuButton className="cursor-pointer" asChild onClick={() => router.push( "/"+val+"/dash/"+dashid+ item.url)}>
+            <SidebarMenuButton className="cursor-pointer" asChild onClick={() => router.push("/dashboard" + "/dash/" + dashid + item.url)}>
               <a >
                 <item.icon />
                 <span>{item.name}</span>
-             
+
 
               </a>
             </SidebarMenuButton>

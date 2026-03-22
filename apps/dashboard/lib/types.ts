@@ -108,16 +108,29 @@ export type Connection = {
 }
 
 export type EditorCanvasTypes =
-|'FilterNode'
-  | 'TextInputNode' 
-  | 'CamelCaseNode' | 'OutputNode2' |'LowercaseNode'
+  | 'FilterNode'
+  | 'TextInputNode'
+  | 'CamelCaseNode'
+  | 'OutputNode2'
+  | 'LowercaseNode'
   | 'InputImage'
-  |'FilterCsvNode'
+  | 'FilterCsvNode'
   | 'baseNodebar'
   | 'baseNodeFull'
   | 'InputFile'
+  | 'InputFileNode'
   | 'InputText'
   | 'baseOutput'
+  | 'FileOutputNode'
+  | 'MathColumnNode'
+  | 'MathRowNode'
+  | 'SortNode'
+  | 'AggregateNode'
+  | 'FormulaNode'
+  | 'MergeNode'
+  | 'RenameColumnNode'
+  | 'SelectColumnsNode'
+  | 'SpreadsheetInputNode'
   | 'Email'
   | 'Condition'
   | 'AI'
@@ -150,33 +163,6 @@ export type EditorNodeType = {
 }
 
 export type EditorNode = EditorNodeType
-
-export type EditorActions =
-  | {
-      type: 'LOAD_DATA'
-      payload: {
-        elements: EditorNode[]
-        edges: {
-          id: string
-          source: string
-          target: string
-        }[]
-      }
-    }
-  | {
-      type: 'UPDATE_NODE'
-      payload: {
-        elements: EditorNode[]
-      }
-    }
-  | { type: 'REDO' }
-  | { type: 'UNDO' }
-  | {
-      type: 'SELECTED_ELEMENT'
-      payload: {
-        element: EditorNode
-      }
-    }
 
 export const nodeMapper: Record<string, string> = {
   Notion: 'notionNode',

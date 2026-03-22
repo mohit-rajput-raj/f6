@@ -13,14 +13,11 @@ import {
   Connection,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { IconFileText } from "@tabler/icons-react";
-import { he } from "zod/locales";
 import { BaseNodeFullDemo } from "./nodes/base-node";
 import { ActionBarNodeDemo } from "./nodes/BaseNode-action-bar";
 import { ContextMenuDemo } from "./ContextMenu";
 import { useUIStore } from "@/stores/ui.store";
 import { useEditorWorkFlow } from "@/context/WorkFlowContextProvider";
-// import { InputNode } from "./nodes/input-node";
 import { OutputNode } from "./nodes/output-node";
 import { InputFileNode } from "./nodes/input-nodes/inputfile";
 import { InputImage } from "./nodes/input-nodes/input-image";
@@ -28,114 +25,129 @@ import { InputText } from "./nodes/input-nodes/text-input";
 import { usePathname } from "next/navigation";
 import { EditorCanvasCardType } from "@/lib/types";
 import { toast } from "sonner";
-export const nodeTypes = {
-  FilterNode:FilterNode,
-  InputImage:InputImage,
-  TextInputNode:TextInputNode,
-  FilterCsvNode:EditorCanvasCardSingle,
-  baseNodebar: ActionBarNodeDemo,
-  baseNodeFull: BaseNodeFullDemo,
-  // baseInputNode: InputNode,
-  baseOutput: OutputNode,
-  InputFileNode:InputFileNode,
-  InputText:InputText,
-};
-const nodeDefaults = {
-  sourcePosition: Position.Right,
-  targetPosition: Position.Left,
-};
-
-// const initialNodes: EditorNodeType[] = []
-import { v4 } from 'uuid'
+import { v4 } from "uuid";
 import { EditorCanvasDefaultCardTypes } from "@/app/constants/nodes-desp";
 import EditorCanvasCardSingle from "./nodes/input-nodes/canvas-card";
 import { CamelCaseNode, TextInputNode } from "./nodes/input-nodes/test-nodes";
 import { OutputNode2 } from "./nodes/output-nodes/textoutput";
 import { LowercaseNode } from "./nodes/calcy-nodes/lowercase";
 import { FilterNode } from "./nodes/calcy-nodes/filter-node";
+// import { MathColumnNode } from "./nodes/calcy-nodes/math-column-node";
+// import { MathRowNode } from "./nodes/calcy-nodes/math-row-node";
+// import { SortNode } from "./nodes/calcy-nodes/sort-node";
+// import { AggregateNode } from "./nodes/calcy-nodes/aggregate-node";
+// import { FormulaNode } from "./nodes/calcy-nodes/formula-node";
+// import { MergeNode } from "./nodes/calcy-nodes/merge-node";
+// import { RenameColumnNode } from "./nodes/calcy-nodes/rename-column-node";
+// import { SelectColumnsNode } from "./nodes/calcy-nodes/select-columns-node";
+// import { FileOutputNode } from "./nodes/output-nodes/file-output-node";
 import { debounce } from "./nodes/executions/functions";
+import { AggregateNode } from "./nodes/calcy-nodes/aggregate-node";
+import { FormulaNode } from "./nodes/calcy-nodes/formula-node";
+import { MathColumnNode } from "./nodes/calcy-nodes/math-column-node";
+import { MathRowNode } from "./nodes/calcy-nodes/math-row-node";
+import { MergeNode } from "./nodes/calcy-nodes/merge-node";
+import { RenameColumnNode } from "./nodes/calcy-nodes/rename-column-node";
+import { SelectColumnsNode } from "./nodes/calcy-nodes/select-columns-node";
+import { SortNode } from "./nodes/calcy-nodes/sort-node";
+import { FileOutputNode } from "./nodes/output-nodes/file-output-node";
+import { SpreadsheetInputNode } from "./nodes/input-nodes/spreadsheet-input-node";
 
 const Flow = ({ handleRuns }: { handleRuns: () => void }) => {
   const nodeTypess = useMemo(
     () => ({
-      FilterNode:FilterNode,
-      OutputNode2:OutputNode2,
-      LowercaseNode:LowercaseNode,
+      // Input nodes
+      InputFileNode: InputFileNode,
+      InputImage: InputImage,
+      InputText: InputText,
+      TextInputNode: TextInputNode,
+      SpreadsheetInputNode: SpreadsheetInputNode,
 
+      // Transform nodes
+      FilterNode: FilterNode,
+      CamelCaseNode: CamelCaseNode,
+      LowercaseNode: LowercaseNode,
+      SortNode: SortNode,
+      RenameColumnNode: RenameColumnNode,
+      SelectColumnsNode: SelectColumnsNode,
 
-      CamelCaseNode:CamelCaseNode,
-      TextInputNode:TextInputNode,
-      InputImage:InputImage,
-  FilterCsvNode:EditorCanvasCardSingle,
-  baseNodebar: ActionBarNodeDemo,
-  baseNodeFull: BaseNodeFullDemo,
-  // baseInputNode: InputNode,
-  baseOutput: OutputNode,
-  InputFileNode:InputFileNode,
-  InputText:InputText,
+      // Math nodes
+      MathColumnNode: MathColumnNode,
+      MathRowNode: MathRowNode,
+      FormulaNode: FormulaNode,
+      AggregateNode: AggregateNode,
+
+      // Combine nodes
+      MergeNode: MergeNode,
+
+      // Output nodes
+      OutputNode2: OutputNode2,
+      FileOutputNode: FileOutputNode,
+      baseOutput: OutputNode,
+
+      // Legacy
+      FilterCsvNode: EditorCanvasCardSingle,
+      baseNodebar: ActionBarNodeDemo,
+      baseNodeFull: BaseNodeFullDemo,
     }),
     []
-  )
-  const debouncedRun = debounce(handleRuns, 800);
+  );
+
+  const debouncedRun = debounce(handleRuns, 600);
   const { minimapOpen } = useUIStore();
-// const [nodes, setNodes] = useState(initialNodes)
-//   const [edges, setEdges] = useState(initialEdges)
- const {edges,nodes,setEdges,setNodes , state , dispatch}=useEditorWorkFlow()
- const [reactFlowInstance, setReactFlowInstance] =
-    useState<ReactFlowInstance>()
-  const pathname = usePathname()
+  const { edges, nodes, setEdges, setNodes, pushHistory } =
+    useEditorWorkFlow();
+  const [reactFlowInstance, setReactFlowInstance] =
+    useState<ReactFlowInstance>();
+  const pathname = usePathname();
 
   const onDragOver = useCallback((event: any) => {
-    event.preventDefault()
-    event.dataTransfer.dropEffect = 'move'
-  }, [])
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+  }, []);
+
   const onNodesChange = useCallback(
-    (changes  : any) => {
+    (changes: any) => {
       setNodes((oldNodes) => applyNodeChanges(changes, oldNodes));
     },
-    [setNodes],
+    [setNodes]
   );
-   const onConnect = useCallback(
-    (connection : any) => {
+
+  const onConnect = useCallback(
+    (connection: any) => {
+      pushHistory();
       setEdges((oldEdges) => addEdge(connection, oldEdges));
       debouncedRun();
     },
-    [setEdges],
+    [setEdges, pushHistory]
   );
+
   const onEdgesChange = useCallback(
-    (changes : any) => {
+    (changes: any) => {
       setEdges((oldEdges) => applyEdgeChanges(changes, oldEdges));
     },
-    [setEdges],
+    [setEdges]
   );
-   const onDrop = useCallback(
+
+  const onDrop = useCallback(
     (event: any) => {
-      event.preventDefault()
+      event.preventDefault();
 
-      const type: EditorCanvasCardType['type'] = event.dataTransfer.getData(
-        'application/reactflow'
-      )
+      const type: EditorCanvasCardType["type"] = event.dataTransfer.getData(
+        "application/reactflow"
+      );
 
-      // check if the dropped element is valid
-      if (typeof type === 'undefined' || !type) {
-        return
+      if (typeof type === "undefined" || !type) {
+        return;
       }
 
-      const triggerAlreadyExists = state.editor.elements.find(
-        (node) => node.type === 'Trigger'
-      )
-
-      if (type === 'Trigger' && triggerAlreadyExists) {
-        toast('Only one trigger can be added to automations at the moment')
-        return
-      }
-
-    
-      if (!reactFlowInstance) return
+      if (!reactFlowInstance) return;
       const position = reactFlowInstance.screenToFlowPosition({
         x: event.clientX,
         y: event.clientY,
-      })
+      });
+
+      pushHistory();
 
       const newNode = {
         id: v4(),
@@ -143,95 +155,47 @@ const Flow = ({ handleRuns }: { handleRuns: () => void }) => {
         position,
         data: {
           title: type,
-          description: EditorCanvasDefaultCardTypes[type].description,
+          description:
+            EditorCanvasDefaultCardTypes[type]?.description ?? "",
           completed: false,
           current: false,
           metadata: {},
           type: type,
         },
-      }
+      };
       //@ts-ignore
-      setNodes((nds) => nds.concat(newNode))
+      setNodes((nds) => nds.concat(newNode));
     },
-    [reactFlowInstance, state]
-  )
-  const handleClickCanvas = () => {
-    dispatch({
-      type: 'SELECTED_ELEMENT',
-      payload: {
-        element: {
-          data: {
-            completed: false,
-            current: false,
-            description: '',
-            metadata: {},
-            title: '',
-            type: 'Trigger',
-          },
-          id: '',
-          position: { x: 0, y: 0 },
-          type: 'Trigger',
-        },
-      },
-    })
-  }
-useEffect(() => {
-    dispatch({ type: 'LOAD_DATA', payload: { edges, elements: nodes } })
-  }, [nodes, edges])
-  const isValidConnection = useCallback((connection: Connection) => {
-    const { source, target, sourceHandle, targetHandle } = connection;
+    [reactFlowInstance, pushHistory]
+  );
 
-    const sourceNode = nodes.find(n => n.id === source);
-    const targetNode = nodes.find(n => n.id === target);
+  const onNodeDragStop = useCallback(() => {
+    pushHistory();
+  }, [pushHistory]);
 
-    if (!sourceNode || !targetNode) return false;
-
-    if (source === target) return false;
-    if (
-      sourceNode.type === 'InputFile' &&
-      targetNode.type === 'OutputNode2'
-    ) {
-      return false;
-    }
-    if (
-      sourceNode.type === 'InputFile' && 
-      !['filter', 'sort', 'aggregate', 'export'].includes(targetNode.type || '')
-    ) {
-      return false;
-    }
-
-    
-    return true;
-  }, [nodes, edges]);
   return (
     <div className="w-full h-[100%]">
       <ContextMenuDemo>
-
-
-      <ReactFlow
-        // nodes={nodes}
-        
-        edges={edges}
-        onDrop={onDrop}
-        onDragOver={onDragOver}
-        nodes={state.editor.elements}
-        nodeTypes={nodeTypess}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
-        onConnect={onConnect}
-        onClick={handleClickCanvas}
-        onInit={setReactFlowInstance}
-        // isValidConnection={isValidConnection}
-        // isValidConnection={}
-        fitView
-        minZoom={0.5}  
-        maxZoom={3}
+        <ReactFlow
+          edges={edges}
+          onDrop={onDrop}
+          onDragOver={onDragOver}
+          nodes={nodes}
+          nodeTypes={nodeTypess}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          onConnect={onConnect}
+          onInit={setReactFlowInstance}
+          onNodeDragStop={onNodeDragStop}
+          fitView
+          minZoom={0.2}
+          maxZoom={3}
         >
-        <Background />
-        <Controls className="dark:text-zinc-800" />
-        {minimapOpen && <MiniMap />}
-      </ReactFlow>
-        </ContextMenuDemo>
+          <Background />
+          <Controls className="dark:text-zinc-800" />
+          {minimapOpen && <MiniMap />}
+        </ReactFlow>
+      </ContextMenuDemo>
     </div>
   );
 };

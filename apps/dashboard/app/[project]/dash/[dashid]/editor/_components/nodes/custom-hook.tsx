@@ -1,29 +1,24 @@
 import { useEditorWorkFlow } from '@/context/WorkFlowContextProvider'
 import React, { CSSProperties } from 'react'
-import { Handle, HandleProps, useStore } from '@xyflow/react'
+import { Handle, HandleProps } from '@xyflow/react'
 
 type Props = HandleProps & { style?: CSSProperties }
 
-const selector = (s: any) => ({
-  nodeInternals: s.nodeInternals,
-  edges: s.edges,
-})
-
 const CustomHandle = (props: Props) => {
-  const { state } = useEditorWorkFlow()
+  const { edges, nodes } = useEditorWorkFlow()
 
   return (
     <Handle
       {...props}
       isValidConnection={(e) => {
-        const sourcesFromHandleInState = state.editor.edges.filter(
+        const sourcesFromHandleInState = edges.filter(
           (edge) => edge.source === e.source
         ).length
-        const sourceNode = state.editor.elements.find(
+        const sourceNode = nodes.find(
           (node) => node.id === e.source
         )
-        //target
-        const targetFromHandleInState = state.editor.edges.filter(
+        // target
+        const targetFromHandleInState = edges.filter(
           (edge) => edge.target === e.target
         ).length
 

@@ -79,9 +79,6 @@ export const FilterNode = memo(({ id, data }: { id: string; data: NodeData & { c
                 {availableColumns.map(col => (
                   <SelectItem key={col} value={col}>{col}</SelectItem>
                 ))}
-                {availableColumns.length === 0 && (
-                  <SelectItem value="" disabled>No columns yet</SelectItem>
-                )}
               </SelectContent>
             </Select>
           </div>

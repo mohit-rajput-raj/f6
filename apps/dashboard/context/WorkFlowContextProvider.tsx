@@ -1,180 +1,141 @@
 "use client";
 
-import React, { createContext, useContext, useState } from "react";
-import type { Node, Edge } from "@xyflow/react";
-import { buildWorkflowJson } from "./build-workfow-json";
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useCallback,
+  useRef,
+  useEffect,
+} from "react";
+import type { Edge } from "@xyflow/react";
+import { EditorCanvasCardType, EditorNodeType } from "@/lib/types";
 
-import { EditorActions, EditorNodeType } from "@/lib/types";
-import { Dispatch, useReducer } from "react";
+// ─── Dataset type used across all nodes ──────────────────────
+export interface Dataset {
+  columns: string[];
+  data: any[][];
+}
 
-export type EditorNode = EditorNodeType;
+// ─── History snapshot ────────────────────────────────────────
+interface HistorySnapshot {
+  nodes: EditorNodeType[];
+  edges: Edge[];
+}
 
-export type Editor = {
-  elements: EditorNode[];
-  edges: {
-    id: string;
-    source: string;
-    target: string;
-  }[];
-  selectedNode: EditorNodeType;
-};
-
-export type HistoryState = {
-  history: Editor[];
-  currentIndex: number;
-};
-
-export type EditorState = {
-  editor: Editor;
-  history: HistoryState;
-};
-
-const initialEditorState: EditorState["editor"] = {
-  elements: [],
-  selectedNode: {
-    data: {
-      completed: false,
-      current: false,
-      description: "",
-      metadata: {},
-      title: "",
-      type: "Trigger",
-    },
-    id: "",
-    position: { x: 0, y: 0 },
-    type: "Trigger",
-  },
-  edges: [],
-};
-
-const initialHistoryState: HistoryState = {
-  history: [initialEditorState],
-  currentIndex: 0,
-};
-
-const initialState: EditorState = {
-  editor: initialEditorState,
-  history: initialHistoryState,
-};
-
-const editorReducer = (
-  state: EditorState = initialState,
-  action: EditorActions,
-): EditorState => {
-  switch (action.type) {
-    case "REDO":
-      if (state.history.currentIndex < state.history.history.length - 1) {
-        const nextIndex = state.history.currentIndex + 1;
-        const nextEditorState = { ...state.history.history[nextIndex] };
-        const redoState = {
-          ...state,
-          editor: nextEditorState,
-          history: {
-            ...state.history,
-            currentIndex: nextIndex,
-          },
-        };
-        return redoState;
-      }
-      return state;
-
-    case "UNDO":
-      console.log(state);
-      
-      if (state.history.currentIndex > 0) {
-        const prevIndex = state.history.currentIndex - 1;
-        const prevEditorState = { ...state.history.history[prevIndex] };
-        const undoState = {
-          ...state,
-          editor: prevEditorState,
-          history: {
-            ...state.history,
-            currentIndex: prevIndex,
-          },
-        };
-        return undoState;
-      }
-      return state;
-
-    case "LOAD_DATA":
-      // console.log("loaded", state.editor);
-      
-      return {
-        ...state,
-        editor: {
-          ...state.editor,
-          elements: action.payload.elements || initialEditorState.elements,
-          edges: action.payload.edges,
-        },
-      };
-    case "SELECTED_ELEMENT":
-      return {
-        ...state,
-        editor: {
-          ...state.editor,
-          selectedNode: action.payload.element,
-        },
-      };
-    default:
-      return state;
-  }
-};
-
-export type EditorContextData = {
-  previewMode: boolean;
-  setPreviewMode: (previewMode: boolean) => void;
-};
-
-// export const EditorContext = createContext<{
-//   state: EditorState
-//   dispatch: Dispatch<EditorActions>
-// }>({
-//   state: initialState,
-//   dispatch: () => undefined,
-// })
-
-type EditorProps = {
-  children: React.ReactNode;
-};
+// ─── Context type ────────────────────────────────────────────
 type EditorWorkFlowContextType = {
   nodes: EditorNodeType[];
   edges: Edge[];
   setNodes: React.Dispatch<React.SetStateAction<EditorNodeType[]>>;
   setEdges: React.Dispatch<React.SetStateAction<Edge[]>>;
-  handleRun: () => void;
-  state: EditorState;
-  dispatch: Dispatch<EditorActions>;
+  undo: () => void;
+  redo: () => void;
+  canUndo: boolean;
+  canRedo: boolean;
+  pushHistory: () => void;
+  runGraph: () => void;
 };
 
 const EditorWorkFlowContext = createContext<
   EditorWorkFlowContextType | undefined
->({
-  state: initialState,
-  dispatch: () => undefined,
-  nodes: [],
-  edges: [],
-  setNodes: () => undefined,
-  setEdges: () => undefined,
-  handleRun: () => undefined,
-});
+>(undefined);
 
-const initialNodes: EditorNodeType[] = []
+// ─── Provider ────────────────────────────────────────────────
+type EditorProps = { children: React.ReactNode };
 
-const initialEdges: Edge[] = []
+const MAX_HISTORY = 50;
+
 export const EditorWorkFlowContextProvider = ({ children }: EditorProps) => {
-  const [state, dispatch] = useReducer(editorReducer, initialState);
-  const [nodes, setNodes] = useState<EditorNodeType[]>(initialNodes);
-  const [edges, setEdges] = useState<Edge[]>(initialEdges);
+  const [nodes, setNodes] = useState<EditorNodeType[]>([]);
+  const [edges, setEdges] = useState<Edge[]>([]);
 
-  const handleRun = () => {
-    const workflowJson = buildWorkflowJson(nodes, edges);
+  // ── History (useRef so we never cause extra renders) ──
+  const historyRef = useRef<HistorySnapshot[]>([{ nodes: [], edges: [] }]);
+  const historyIndexRef = useRef(0);
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
 
-    console.log(workflowJson);
-  };
+  const syncFlags = useCallback(() => {
+    setCanUndo(historyIndexRef.current > 0);
+    setCanRedo(
+      historyIndexRef.current < historyRef.current.length - 1
+    );
+  }, []);
+
+  const pushHistory = useCallback(() => {
+    // Get current nodes/edges via setState callback to avoid stale closures
+    setNodes((currentNodes) => {
+      setEdges((currentEdges) => {
+        const snapshot: HistorySnapshot = {
+          nodes: JSON.parse(JSON.stringify(currentNodes)),
+          edges: JSON.parse(JSON.stringify(currentEdges)),
+        };
+
+        // Trim any future history if we're not at the end
+        const newHistory = historyRef.current.slice(
+          0,
+          historyIndexRef.current + 1
+        );
+        newHistory.push(snapshot);
+
+        // Cap history size
+        if (newHistory.length > MAX_HISTORY) {
+          newHistory.shift();
+        } else {
+          historyIndexRef.current += 1;
+        }
+
+        historyRef.current = newHistory;
+        syncFlags();
+        return currentEdges; // no change
+      });
+      return currentNodes; // no change
+    });
+  }, [syncFlags]);
+
+  const undo = useCallback(() => {
+    if (historyIndexRef.current <= 0) return;
+    historyIndexRef.current -= 1;
+    const snapshot = historyRef.current[historyIndexRef.current];
+    if (snapshot) {
+      setNodes(JSON.parse(JSON.stringify(snapshot.nodes)));
+      setEdges(JSON.parse(JSON.stringify(snapshot.edges)));
+    }
+    syncFlags();
+  }, [syncFlags]);
+
+  const redo = useCallback(() => {
+    if (historyIndexRef.current >= historyRef.current.length - 1) return;
+    historyIndexRef.current += 1;
+    const snapshot = historyRef.current[historyIndexRef.current];
+    if (snapshot) {
+      setNodes(JSON.parse(JSON.stringify(snapshot.nodes)));
+      setEdges(JSON.parse(JSON.stringify(snapshot.edges)));
+    }
+    syncFlags();
+  }, [syncFlags]);
+
+  // ── Graph execution (placeholder, delegated to nodeExecutions) ──
+  const runGraph = useCallback(() => {
+    // This is imported and called from resizable.tsx — kept as a trigger
+    // The actual execution is done via executeWorkflow in nodeExecutions.ts
+  }, []);
 
   return (
     <EditorWorkFlowContext.Provider
-      value={{ nodes, edges, setNodes, setEdges, handleRun, state, dispatch }}
+      value={{
+        nodes,
+        edges,
+        setNodes,
+        setEdges,
+        undo,
+        redo,
+        canUndo,
+        canRedo,
+        pushHistory,
+        runGraph,
+      }}
     >
       {children}
     </EditorWorkFlowContext.Provider>
@@ -185,7 +146,7 @@ export const useEditorWorkFlow = () => {
   const ctx = useContext(EditorWorkFlowContext);
   if (!ctx) {
     throw new Error(
-      "useEditorWorkFlow must be used inside EditorWorkFlowContextProvider",
+      "useEditorWorkFlow must be used inside EditorWorkFlowContextProvider"
     );
   }
   return ctx;

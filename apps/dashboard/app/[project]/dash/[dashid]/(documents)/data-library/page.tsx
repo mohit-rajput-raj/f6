@@ -18,7 +18,7 @@ const DataLibrary = () => {
     Papa.parse(file, {
       complete: (result: { data: any[] }) => {
         const csvData = result.data
-          .filter((row: any) => row.length > 0) 
+          .filter((row: any) => row.length > 0)
           .map((row: any) => row.map((cell: any) => ({ value: cell })))
 
         setData(csvData)
@@ -41,18 +41,18 @@ const DataLibrary = () => {
       <div className="flex gap-3">
         <button
           onClick={addRow}
-          className="bg-blue-600 text-white px-3 py-1 rounded"
+          className="bg-card text-text px-3 py-1 rounded"
         >
           ➕ Add Row
         </button>
         <button
           onClick={addColumn}
-          className="bg-green-600 text-white px-3 py-1 rounded"
+          className="bg-card text-text px-3 py-1 rounded"
         >
           ➕ Add Column
         </button>
 
-        <label className="bg-gray-700 text-white px-3 py-1 rounded cursor-pointer">
+        <label className="bg-card text-text px-3 py-1 rounded cursor-pointer">
           📂 Upload CSV
           <input
             type="file"

@@ -31,22 +31,25 @@ import { useRouter } from "next/navigation"
 
 export function ColapsebleNavMain({
   items,
+  main_id
 }: {
+  main_id: string,
   items: {
-    name?:string,
-    
+    name?: string,
+
     title: string
     url: string
     icon?: LucideIcon
     isActive?: boolean
     items?: {
       name: string
-      icon:Icon
+      icon: Icon
       url: string
-      iconName?:string
+      iconName?: string
     }[]
   }[]
-}) {  const { isMobile } = useSidebar()
+}) {
+  const { isMobile } = useSidebar()
   const router = useRouter();
   return (
     <SidebarGroup>
@@ -72,41 +75,41 @@ export function ColapsebleNavMain({
                   {item.items?.map((subItem) => (
                     <SidebarMenuSubItem key={subItem.name}>
                       <SidebarMenuSubButton asChild>
-                        <a href={subItem.url}>
-                            {subItem.icon && <subItem.icon key={subItem.iconName} />}
+                        <a href={"/dashboard/dash/" + main_id + subItem.url}>
+                          {subItem.icon && <subItem.icon key={subItem.iconName} />}
                           <span>{subItem.name}</span>
                         </a>
                       </SidebarMenuSubButton>
                       <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                      <SidebarMenuAction
-                                        showOnHover
-                                        className="data-[state=open]:bg-accent rounded-sm"
-                                      >
-                                        <IconDots />
-                                        <span className="sr-only">More</span>
-                                      </SidebarMenuAction>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent
-                                      className="w-24 rounded-lg"
-                                      side={isMobile ? "bottom" : "right"}
-                                      align={isMobile ? "end" : "start"}
-                                    >
-                                      <DropdownMenuItem>
-                                        <IconFolder />
-                                        <span >Open</span>
-                                      </DropdownMenuItem>
-                                      <DropdownMenuItem>
-                                        <IconShare3 />
-                                        <span>Share</span>
-                                      </DropdownMenuItem>
-                                      <DropdownMenuSeparator />
-                                      <DropdownMenuItem variant="destructive">
-                                        <IconTrash />
-                                        <span>Delete</span>
-                                      </DropdownMenuItem>
-                                    </DropdownMenuContent>
-                                  </DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <SidebarMenuAction
+                            showOnHover
+                            className="data-[state=open]:bg-accent rounded-sm"
+                          >
+                            <IconDots />
+                            <span className="sr-only">More</span>
+                          </SidebarMenuAction>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent
+                          className="w-24 rounded-lg"
+                          side={isMobile ? "bottom" : "right"}
+                          align={isMobile ? "end" : "start"}
+                        >
+                          <DropdownMenuItem>
+                            <IconFolder />
+                            <span >Open</span>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem>
+                            <IconShare3 />
+                            <span>Share</span>
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem variant="destructive">
+                            <IconTrash />
+                            <span>Delete</span>
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </SidebarMenuSubItem>
                   ))}
                 </SidebarMenuSub>
