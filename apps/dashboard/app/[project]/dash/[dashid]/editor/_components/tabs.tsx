@@ -146,12 +146,12 @@ const nodes = [
         icon: <IconFile />,
         description: "Upload .xlsx/.csv file",
       },
-      {
-        title: "Text Input",
-        type: "TextInputNode",
-        icon: <IconPencil />,
-        description: "Enter text data",
-      },
+      // {
+      //   title: "Text Input",
+      //   type: "TextInputNode",
+      //   icon: <IconPencil />,
+      //   description: "Enter text data",
+      // },
     ]
   },
   {
@@ -181,18 +181,18 @@ const nodes = [
         icon: <IconColumns3 />,
         description: "Pick or drop columns",
       },
-      {
-        title: "Uppercase",
-        type: "CamelCaseNode",
-        icon: <IconTransform />,
-        description: "Convert to camelCase",
-      },
-      {
-        title: "Lowercase",
-        type: "LowercaseNode",
-        icon: <IconTransform />,
-        description: "Convert to lowercase",
-      },
+      // {
+      //   title: "Uppercase",
+      //   type: "CamelCaseNode",
+      //   icon: <IconTransform />,
+      //   description: "Convert to camelCase",
+      // },
+      // {
+      //   title: "Lowercase",
+      //   type: "LowercaseNode",
+      //   icon: <IconTransform />,
+      //   description: "Convert to lowercase",
+      // },
     ]
   },
   {
@@ -238,24 +238,24 @@ const nodes = [
   {
     title: "Output",
     types: [
-      {
-        title: "Text Output",
-        type: "OutputNode2",
-        icon: <IconTextCaption />,
-        description: "Display text/data result",
-      },
+      // {
+      //   title: "Text Output",
+      //   type: "OutputNode2",
+      //   icon: <IconTextCaption />,
+      //   description: "Display text/data result",
+      // },
       {
         title: "File Output",
         type: "FileOutputNode",
         icon: <IconFileExport />,
         description: "Export as CSV file",
       },
-      {
-        title: "Output Display",
-        type: "baseOutput",
-        icon: <IconFileText />,
-        description: "Basic output display",
-      },
+      // {
+      //   title: "Output Display",
+      //   type: "baseOutput",
+      //   icon: <IconFileText />,
+      //   description: "Basic output display",
+      // },
     ]
   }
 ]
