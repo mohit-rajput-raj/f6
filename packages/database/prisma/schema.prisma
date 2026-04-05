@@ -16,9 +16,11 @@ model User {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
-  sessions     Session[]
-  accounts     Account[]
-  workflows    Workflow[]
+  sessions         Session[]
+  accounts         Account[]
+  workflows        Workflow[]
+  dataLibraryFiles DataLibraryFile[]
+  sharedNodes      SharedNode[]     @relation("CreatedSharedNodes")
 
   @@unique([email])
   @@map("user")
@@ -92,8 +94,9 @@ model Workflow {
 
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  versions    WorkflowVersion[]
-  shares      WorkflowShare[]
+  versions         WorkflowVersion[]
+  shares           WorkflowShare[]
+  dataLibraryFiles DataLibraryFile[]
 
   @@index([userId])
   @@index([isPublic])
@@ -128,4 +131,47 @@ model WorkflowShare {
   @@index([workflowId])
   @@index([sharedWith])
   @@map("workflow_share")
+}
+
+model DataLibraryFile {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String
+  workflowId  String?  @db.Uuid
+  name        String
+  description String?
+  fileType    String   // "csv", "xlsx", "json", "calculated"
+  data        Json?    // { columns: string[], data: any[][] }
+  metadata    Json?    // { rowCount, colCount, fileSize, sourceNodeId, etc. }
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workflow    Workflow?  @relation(fields: [workflowId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([workflowId])
+  @@map("data_library_file")
+}
+
+model SharedNode {
+  id              String   @id @default(uuid()) @db.Uuid
+  shareKey        String   @unique
+  creatorId       String
+
+  expectedColumns Json     // ["col1", "col2", ...]
+  data            Json?    // The mapped dataset from the other user
+
+  name            String
+  description     String?
+  status          String   @default("pending") // "pending", "filled", "consumed"
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  creator         User     @relation("CreatedSharedNodes", fields: [creatorId], references: [id], onDelete: Cascade)
+
+  @@index([creatorId])
+  @@index([shareKey])
+  @@map("shared_node")
 }

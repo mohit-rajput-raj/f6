@@ -115,11 +115,14 @@ import {
   IconCalculator,
   IconChartBar,
   IconColumns3,
+  IconColumnRemove,
   IconFile,
   IconFileExport,
   IconFileText,
   IconFilter,
   IconGitMerge,
+  IconGitBranch,
+  IconGitFork,
   IconMathFunction,
   IconPencil,
   IconRowInsertBottom,
@@ -146,12 +149,12 @@ const nodes = [
         icon: <IconFile />,
         description: "Upload .xlsx/.csv file",
       },
-      // {
-      //   title: "Text Input",
-      //   type: "TextInputNode",
-      //   icon: <IconPencil />,
-      //   description: "Enter text data",
-      // },
+      {
+        title: "Data Library",
+        type: "DataLibraryInputNode",
+        icon: <IconFile />,
+        description: "Import from Data Library",
+      },
     ]
   },
   {
@@ -181,18 +184,18 @@ const nodes = [
         icon: <IconColumns3 />,
         description: "Pick or drop columns",
       },
-      // {
-      //   title: "Uppercase",
-      //   type: "CamelCaseNode",
-      //   icon: <IconTransform />,
-      //   description: "Convert to camelCase",
-      // },
-      // {
-      //   title: "Lowercase",
-      //   type: "LowercaseNode",
-      //   icon: <IconTransform />,
-      //   description: "Convert to lowercase",
-      // },
+      {
+        title: "Column Map",
+        type: "ColumnMapNode",
+        icon: <IconTransform />,
+        description: "Rename/remap columns",
+      },
+      {
+        title: "Drop Columns",
+        type: "DropColumnNode",
+        icon: <IconColumnRemove />,
+        description: "Remove specific columns",
+      },
     ]
   },
   {
@@ -222,6 +225,29 @@ const nodes = [
         icon: <IconChartBar />,
         description: "Group by + aggregate",
       },
+      {
+        title: "Count Value",
+        type: "CountNode",
+        icon: <IconCalculator />,
+        description: "Count specific value in rows",
+      },
+    ]
+  },
+  {
+    title: "Logic",
+    types: [
+      {
+        title: "If / Else",
+        type: "IfElseNode",
+        icon: <IconGitBranch />,
+        description: "Route rows based on conditions",
+      },
+      {
+        title: "Switch Case",
+        type: "SwitchCaseNode",
+        icon: <IconGitFork />,
+        description: "Route by exact column value",
+      },
     ]
   },
   {
@@ -231,31 +257,43 @@ const nodes = [
         title: "Merge / Join",
         type: "MergeNode",
         icon: <IconGitMerge />,
-        description: "Join two datasets",
+        description: "Join two datasets (SQL-style)",
+      },
+      {
+        title: "Union Merge",
+        type: "UnionMergeNode",
+        icon: <IconGitMerge />,
+        description: "Combine all cols from multiple sheets",
+      },
+      {
+        title: "Update Merge",
+        type: "UpdateMergeNode",
+        icon: <IconGitMerge />,
+        description: "Accumulate values (e.g. totals)",
+      },
+      {
+        title: "Sheet Merge",
+        type: "SheetMergeNode",
+        icon: <IconGitMerge />,
+        description: "Side-by-side with prefixes",
+      },
+      {
+        title: "Append / Stack",
+        type: "AppendNode",
+        icon: <IconRowInsertBottom />,
+        description: "Stack datasets vertically",
       },
     ]
   },
   {
     title: "Output",
     types: [
-      // {
-      //   title: "Text Output",
-      //   type: "OutputNode2",
-      //   icon: <IconTextCaption />,
-      //   description: "Display text/data result",
-      // },
       {
         title: "File Output",
         type: "FileOutputNode",
         icon: <IconFileExport />,
         description: "Export as CSV file",
       },
-      // {
-      //   title: "Output Display",
-      //   type: "baseOutput",
-      //   icon: <IconFileText />,
-      //   description: "Basic output display",
-      // },
     ]
   }
 ]

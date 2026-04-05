@@ -97,3 +97,25 @@ export const deleteWorkFlow = async ({
     throw error
   }
 }
+
+export async function saveWorkflow(
+  id: string,
+  nodes: any[],
+  edges: any[]
+) {
+  try {
+    const updated = await prisma.workflow.update({
+      where: { id },
+      data: {
+        definition: {
+          reactFlow: { nodes, edges },
+          meta: { updatedAt: new Date().toISOString() },
+        },
+      },
+    });
+    return updated;
+  } catch (error) {
+    console.error("Save workflow error:", error);
+    throw error;
+  }
+}

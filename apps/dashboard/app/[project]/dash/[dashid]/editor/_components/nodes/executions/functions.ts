@@ -388,6 +388,398 @@ export const applySelectColumns = (
   };
 };
 
+// ── Count In Row ──
+export const applyCountInRow = (
+  dataset: Dataset,
+  config: { valueToCount?: string; resultColumn?: string; selectedColumns?: string[] }
+): Dataset => {
+  if (!config.valueToCount) return dataset;
+
+  const resultName = config.resultColumn || "CountResult";
+  const newColumns = [...dataset.columns, resultName];
+
+  // If selectedColumns is empty/undefined, search all columns. Otherwise, search only selected ones.
+  const searchIndices = config.selectedColumns?.length
+    ? config.selectedColumns.map(c => dataset.columns.indexOf(c)).filter(i => i >= 0)
+    : dataset.columns.map((_, i) => i);
+
+  const valueLower = config.valueToCount.trim().toLowerCase();
+
+  const newData = dataset.data.map((row) => {
+    let count = 0;
+    for (const idx of searchIndices) {
+      if (idx < row.length && String(row[idx] ?? "").trim().toLowerCase() === valueLower) {
+        count++;
+      }
+    }
+    return [...row, count];
+  });
+
+  return { columns: newColumns, data: newData };
+};
+
+// ── Update Merge (accumulate values) ──
+export const applyUpdateMerge = (
+  existing: Dataset,
+  newData: Dataset,
+  config: {
+    keyColumn?: string;
+    updateMode?: string; // "add", "replace", "max", "concat"
+    targetColumns?: string[];
+  }
+): Dataset => {
+  if (!config.keyColumn) return existing;
+
+  const keyIdxExisting = existing.columns.indexOf(config.keyColumn);
+  const keyIdxNew = newData.columns.indexOf(config.keyColumn);
+  if (keyIdxExisting === -1 || keyIdxNew === -1) return existing;
+
+  const updateMode = config.updateMode ?? "add";
+  const targetCols = config.targetColumns ?? [];
+
+  // Build a lookup of existing rows by key
+  const existingMap = new Map<string, number>();
+  existing.data.forEach((row, idx) => {
+    existingMap.set(String(row[keyIdxExisting] ?? ""), idx);
+  });
+
+  // Determine which columns to update
+  const targetIndicesExisting = targetCols.map((c) => existing.columns.indexOf(c)).filter((i) => i >= 0);
+  const targetIndicesNew = targetCols.map((c) => newData.columns.indexOf(c)).filter((i) => i >= 0);
+
+  const resultData = existing.data.map((row) => [...row]);
+
+  newData.data.forEach((newRow) => {
+    const key = String(newRow[keyIdxNew] ?? "");
+    const existingIdx = existingMap.get(key);
+
+    if (existingIdx !== undefined) {
+      // Update existing row
+      for (let t = 0; t < targetCols.length; t++) {
+        const eIdx = targetIndicesExisting[t];
+        const nIdx = targetIndicesNew[t];
+        if (eIdx === undefined || nIdx === undefined || eIdx < 0 || nIdx < 0) continue;
+
+        const oldVal = resultData[existingIdx][eIdx];
+        const newVal = newRow[nIdx];
+
+        switch (updateMode) {
+          case "add":
+            resultData[existingIdx][eIdx] = Number(oldVal ?? 0) + Number(newVal ?? 0);
+            break;
+          case "replace":
+            resultData[existingIdx][eIdx] = newVal;
+            break;
+          case "max":
+            resultData[existingIdx][eIdx] = Math.max(Number(oldVal ?? 0), Number(newVal ?? 0));
+            break;
+          case "concat":
+            resultData[existingIdx][eIdx] = `${String(oldVal ?? "")}${String(newVal ?? "")}`;
+            break;
+          default:
+            resultData[existingIdx][eIdx] = newVal;
+        }
+      }
+    } else {
+      // New row — append it, map columns
+      const newMappedRow = new Array(existing.columns.length).fill(null);
+      existing.columns.forEach((col, idx) => {
+        const newColIdx = newData.columns.indexOf(col);
+        if (newColIdx >= 0) {
+          newMappedRow[idx] = newRow[newColIdx];
+        }
+      });
+      resultData.push(newMappedRow);
+    }
+  });
+
+  return { columns: existing.columns, data: resultData };
+};
+
+// ── Sheet Merge (horizontal concat with prefixes) ──
+export const applySheetMerge = (
+  left: Dataset,
+  right: Dataset,
+  config: {
+    keyColumn?: string;
+    leftPrefix?: string;
+    rightPrefix?: string;
+  }
+): Dataset => {
+  if (!config.keyColumn) return left;
+
+  const leftKeyIdx = left.columns.indexOf(config.keyColumn);
+  const rightKeyIdx = right.columns.indexOf(config.keyColumn);
+  if (leftKeyIdx === -1 || rightKeyIdx === -1) return left;
+
+  const leftPrefix = config.leftPrefix ?? "";
+  const rightPrefix = config.rightPrefix ?? "";
+
+  // Build merged columns: key + prefixed left cols + prefixed right cols
+  const leftNonKeyCols = left.columns.filter((_, i) => i !== leftKeyIdx);
+  const rightNonKeyCols = right.columns.filter((_, i) => i !== rightKeyIdx);
+
+  const mergedColumns = [
+    config.keyColumn,
+    ...leftNonKeyCols.map((c) => (leftPrefix ? `${leftPrefix}${c}` : c)),
+    ...rightNonKeyCols.map((c) => (rightPrefix ? `${rightPrefix}${c}` : c)),
+  ];
+
+  // Build right lookup
+  const rightMap = new Map<string, any[]>();
+  right.data.forEach((row) => {
+    rightMap.set(String(row[rightKeyIdx] ?? ""), row);
+  });
+
+  const leftNonKeyIndices = left.columns.map((_, i) => i).filter((i) => i !== leftKeyIdx);
+  const rightNonKeyIndices = right.columns.map((_, i) => i).filter((i) => i !== rightKeyIdx);
+
+  const resultData: any[][] = [];
+
+  // Get all unique keys from both sides
+  const allKeys = new Set<string>();
+  left.data.forEach((row) => allKeys.add(String(row[leftKeyIdx] ?? "")));
+  right.data.forEach((row) => allKeys.add(String(row[rightKeyIdx] ?? "")));
+
+  allKeys.forEach((key) => {
+    const leftRow = left.data.find((r) => String(r[leftKeyIdx] ?? "") === key);
+    const rightRow = rightMap.get(key);
+
+    const row: any[] = [key];
+
+    // Left non-key values
+    leftNonKeyIndices.forEach((idx) => {
+      row.push(leftRow ? leftRow[idx] : null);
+    });
+
+    // Right non-key values
+    rightNonKeyIndices.forEach((idx) => {
+      row.push(rightRow ? rightRow[idx] : null);
+    });
+
+    resultData.push(row);
+  });
+
+  return { columns: mergedColumns, data: resultData };
+};
+
+// ── Append (vertical stack / UNION) ──
+export const applyAppend = (
+  top: Dataset,
+  bottom: Dataset,
+  config: {
+    mode?: string; // "match" or "all"
+  }
+): Dataset => {
+  const mode = config.mode ?? "all";
+
+  if (mode === "match") {
+    // Only keep shared columns
+    const sharedCols = top.columns.filter((c) => bottom.columns.includes(c));
+    if (sharedCols.length === 0) return top;
+
+    const topIndices = sharedCols.map((c) => top.columns.indexOf(c));
+    const bottomIndices = sharedCols.map((c) => bottom.columns.indexOf(c));
+
+    const topData = top.data.map((row) => topIndices.map((i) => row[i]));
+    const bottomData = bottom.data.map((row) =>
+      bottomIndices.map((i) => row[i])
+    );
+
+    return { columns: sharedCols, data: [...topData, ...bottomData] };
+  }
+
+  // mode === "all" — keep all columns, fill missing with null
+  const allCols = [...new Set([...top.columns, ...bottom.columns])];
+
+  const topMapped = top.data.map((row) =>
+    allCols.map((col) => {
+      const idx = top.columns.indexOf(col);
+      return idx >= 0 ? row[idx] : null;
+    })
+  );
+
+  const bottomMapped = bottom.data.map((row) =>
+    allCols.map((col) => {
+      const idx = bottom.columns.indexOf(col);
+      return idx >= 0 ? row[idx] : null;
+    })
+  );
+
+  return { columns: allCols, data: [...topMapped, ...bottomMapped] };
+};
+
+// ── Column Map (rename/remap columns) ──
+export const applyColumnMap = (
+  dataset: Dataset,
+  config: {
+    mappings?: { source: string; target: string }[];
+  }
+): Dataset => {
+  if (!config.mappings || config.mappings.length === 0) return dataset;
+
+  const newColumns = dataset.columns.map((col) => {
+    const mapping = config.mappings!.find((m) => m.source === col);
+    return mapping ? mapping.target : col;
+  });
+
+  return { columns: newColumns, data: dataset.data };
+};
+
+// ── Union Merge ──
+export const applyUnionMerge = (
+  left: Dataset,
+  right: Dataset,
+  config: { keyColumns?: string[] }
+): Dataset => {
+  const keys = config.keyColumns ?? [];
+  if (keys.length === 0) return { columns: [], data: [] };
+
+  const leftKeyIndices = keys.map(k => left.columns.indexOf(k));
+  const rightKeyIndices = keys.map(k => right.columns.indexOf(k));
+
+  if (leftKeyIndices.includes(-1) || rightKeyIndices.includes(-1)) return left;
+
+  const allColumns = [...new Set([...left.columns, ...right.columns])];
+  
+  const rightMap = new Map<string, any[]>();
+  right.data.forEach(row => {
+    const key = rightKeyIndices.map(i => String(row[i] ?? "")).join("||");
+    rightMap.set(key, row);
+  });
+
+  const matchedRightKeys = new Set<string>();
+
+  const mergedData = left.data.map(leftRow => {
+    const key = leftKeyIndices.map(i => String(leftRow[i] ?? "")).join("||");
+    const rightRow = rightMap.get(key);
+    if (rightRow) matchedRightKeys.add(key);
+
+    return allColumns.map(col => {
+      const leftIdx = left.columns.indexOf(col);
+      const rightIdx = right.columns.indexOf(col);
+      if (leftIdx >= 0 && leftRow[leftIdx] !== null && leftRow[leftIdx] !== undefined) return leftRow[leftIdx];
+      if (rightIdx >= 0 && rightRow && rightRow[rightIdx] !== null && rightRow[rightIdx] !== undefined) return rightRow[rightIdx];
+      return null;
+    });
+  });
+
+  right.data.forEach(rightRow => {
+    const key = rightKeyIndices.map(i => String(rightRow[i] ?? "")).join("||");
+    if (!matchedRightKeys.has(key)) {
+      mergedData.push(allColumns.map(col => {
+        const rightIdx = right.columns.indexOf(col);
+        return rightIdx >= 0 ? rightRow[rightIdx] : null;
+      }));
+    }
+  });
+
+  return { columns: allColumns, data: mergedData };
+};
+
+// ── Drop Columns ──
+export const applyDropColumns = (
+  dataset: Dataset,
+  config: { columnsToDrop?: string[] }
+): Dataset => {
+  const toDrop = config.columnsToDrop ?? [];
+  if (toDrop.length === 0) return dataset;
+
+  const indicesToKeep = dataset.columns
+    .map((c, i) => toDrop.includes(c) ? -1 : i)
+    .filter(i => i >= 0);
+
+  return {
+    columns: indicesToKeep.map(i => dataset.columns[i]),
+    data: dataset.data.map(row => indicesToKeep.map(i => row[i]))
+  };
+};
+
+const evaluateCondition = (val: any, condition: string, targetValue: string) => {
+  const sVal = String(val ?? "");
+  const sTarget = String(targetValue ?? "");
+  
+  switch(condition) {
+    case 'text-exact': return sVal === sTarget;
+    case 'text-contains': return sVal.includes(sTarget);
+    case 'text-starts': return sVal.startsWith(sTarget);
+    case 'text-ends': return sVal.endsWith(sTarget);
+    case 'number-eq': return Number(val) === Number(targetValue);
+    case 'number-gt': return Number(val) > Number(targetValue);
+    case 'number-gte': return Number(val) >= Number(targetValue);
+    case 'number-lt': return Number(val) < Number(targetValue);
+    case 'number-lte': return Number(val) <= Number(targetValue);
+    default: return false;
+  }
+};
+
+// ── If Else Split ──
+export const applyIfElse = (
+  dataset: Dataset,
+  config: { rules?: any[] }
+): Record<string, Dataset> => {
+  const rules = config.rules ?? [];
+  if (rules.length === 0) return { out_else: dataset };
+
+  const outputs: Record<string, any[][]> = { out_else: [] };
+  rules.forEach((_, i) => outputs[`out_${i}`] = []);
+
+  dataset.data.forEach(row => {
+    let matched = false;
+    for (let i = 0; i < rules.length; i++) {
+      const rule = rules[i];
+      const colIdx = dataset.columns.indexOf(rule.column);
+      if (colIdx === -1) continue;
+      
+      const match = evaluateCondition(row[colIdx], rule.condition, rule.value);
+      if (match) {
+        outputs[`out_${i}`].push(row);
+        matched = true;
+        break;
+      }
+    }
+    if (!matched) outputs.out_else.push(row);
+  });
+
+  const result: Record<string, Dataset> = {};
+  for (const key in outputs) {
+    result[key] = { columns: dataset.columns, data: outputs[key] };
+  }
+  return result;
+};
+
+// ── Switch Case Split ──
+export const applySwitchCase = (
+  dataset: Dataset,
+  config: { column?: string, cases?: string[] }
+): Record<string, Dataset> => {
+  const cases = config.cases ?? [];
+  const col = config.column;
+  if (!col || cases.length === 0) return { out_default: dataset };
+
+  const colIdx = dataset.columns.indexOf(col);
+  if (colIdx === -1) return { out_default: dataset };
+
+  const outputs: Record<string, any[][]> = { out_default: [] };
+  cases.forEach((_, i) => outputs[`out_${i}`] = []);
+
+  dataset.data.forEach(row => {
+    const val = String(row[colIdx] ?? "");
+    const matchIdx = cases.findIndex(c => c === val);
+    if (matchIdx !== -1) {
+      outputs[`out_${matchIdx}`].push(row);
+    } else {
+      outputs.out_default.push(row);
+    }
+  });
+
+  const result: Record<string, Dataset> = {};
+  for (const key in outputs) {
+    result[key] = { columns: dataset.columns, data: outputs[key] };
+  }
+  return result;
+};
+
 // ── Debounce utility ──
 export function debounce<T extends (...args: any[]) => void>(
   fn: T,

@@ -128,9 +128,19 @@ export type EditorCanvasTypes =
   | 'AggregateNode'
   | 'FormulaNode'
   | 'MergeNode'
+  | 'UpdateMergeNode'
+  | 'SheetMergeNode'
+  | 'AppendNode'
+  | 'ColumnMapNode'
   | 'RenameColumnNode'
   | 'SelectColumnsNode'
   | 'SpreadsheetInputNode'
+  | 'DataLibraryInputNode'
+  | 'CountNode'
+  | 'UnionMergeNode'
+  | 'DropColumnNode'
+  | 'IfElseNode'
+  | 'SwitchCaseNode'
   | 'Email'
   | 'Condition'
   | 'AI'
@@ -150,6 +160,8 @@ export type EditorCanvasCardType = {
   current: boolean
   metadata: any
   type: EditorCanvasTypes
+  config?: any
+  [key: string]: any
 }
 
 export type EditorNodeType = {

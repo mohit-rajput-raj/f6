@@ -6,72 +6,110 @@ import {
   DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
-  DropdownMenuPortal,
   DropdownMenuSeparator,
   DropdownMenuShortcut,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@repo/ui/components/ui/dropdown-menu"
 import { IconMenu } from "@tabler/icons-react";
-import { useNodeId } from "@xyflow/react";
+import { useNodeId, useReactFlow } from "@xyflow/react";
 import { useCallback } from "react";
 import { useDeleteNode } from "./settings/triggers";
+import { v4 } from "uuid";
+import { toast } from "sonner";
+import { Copy, Lock, Unlock, Trash2, ClipboardCopy } from "lucide-react";
 
 export function NodeMenu() {
-    const handleDelete = useDeleteNode();
+  const handleDelete = useDeleteNode();
+  const nodeId = useNodeId();
+  const { setNodes, pushHistory } = useEditorWorkFlow();
+
+  const handleDuplicate = useCallback(() => {
+    if (!nodeId) return;
+    pushHistory();
+    setNodes((nds) => {
+      const original = nds.find((n) => n.id === nodeId);
+      if (!original) return nds;
+
+      const newNode = {
+        ...original,
+        id: v4(),
+        position: {
+          x: original.position.x + 40,
+          y: original.position.y + 40,
+        },
+        data: {
+          ...original.data,
+          result: undefined,
+          error: undefined,
+          rowCount: undefined,
+        },
+      };
+      return [...nds, newNode];
+    });
+    toast.success("Node duplicated");
+  }, [nodeId, setNodes, pushHistory]);
+
+  const handleCopyConfig = useCallback(() => {
+    if (!nodeId) return;
+    setNodes((nds) => {
+      const node = nds.find((n) => n.id === nodeId);
+      if (!node?.data?.config) {
+        toast.error("No config to copy");
+        return nds;
+      }
+      navigator.clipboard.writeText(JSON.stringify(node.data.config, null, 2));
+      toast.success("Config copied to clipboard");
+      return nds;
+    });
+  }, [nodeId, setNodes]);
+
+  const handleToggleLock = useCallback(() => {
+    if (!nodeId) return;
+    pushHistory();
+    setNodes((nds) =>
+      nds.map((n) => {
+        if (n.id === nodeId) {
+          const isLocked = n.data?.locked ?? false;
+          toast.success(isLocked ? "Node unlocked" : "Node locked");
+          return {
+            ...n,
+            draggable: isLocked,
+            data: { ...n.data, locked: !isLocked },
+          };
+        }
+        return n;
+      })
+    );
+  }, [nodeId, setNodes, pushHistory]);
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost"><IconMenu className="size-4" /></Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent className="w-40" align="start">
+      <DropdownMenuContent className="w-44" align="start">
+        <DropdownMenuLabel>Node Actions</DropdownMenuLabel>
+        <DropdownMenuSeparator />
         <DropdownMenuGroup>
-          <DropdownMenuLabel>My Account</DropdownMenuLabel>
-          <DropdownMenuItem>
-            Profile
-            <DropdownMenuShortcut>⇧⌘P</DropdownMenuShortcut>
+          <DropdownMenuItem onClick={handleDuplicate}>
+            <Copy className="size-3.5 mr-2" />
+            Duplicate
           </DropdownMenuItem>
-          <DropdownMenuItem>
-            Billing
-            <DropdownMenuShortcut>⌘B</DropdownMenuShortcut>
+          <DropdownMenuItem onClick={handleCopyConfig}>
+            <ClipboardCopy className="size-3.5 mr-2" />
+            Copy Config
           </DropdownMenuItem>
-          <DropdownMenuItem>
-            Settings
-            <DropdownMenuShortcut>⌘S</DropdownMenuShortcut>
+          <DropdownMenuItem onClick={handleToggleLock}>
+            <Lock className="size-3.5 mr-2" />
+            Toggle Lock
           </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
-          <DropdownMenuItem>Team</DropdownMenuItem>
-          <DropdownMenuSub>
-            <DropdownMenuSubTrigger>Invite users</DropdownMenuSubTrigger>
-            <DropdownMenuPortal>
-              <DropdownMenuSubContent>
-                <DropdownMenuItem>Email</DropdownMenuItem>
-                <DropdownMenuItem>Message</DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem>More...</DropdownMenuItem>
-              </DropdownMenuSubContent>
-            </DropdownMenuPortal>
-          </DropdownMenuSub>
-          <DropdownMenuItem>
-            New Team
-            <DropdownMenuShortcut>⌘+T</DropdownMenuShortcut>
-          </DropdownMenuItem>
-        </DropdownMenuGroup>
-        <DropdownMenuSeparator />
-        <DropdownMenuGroup>
-          <DropdownMenuItem>GitHub</DropdownMenuItem>
-          <DropdownMenuItem>Support</DropdownMenuItem>
-          <DropdownMenuItem disabled>API</DropdownMenuItem>
-        </DropdownMenuGroup>
-        <DropdownMenuSeparator />
-        <DropdownMenuGroup>
-          <DropdownMenuItem onClick={handleDelete}>
+          <DropdownMenuItem onClick={handleDelete} className="text-red-600 focus:text-red-600">
+            <Trash2 className="size-3.5 mr-2" />
             Delete
-            <DropdownMenuShortcut>⇧⌘Q</DropdownMenuShortcut>
+            <DropdownMenuShortcut>⌫</DropdownMenuShortcut>
           </DropdownMenuItem>
         </DropdownMenuGroup>
       </DropdownMenuContent>

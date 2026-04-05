@@ -9,12 +9,16 @@ import { useSpreadsheetStore } from "@/stores/spreadsheet-store";
 import { useEditorWorkFlow } from "@/context/WorkFlowContextProvider";
 import { EditorCanvasTypes } from "@/lib/types";
 import { toast } from "sonner";
+import { useSession } from "@/lib/auth-client";
+import { createDataLibraryFile } from "@/app/[project]/dash/[dashid]/(documents)/data-library/actions";
 
 export default function Team() {
   const spreadsheetRef = useRef<SpreadsheetComponent>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [exportMessage, setExportMessage] = useState<string | null>(null);
+  const [savingToLibrary, setSavingToLibrary] = useState(false);
+  const { data: sessionData } = useSession();
 
   const { addInputDataset, outputDatasets } = useSpreadsheetStore();
   const { setNodes, pushHistory } = useEditorWorkFlow();
@@ -251,6 +255,77 @@ export default function Team() {
     try { toast.success(`Output loaded into spreadsheet: ${dataset.data.length} rows`); } catch {}
   };
 
+  // ─── Save selection to Data Library ───
+  const saveSelectionToLibrary = () => {
+    if (!spreadsheetRef.current || !sessionData?.user?.id) {
+      setExportMessage("Not ready or not logged in");
+      return;
+    }
+
+    const spreadsheet = spreadsheetRef.current;
+    const sheet = spreadsheet.getActiveSheet();
+    const selectedRange = sheet.selectedRange;
+
+    if (!selectedRange) {
+      setExportMessage("Please select some cells first");
+      return;
+    }
+
+    setSavingToLibrary(true);
+    setExportMessage("Saving to Data Library...");
+
+    spreadsheet.getData(selectedRange).then(async (cells: Map<string, any>) => {
+      if (!cells || cells.size === 0) {
+        setExportMessage("No data found in selection");
+        setSavingToLibrary(false);
+        return;
+      }
+
+      const rangeIndexes = getRangeIndexes(selectedRange);
+      const [startRow, startCol, endRow, endCol] = rangeIndexes;
+      const rowCount = endRow - startRow + 1;
+      const colCount = endCol - startCol + 1;
+
+      const grid: string[][] = Array.from({ length: rowCount }, () =>
+        Array(colCount).fill("")
+      );
+
+      cells.forEach((cell, address) => {
+        const addrIndexes = getRangeIndexes(address);
+        const r = addrIndexes[0] - startRow;
+        const c = addrIndexes[1] - startCol;
+        if (r >= 0 && r < rowCount && c >= 0 && c < colCount) {
+          grid[r][c] = String(cell?.value ?? "");
+        }
+      });
+
+      const columns = grid[0] || [];
+      const data = grid.slice(1);
+
+      try {
+        await createDataLibraryFile({
+          userId: sessionData.user.id,
+          name: `Sheet Selection (${columns.length}×${data.length})`,
+          fileType: 'csv',
+          data: { columns, data },
+          metadata: { rowCount: data.length, colCount: columns.length },
+        });
+        setExportMessage("✓ Saved to Data Library!");
+        toast.success("Saved to Data Library");
+      } catch (err) {
+        console.error("Save to library failed:", err);
+        setExportMessage("Failed to save to library");
+        toast.error("Save failed");
+      } finally {
+        setSavingToLibrary(false);
+      }
+    }).catch((err) => {
+      console.error("Error:", err);
+      setExportMessage("Error reading selection");
+      setSavingToLibrary(false);
+    });
+  };
+
   return (
     <div className="flex flex-col h-full p-2 gap-2 bg-gray-50 dark:bg-zinc-900">
       {/* Controls */}
@@ -294,7 +369,16 @@ export default function Team() {
           className="px-2 py-1 text-xs rounded-lg font-medium bg-blue-600 text-white hover:bg-blue-700 transition"
           disabled={isLoading}
         >
-          🔗 Export as Input Node
+            🔗 Export as Input Node
+        </Button>
+
+        {/* Save selection to Data Library */}
+        <Button
+          onClick={saveSelectionToLibrary}
+          className="px-2 py-1 text-xs rounded-lg font-medium bg-emerald-600 text-white hover:bg-emerald-700 transition"
+          disabled={isLoading || savingToLibrary}
+        >
+          💾 Save to Library
         </Button>
 
         {/* Load output datasets back into spreadsheet */}

@@ -10,6 +10,8 @@ import React, {
 } from "react";
 import type { Edge } from "@xyflow/react";
 import { EditorCanvasCardType, EditorNodeType } from "@/lib/types";
+import { saveWorkflow } from "@/app/[project]/dash/[dashid]/editor/_actions/editor.service";
+import { toast } from "sonner";
 
 // ─── Dataset type used across all nodes ──────────────────────
 export interface Dataset {
@@ -35,6 +37,10 @@ type EditorWorkFlowContextType = {
   canRedo: boolean;
   pushHistory: () => void;
   runGraph: () => void;
+  saveToDb: () => Promise<void>;
+  isSaving: boolean;
+  hasUnsavedChanges: boolean;
+  workflowId: string | null;
 };
 
 const EditorWorkFlowContext = createContext<
@@ -42,13 +48,36 @@ const EditorWorkFlowContext = createContext<
 >(undefined);
 
 // ─── Provider ────────────────────────────────────────────────
-type EditorProps = { children: React.ReactNode };
+type EditorProps = {
+  children: React.ReactNode;
+  initialNodes?: EditorNodeType[];
+  initialEdges?: Edge[];
+  workflowId?: string;
+};
 
 const MAX_HISTORY = 50;
 
-export const EditorWorkFlowContextProvider = ({ children }: EditorProps) => {
-  const [nodes, setNodes] = useState<EditorNodeType[]>([]);
-  const [edges, setEdges] = useState<Edge[]>([]);
+export const EditorWorkFlowContextProvider = ({
+  children,
+  initialNodes = [],
+  initialEdges = [],
+  workflowId,
+}: EditorProps) => {
+  const [nodes, setNodes] = useState<EditorNodeType[]>(initialNodes);
+  const [edges, setEdges] = useState<Edge[]>(initialEdges);
+  const [isSaving, setIsSaving] = useState(false);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const initializedRef = useRef(false);
+
+  // Initialize from props when they change (first load from DB)
+  useEffect(() => {
+    if (!initializedRef.current && (initialNodes.length > 0 || initialEdges.length > 0)) {
+      setNodes(initialNodes);
+      setEdges(initialEdges);
+      initializedRef.current = true;
+    }
+  }, [initialNodes, initialEdges]);
 
   // ── History (useRef so we never cause extra renders) ──
   const historyRef = useRef<HistorySnapshot[]>([{ nodes: [], edges: [] }]);
@@ -92,6 +121,7 @@ export const EditorWorkFlowContextProvider = ({ children }: EditorProps) => {
       });
       return currentNodes; // no change
     });
+    setHasUnsavedChanges(true);
   }, [syncFlags]);
 
   const undo = useCallback(() => {
@@ -103,6 +133,7 @@ export const EditorWorkFlowContextProvider = ({ children }: EditorProps) => {
       setEdges(JSON.parse(JSON.stringify(snapshot.edges)));
     }
     syncFlags();
+    setHasUnsavedChanges(true);
   }, [syncFlags]);
 
   const redo = useCallback(() => {
@@ -114,7 +145,61 @@ export const EditorWorkFlowContextProvider = ({ children }: EditorProps) => {
       setEdges(JSON.parse(JSON.stringify(snapshot.edges)));
     }
     syncFlags();
+    setHasUnsavedChanges(true);
   }, [syncFlags]);
+
+  // ── Save to DB ──
+  const saveToDb = useCallback(async () => {
+    if (!workflowId) return;
+    setIsSaving(true);
+    try {
+      // Read current state
+      const currentNodes = nodes;
+      const currentEdges = edges;
+
+      // Strip runtime-only data before saving (result, rowCount, etc.)
+      const cleanNodes = currentNodes.map((n) => ({
+        ...n,
+        data: {
+          ...n.data,
+          result: undefined,
+          rowCount: undefined,
+          error: undefined,
+          inputColumns: undefined,
+          leftColumns: undefined,
+          rightColumns: undefined,
+        },
+      }));
+
+      await saveWorkflow(workflowId, cleanNodes, currentEdges);
+      setHasUnsavedChanges(false);
+      toast.success("Workflow saved");
+    } catch (err) {
+      console.error("Failed to save workflow:", err);
+      toast.error("Failed to save workflow");
+    } finally {
+      setIsSaving(false);
+    }
+  }, [workflowId, nodes, edges]);
+
+  // ── Auto-save (debounced 5 seconds after last change) ──
+  useEffect(() => {
+    if (!hasUnsavedChanges || !workflowId) return;
+
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+    }
+
+    saveTimerRef.current = setTimeout(() => {
+      saveToDb();
+    }, 5000);
+
+    return () => {
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current);
+      }
+    };
+  }, [hasUnsavedChanges, workflowId, saveToDb]);
 
   // ── Graph execution (placeholder, delegated to nodeExecutions) ──
   const runGraph = useCallback(() => {
@@ -135,6 +220,10 @@ export const EditorWorkFlowContextProvider = ({ children }: EditorProps) => {
         canRedo,
         pushHistory,
         runGraph,
+        saveToDb,
+        isSaving,
+        hasUnsavedChanges,
+        workflowId: workflowId ?? null,
       }}
     >
       {children}

@@ -52,6 +52,16 @@ import { SelectColumnsNode } from "./nodes/calcy-nodes/select-columns-node";
 import { SortNode } from "./nodes/calcy-nodes/sort-node";
 import { FileOutputNode } from "./nodes/output-nodes/file-output-node";
 import { SpreadsheetInputNode } from "./nodes/input-nodes/spreadsheet-input-node";
+import { CountNode } from "./nodes/calcy-nodes/count-node";
+import { UpdateMergeNode } from "./nodes/calcy-nodes/update-merge-node";
+import { SheetMergeNode } from "./nodes/calcy-nodes/sheet-merge-node";
+import { AppendNode } from "./nodes/calcy-nodes/append-node";
+import { ColumnMapNode } from "./nodes/calcy-nodes/column-map-node";
+import { DataLibraryInputNode } from "./nodes/input-nodes/data-library-input-node";
+import { UnionMergeNode } from "./nodes/calcy-nodes/union-merge-node";
+import { DropColumnNode } from "./nodes/calcy-nodes/drop-column-node";
+import { IfElseNode } from "./nodes/calcy-nodes/if-else-node";
+import { SwitchCaseNode } from "./nodes/calcy-nodes/switch-case-node";
 
 const Flow = ({ handleRuns }: { handleRuns: () => void }) => {
   const nodeTypess = useMemo(
@@ -62,6 +72,7 @@ const Flow = ({ handleRuns }: { handleRuns: () => void }) => {
       InputText: InputText,
       TextInputNode: TextInputNode,
       SpreadsheetInputNode: SpreadsheetInputNode,
+      DataLibraryInputNode: DataLibraryInputNode,
 
       // Transform nodes
       FilterNode: FilterNode,
@@ -70,15 +81,26 @@ const Flow = ({ handleRuns }: { handleRuns: () => void }) => {
       SortNode: SortNode,
       RenameColumnNode: RenameColumnNode,
       SelectColumnsNode: SelectColumnsNode,
+      DropColumnNode: DropColumnNode,
+
+      // Logic nodes
+      IfElseNode: IfElseNode,
+      SwitchCaseNode: SwitchCaseNode,
 
       // Math nodes
       MathColumnNode: MathColumnNode,
       MathRowNode: MathRowNode,
       FormulaNode: FormulaNode,
       AggregateNode: AggregateNode,
+      CountNode: CountNode,
 
       // Combine nodes
       MergeNode: MergeNode,
+      UpdateMergeNode: UpdateMergeNode,
+      SheetMergeNode: SheetMergeNode,
+      AppendNode: AppendNode,
+      ColumnMapNode: ColumnMapNode,
+      UnionMergeNode: UnionMergeNode,
 
       // Output nodes
       OutputNode2: OutputNode2,
