@@ -44,6 +44,8 @@ export type EditorCanvasCardType = {
   current: boolean
   metadata: any
   type: EditorCanvasTypes
+  config?: any
+  [key: string]: any
 }
 
 export type EditorNodeType = {

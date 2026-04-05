@@ -9,10 +9,19 @@ import {
   applyAggregate,
   applyFormula,
   applyMerge,
+  applyUpdateMerge,
+  applySheetMerge,
+  applyAppend,
+  applyColumnMap,
   applyRenameColumn,
   applySelectColumns,
+  applyCountInRow,
   toCamelCase,
   toLowercase,
+  applyUnionMerge,
+  applyDropColumns,
+  applyIfElse,
+  applySwitchCase,
   Dataset,
 } from "./functions";
 import api from "@/lib/axios";
@@ -64,7 +73,8 @@ export const executeWorkflow = async (
     let inputValue: any = null;
 
     if (incomingEdges.length === 1) {
-      inputValue = runtimeData.get(incomingEdges[0].source) ?? null;
+      const e = incomingEdges[0];
+      inputValue = runtimeData.get(`${e.source}__${e.sourceHandle}`) ?? runtimeData.get(e.source) ?? null;
     } else if (incomingEdges.length === 0) {
       // Source node — use its own data
       inputValue = (currentNode.data as any)?.text ?? "";
@@ -81,8 +91,9 @@ export const executeWorkflow = async (
           break;
 
         case "InputFileNode":
-        case "SpreadsheetInputNode": {
-          // Both store parsed data in data.text as { columns, data }
+        case "SpreadsheetInputNode":
+        case "DataLibraryInputNode": {
+          // All store parsed data in data.text as { columns, data }
           const fileData = nodeData?.text;
           if (fileData && typeof fileData === "object" && fileData.columns) {
             outputValue = fileData as Dataset;
@@ -135,6 +146,12 @@ export const executeWorkflow = async (
         case "AggregateNode": {
           const ds: Dataset = inputValue ?? { columns: [], data: [] };
           outputValue = applyAggregate(ds, nodeData?.config ?? {});
+          break;
+        }
+
+        case "CountNode": {
+          const ds: Dataset = inputValue ?? { columns: [], data: [] };
+          outputValue = applyCountInRow(ds, nodeData?.config ?? {});
           break;
         }
 
@@ -204,6 +221,103 @@ export const executeWorkflow = async (
           break;
         }
 
+        case "ColumnMapNode": {
+          const ds: Dataset = inputValue ?? { columns: [], data: [] };
+          outputValue = applyColumnMap(ds, nodeData?.config ?? {});
+          break;
+        }
+
+        case "DropColumnNode": {
+          const ds: Dataset = inputValue ?? { columns: [], data: [] };
+          outputValue = applyDropColumns(ds, nodeData?.config ?? {});
+          break;
+        }
+
+        case "IfElseNode": {
+          const ds: Dataset = inputValue ?? { columns: [], data: [] };
+          outputValue = applyIfElse(ds, nodeData?.config ?? {});
+          break;
+        }
+
+        case "SwitchCaseNode": {
+          const ds: Dataset = inputValue ?? { columns: [], data: [] };
+          outputValue = applySwitchCase(ds, nodeData?.config ?? {});
+          break;
+        }
+
+        case "UnionMergeNode": {
+          const leftEdge = incomingEdges.find((e) => e.targetHandle === "left");
+          const rightEdge = incomingEdges.find((e) => e.targetHandle === "right");
+          const leftData: Dataset = leftEdge
+            ? (runtimeData.get(`${leftEdge.source}__${leftEdge.sourceHandle}`) ?? runtimeData.get(leftEdge.source) ?? { columns: [], data: [] })
+            : { columns: [], data: [] };
+          const rightData: Dataset = rightEdge
+            ? (runtimeData.get(`${rightEdge.source}__${rightEdge.sourceHandle}`) ?? runtimeData.get(rightEdge.source) ?? { columns: [], data: [] })
+            : { columns: [], data: [] };
+          outputValue = applyUnionMerge(leftData, rightData, nodeData?.config ?? {});
+          setNodes((nds) =>
+            nds.map((node) =>
+              node.id === currentId
+                ? { ...node, data: { ...node.data, leftColumns: leftData.columns, rightColumns: rightData.columns } }
+                : node
+            )
+          );
+          break;
+        }
+
+        case "UpdateMergeNode": {
+          const leftEdge = incomingEdges.find((e) => e.targetHandle === "left");
+          const rightEdge = incomingEdges.find((e) => e.targetHandle === "right");
+          const leftData: Dataset = leftEdge
+            ? runtimeData.get(leftEdge.source) ?? { columns: [], data: [] }
+            : { columns: [], data: [] };
+          const rightData: Dataset = rightEdge
+            ? runtimeData.get(rightEdge.source) ?? { columns: [], data: [] }
+            : { columns: [], data: [] };
+          outputValue = applyUpdateMerge(leftData, rightData, nodeData?.config ?? {});
+          setNodes((nds) =>
+            nds.map((node) =>
+              node.id === currentId
+                ? { ...node, data: { ...node.data, leftColumns: leftData.columns, rightColumns: rightData.columns } }
+                : node
+            )
+          );
+          break;
+        }
+
+        case "SheetMergeNode": {
+          const leftEdge = incomingEdges.find((e) => e.targetHandle === "left");
+          const rightEdge = incomingEdges.find((e) => e.targetHandle === "right");
+          const leftData: Dataset = leftEdge
+            ? runtimeData.get(leftEdge.source) ?? { columns: [], data: [] }
+            : { columns: [], data: [] };
+          const rightData: Dataset = rightEdge
+            ? runtimeData.get(rightEdge.source) ?? { columns: [], data: [] }
+            : { columns: [], data: [] };
+          outputValue = applySheetMerge(leftData, rightData, nodeData?.config ?? {});
+          setNodes((nds) =>
+            nds.map((node) =>
+              node.id === currentId
+                ? { ...node, data: { ...node.data, leftColumns: leftData.columns, rightColumns: rightData.columns } }
+                : node
+            )
+          );
+          break;
+        }
+
+        case "AppendNode": {
+          const leftEdge = incomingEdges.find((e) => e.targetHandle === "left");
+          const rightEdge = incomingEdges.find((e) => e.targetHandle === "right");
+          const topData: Dataset = leftEdge
+            ? runtimeData.get(leftEdge.source) ?? { columns: [], data: [] }
+            : { columns: [], data: [] };
+          const bottomData: Dataset = rightEdge
+            ? runtimeData.get(rightEdge.source) ?? { columns: [], data: [] }
+            : { columns: [], data: [] };
+          outputValue = applyAppend(topData, bottomData, nodeData?.config ?? {});
+          break;
+        }
+
         case "OutputNode2":
         case "baseOutput":
         case "FileOutputNode":
@@ -232,7 +346,18 @@ export const executeWorkflow = async (
       outputValue = inputValue; // pass through on error
     }
 
-    runtimeData.set(currentId, outputValue);
+    if (currentNode.type === "IfElseNode" || currentNode.type === "SwitchCaseNode") {
+      // outputValue is Record<string, Dataset> mapping handle ID to Dataset
+      if (outputValue && typeof outputValue === "object") {
+        for (const handleId in outputValue) {
+          runtimeData.set(`${currentId}__${handleId}`, outputValue[handleId]);
+        }
+      }
+    } else {
+      runtimeData.set(currentId, outputValue);
+      // Fallback for single-handle output edges checking specific handles
+      runtimeData.set(`${currentId}__out`, outputValue);
+    }
 
     // Update node's result + propagate column info to downstream nodes
     const isDataset =

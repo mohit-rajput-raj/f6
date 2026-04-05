@@ -18,6 +18,7 @@ export const EditorCanvasDefaultCardTypes: Record<string, { description: string;
   MathRowNode: { description: 'Row-wise sum/avg/min/max', type: 'Math' },
   FormulaNode: { description: 'Custom formula (e.g. col_A * 2 + col_B)', type: 'Math' },
   AggregateNode: { description: 'Group by + aggregate (sum/count/avg)', type: 'Math' },
+  CountNode: { description: 'Count specific value across rows', type: 'Math' },
 
   // Combine nodes
   MergeNode: { description: 'Merge/join two datasets', type: 'Combine' },

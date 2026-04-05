@@ -78,6 +78,22 @@ export const SelectColumnsNode = memo(({ id, data }: { id: string; data: any }) 
 
           <div className="space-y-1">
             <Label className="text-xs">Columns</Label>
+            {columns.length > 0 && (
+              <div className="flex gap-1 mb-1">
+                <button
+                  onClick={() => updateConfig({ selectedColumns: [...columns] })}
+                  className="text-[10px] px-2 py-0.5 rounded border bg-fuchsia-100 dark:bg-fuchsia-900 hover:bg-fuchsia-200 dark:hover:bg-fuchsia-800 transition"
+                >
+                  Select All
+                </button>
+                <button
+                  onClick={() => updateConfig({ selectedColumns: [] })}
+                  className="text-[10px] px-2 py-0.5 rounded border hover:bg-muted transition"
+                >
+                  Deselect All
+                </button>
+              </div>
+            )}
             <div className="flex flex-wrap gap-1 max-h-[150px] overflow-y-auto border rounded p-2">
               {columns.length === 0 && (
                 <span className="text-xs text-muted-foreground">Connect input first</span>

@@ -10,7 +10,10 @@ import { SheetDemo } from "@/components/dashboard/sheet";
 import { useUIStore } from "@/stores/ui.store";
 import { Button } from "@repo/ui/components/ui/button";
 import { IconDirectionHorizontal } from "@tabler/icons-react";
-import { useEditorWorkFlow } from "@/context/WorkFlowContextProvider";
+import {
+  EditorWorkFlowContextProvider,
+  useEditorWorkFlow,
+} from "@/context/WorkFlowContextProvider";
 import { useSession } from "@/lib/auth-client";
 import { usegetWorkFlow } from "../_actions/editor.queryes";
 import { useParams } from "next/navigation";
@@ -18,8 +21,32 @@ import { executeWorkflow } from "./nodes/executions/nodeExecutions";
 import React from "react";
 import { TabsBottom } from "./tabsBottom";
 import { SidebarTrigger } from "@repo/ui/components/ui/sidebar";
+import type { EditorNodeType } from "@/lib/types";
+import type { Edge } from "@xyflow/react";
 
-export function WorkFlowEditor() {
+interface WorkFlowEditorProps {
+  workflowId?: string;
+  initialNodes?: EditorNodeType[];
+  initialEdges?: Edge[];
+}
+
+export function WorkFlowEditor({
+  workflowId,
+  initialNodes = [],
+  initialEdges = [],
+}: WorkFlowEditorProps) {
+  return (
+    <EditorWorkFlowContextProvider
+      workflowId={workflowId}
+      initialNodes={initialNodes}
+      initialEdges={initialEdges}
+    >
+      <WorkFlowEditorInner />
+    </EditorWorkFlowContextProvider>
+  );
+}
+
+function WorkFlowEditorInner() {
   const params = useParams();
   const flowId = params?.dashid as string | undefined;
 
@@ -34,15 +61,26 @@ export function WorkFlowEditor() {
     );
   }
 
-  const { data: s, isLoading } = usegetWorkFlow(flowId);
   const { setSidebarOpen, sidebarOpen, bottombarOpen, setBottombarOpen } =
     useUIStore();
   const { data: session, isPending } = useSession();
-  const { edges, nodes, setEdges, setNodes, undo, redo, canUndo, canRedo, pushHistory } =
-    useEditorWorkFlow();
+  const {
+    edges,
+    nodes,
+    setEdges,
+    setNodes,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
+    pushHistory,
+    saveToDb,
+    isSaving,
+    hasUnsavedChanges,
+  } = useEditorWorkFlow();
   const [isRunning, setIsRunning] = React.useState(false);
 
-  if (isLoading || isPending) {
+  if (isPending) {
     return <p className="p-10">Loading workflow...</p>;
   }
 
@@ -77,6 +115,14 @@ export function WorkFlowEditor() {
             disabled={!canRedo}
           >
             Redo
+          </Button>
+          <Button
+            variant={hasUnsavedChanges ? "default" : "outline"}
+            onClick={saveToDb}
+            disabled={isSaving || !hasUnsavedChanges}
+            className={hasUnsavedChanges ? "bg-blue-600 hover:bg-blue-700 text-white" : ""}
+          >
+            {isSaving ? "Saving..." : hasUnsavedChanges ? "💾 Save*" : "💾 Saved"}
           </Button>
         </div>
         <div>

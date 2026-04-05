@@ -1,8 +1,8 @@
 'use client';
 
-import { memo, useCallback } from 'react';
+import { memo, useCallback, useState } from 'react';
 import { Handle, Position, useReactFlow } from '@xyflow/react';
-import { Download, FileSpreadsheet } from 'lucide-react';
+import { Download, FileSpreadsheet, Database } from 'lucide-react';
 import {
   BaseNode,
   BaseNodeContent,
@@ -15,6 +15,9 @@ import { useDeleteNode } from "../settings/triggers";
 import { Button } from "@repo/ui/components/ui/button";
 import { Input } from "@repo/ui/components/ui/input";
 import { Label } from "@repo/ui/components/ui/label";
+import { useSession } from "@/lib/auth-client";
+import { toast } from "sonner";
+import { createDataLibraryFile } from "@/app/[project]/dash/[dashid]/(documents)/data-library/actions";
 
 interface Dataset {
   columns: string[];
@@ -24,6 +27,8 @@ interface Dataset {
 export const FileOutputNode = memo(({ id, data }: { id: string; data: any }) => {
   const { setNodes } = useReactFlow();
   const handleDelete = useDeleteNode();
+  const { data: session } = useSession();
+  const [savingToLibrary, setSavingToLibrary] = useState(false);
 
   const result: Dataset | null = data.result ?? null;
   const fileName = data.fileName ?? 'output';
@@ -58,6 +63,35 @@ export const FileOutputNode = memo(({ id, data }: { id: string; data: any }) => 
     link.click();
     URL.revokeObjectURL(url);
   }, [result, fileName]);
+
+  const saveToLibrary = useCallback(async () => {
+    if (!result || !session?.user?.id) {
+      toast.error("Cannot save — no data or not logged in");
+      return;
+    }
+
+    setSavingToLibrary(true);
+    try {
+      await createDataLibraryFile({
+        userId: session.user.id,
+        name: fileName || 'Workflow Output',
+        description: `Saved from workflow output (${result.data.length} rows)`,
+        fileType: 'calculated',
+        data: { columns: result.columns, data: result.data },
+        metadata: {
+          rowCount: result.data.length,
+          colCount: result.columns.length,
+          sourceNodeId: id,
+        },
+      });
+      toast.success(`Saved "${fileName}" to Data Library`);
+    } catch (err) {
+      console.error("Save to library failed:", err);
+      toast.error("Failed to save to Data Library");
+    } finally {
+      setSavingToLibrary(false);
+    }
+  }, [result, session, fileName, id]);
 
   return (
     <>
@@ -120,14 +154,26 @@ export const FileOutputNode = memo(({ id, data }: { id: string; data: any }) => 
                 )}
               </div>
 
-              <Button
-                variant="outline"
-                size="sm"
-                className="w-full nodrag"
-                onClick={downloadCSV}
-              >
-                <Download className="size-3 mr-1" /> Download CSV
-              </Button>
+              <div className="flex gap-1.5">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="flex-1 nodrag"
+                  onClick={downloadCSV}
+                >
+                  <Download className="size-3 mr-1" /> CSV
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="flex-1 nodrag bg-emerald-50 dark:bg-emerald-950 hover:bg-emerald-100 dark:hover:bg-emerald-900 border-emerald-200 dark:border-emerald-800"
+                  onClick={saveToLibrary}
+                  disabled={savingToLibrary}
+                >
+                  <Database className="size-3 mr-1" />
+                  {savingToLibrary ? 'Saving...' : 'Save to Library'}
+                </Button>
+              </div>
             </>
           ) : (
             <div className="text-sm text-muted-foreground text-center py-4 italic">
@@ -143,3 +189,4 @@ export const FileOutputNode = memo(({ id, data }: { id: string; data: any }) => 
 });
 
 FileOutputNode.displayName = "FileOutputNode";
+
