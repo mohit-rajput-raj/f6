@@ -9,7 +9,7 @@ import {
 
 
 import FileTreeDemo from "@/components/files/fele-tree"
-import 'react-folder-tree/dist/style.css';
+// import 'react-folder-tree/dist/style.css';
 import { useCallback, useState } from "react"
 export function TabsDemo() {
   return (
@@ -18,12 +18,16 @@ export function TabsDemo() {
         <TabsList>
           <TabsTrigger value="account">Settings</TabsTrigger>
           <TabsTrigger value="node">Nodes</TabsTrigger>
+          <TabsTrigger value="onlineNodes">Imported Nodes</TabsTrigger>
         </TabsList>
         <TabsContent value="account">
           <PanelSettings />
         </TabsContent>
         <TabsContent value="node">
           <ItemImage />
+        </TabsContent>
+        <TabsContent value="onlineNodes">
+          <ItemImportedNodes />
         </TabsContent>
       </Tabs>
     </div>
@@ -72,7 +76,12 @@ export function TabsNodesOnly() {
                   <button
                     key={i}
                     onClick={() => onItemClick(item.type)}
-                    className="flex items-center gap-3 rounded-md border p-3 text-left hover:bg-muted transition"
+                    draggable
+                    onDragStart={(e) => {
+                      e.dataTransfer.setData("application/reactflow", item.type);
+                      e.dataTransfer.effectAllowed = "move";
+                    }}
+                    className="flex items-center gap-3 rounded-md border p-3 text-left hover:bg-muted transition cursor-grab active:cursor-grabbing"
                   >
                     <span className="text-muted-foreground">
                       {item.icon}
@@ -98,15 +107,7 @@ export function TabsNodesOnly() {
     </div>
   )
 }
-import Image from "next/image"
-import {
-  Item,
-  ItemContent,
-  ItemDescription,
-  ItemGroup,
-  ItemMedia,
-  ItemTitle,
-} from "@repo/ui/components/ui/item"
+
 import { PanelSettings } from "./panel-settings";
 import { useEditorWorkFlow } from "@/context/WorkFlowContextProvider";
 import React from "react";
@@ -129,6 +130,7 @@ import {
   IconTextCaption,
   IconTransform,
   IconTypography,
+  IconFileImport,
 } from "@tabler/icons-react";
 import { EditorCanvasTypes } from "@/lib/types";
 import {
@@ -138,6 +140,10 @@ import {
   AccordionTrigger,
 } from "@repo/ui/components/ui/accordion";
 import { TabsBottom } from "./tabsBottom";
+import { Button } from "@/components/ui/components"
+import { ExtensionSheetDemo } from "@/components/dashboard/sheet"
+import { useSession } from "@/lib/auth-client"
+import { getInstalledWorkflows } from "../_actions/publish.service"
 
 const nodes = [
   {
@@ -294,11 +300,77 @@ const nodes = [
         icon: <IconFileExport />,
         description: "Export as CSV file",
       },
+      {
+        title: "Sheet Editor",
+        type: "SheetEditorNode",
+        icon: <IconPencil />,
+        description: "Push data to a target sheet",
+      },
     ]
   }
 ]
 
+const importedNodes = [
+  {
+    title: "Input",
+    types: [
 
+      {
+        title: "Data Library",
+        type: "DataLibraryInputNode",
+        icon: <IconFile />,
+        description: "Import from Data Library",
+      },
+    ]
+  },
+  {
+    title: "Transform",
+    types: [
+
+    ]
+  },
+  {
+    title: "Math",
+    types: [
+      {
+        title: "Math (Column)",
+        type: "MathColumnNode",
+        icon: <IconCalculator />,
+        description: "Add/Sub/Mul/Div on column",
+      },
+
+    ]
+  },
+  {
+    title: "Logic",
+    types: [
+
+    ]
+  },
+  {
+    title: "Combine",
+    types: [
+      {
+        title: "Merge / Join",
+        type: "MergeNode",
+        icon: <IconGitMerge />,
+        description: "Join two datasets (SQL-style)",
+      },
+
+    ]
+  },
+  {
+    title: "Output",
+    types: [
+      {
+        title: "File Output",
+        type: "FileOutputNode",
+        icon: <IconFileExport />,
+        description: "Export as CSV file",
+      },
+    ]
+  }
+]
 
 export function ItemImage() {
   const { setNodes, pushHistory } = useEditorWorkFlow();
@@ -344,7 +416,12 @@ export function ItemImage() {
                   <button
                     key={i}
                     onClick={() => onItemClick(item.type)}
-                    className="flex items-center gap-3 rounded-md border p-2.5 text-left hover:bg-muted transition"
+                    draggable
+                    onDragStart={(e) => {
+                      e.dataTransfer.setData("application/reactflow", item.type);
+                      e.dataTransfer.effectAllowed = "move";
+                    }}
+                    className="flex items-center gap-3 rounded-md border p-2.5 text-left hover:bg-muted transition cursor-grab active:cursor-grabbing"
                   >
                     <span className="text-muted-foreground">
                       {item.icon}
@@ -368,5 +445,194 @@ export function ItemImage() {
     </div>
   );
 }
+export function ItemImportedNodes() {
+  const { setNodes, pushHistory } = useEditorWorkFlow();
+  const [installedWorkflows, setInstalledWorkflows] = React.useState<any[]>([]);
+  const [isLoading, setIsLoading] = React.useState(false);
+  const { data: session } = useSession();
 
+  // Fetch installed workflows on mount
+  React.useEffect(() => {
+    const fetchInstalled = async () => {
+      if (!session?.user?.id) return;
+      setIsLoading(true);
+      try {
+        const installed = await getInstalledWorkflows(session.user.id);
+        setInstalledWorkflows(installed);
+      } catch (err) {
+        console.error("Failed to fetch installed workflows:", err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchInstalled();
+  }, [session?.user?.id]);
+
+  const onItemClick = (type: string) => {
+    pushHistory();
+    setNodes((nodes) => [
+      ...nodes,
+      {
+        id: crypto.randomUUID(),
+        type: type as EditorCanvasTypes,
+        position: {
+          x: 200 + Math.random() * 100,
+          y: 200 + Math.random() * 100,
+        },
+        data: {
+          title: type,
+          description: '',
+          completed: false,
+          current: false,
+          metadata: {},
+          type: type as EditorCanvasTypes,
+        },
+      },
+    ]);
+  };
+
+  // Add a SubflowNode with full published workflow data
+  const onInstalledClick = (workflow: any) => {
+    pushHistory();
+    const pw = workflow.publishedWorkflow;
+    setNodes((nodes) => [
+      ...nodes,
+      {
+        id: crypto.randomUUID(),
+        type: 'SubflowNode' as EditorCanvasTypes,
+        position: {
+          x: 200 + Math.random() * 100,
+          y: 200 + Math.random() * 100,
+        },
+        data: {
+          title: pw.name,
+          description: pw.description || 'Installed workflow',
+          completed: false,
+          current: false,
+          metadata: {},
+          type: 'SubflowNode' as EditorCanvasTypes,
+          publishedName: pw.name,
+          publishedIcon: pw.icon || '⚡',
+          publishedDefinition: pw.definition,
+          inputSchema: pw.inputSchema,
+          outputSchema: pw.outputSchema,
+          config: {
+            publishedWorkflowId: pw.id,
+          },
+        },
+      },
+    ]);
+  };
+
+  // Drag start for installed workflow nodes
+  const onInstalledDragStart = (e: React.DragEvent, workflow: any) => {
+    // We store metadata in a custom format so onDrop can create SubflowNode
+    e.dataTransfer.setData("application/reactflow", "SubflowNode");
+    e.dataTransfer.setData("application/subflow-data", JSON.stringify({
+      publishedName: workflow.publishedWorkflow.name,
+      publishedIcon: workflow.publishedWorkflow.icon || '⚡',
+      publishedDefinition: workflow.publishedWorkflow.definition,
+      inputSchema: workflow.publishedWorkflow.inputSchema,
+      outputSchema: workflow.publishedWorkflow.outputSchema,
+      publishedWorkflowId: workflow.publishedWorkflow.id,
+    }));
+    e.dataTransfer.effectAllowed = "move";
+  };
+
+  return (
+    <div className="w-full max-w-md px-1">
+      <div className="flex items-center mb-2">
+        <ExtensionSheetDemo>
+          <Button variant={"outline"} className="w-full">Import Nodes  <IconFileImport /></Button>
+        </ExtensionSheetDemo>
+      </div>
+
+      {/* Installed Workflows Section */}
+      {isLoading && (
+        <div className="text-xs text-muted-foreground text-center py-2 animate-pulse">
+          Loading installed workflows...
+        </div>
+      )}
+
+      {installedWorkflows.length > 0 && (
+        <div className="mb-4">
+          <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 px-1">
+            Installed Workflows ({installedWorkflows.length})
+          </h4>
+          <div className="flex flex-col gap-2">
+            {installedWorkflows.map((iw) => (
+              <button
+                key={iw.id}
+                onClick={() => onInstalledClick(iw)}
+                draggable
+                onDragStart={(e) => onInstalledDragStart(e, iw)}
+                className="flex items-center gap-3 rounded-md border border-indigo-200 dark:border-indigo-800 bg-indigo-50/50 dark:bg-indigo-950/30 p-2.5 text-left hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition cursor-grab active:cursor-grabbing"
+              >
+                <span className="text-lg flex-shrink-0">
+                  {iw.publishedWorkflow?.icon || '⚡'}
+                </span>
+
+                <div className="flex flex-col min-w-0">
+                  <span className="text-sm font-medium truncate">
+                    {iw.publishedWorkflow?.name || 'Workflow'}
+                  </span>
+                  <span className="text-xs text-muted-foreground truncate">
+                    {iw.publishedWorkflow?.description || 'Published workflow'}
+                  </span>
+                  <span className="text-[10px] text-indigo-500 mt-0.5">
+                    by {iw.publishedWorkflow?.publisher?.name || 'Unknown'}
+                  </span>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Standard imported nodes */}
+      <Accordion type="multiple" defaultValue={["Input", "Transform", "Math", "Combine", "Output"]} className="w-full">
+        {importedNodes.map((group) => (
+          <AccordionItem
+            key={group.title}
+            value={group.title}
+          >
+            <AccordionTrigger className="text-sm font-semibold">
+              {group.title}
+            </AccordionTrigger>
+
+            <AccordionContent>
+              <div className="flex flex-col gap-2">
+                {group.types.map((item, i) => (
+                  <button
+                    key={i}
+                    onClick={() => onItemClick(item.type)}
+                    draggable
+                    onDragStart={(e) => {
+                      e.dataTransfer.setData("application/reactflow", item.type);
+                      e.dataTransfer.effectAllowed = "move";
+                    }}
+                    className="flex items-center gap-3 rounded-md border p-2.5 text-left hover:bg-muted transition cursor-grab active:cursor-grabbing"
+                  >
+                    <span className="text-muted-foreground">
+                      {item.icon}
+                    </span>
+
+                    <div className="flex flex-col">
+                      <span className="text-sm font-medium">
+                        {item.title}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        {item.description}
+                      </span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+        ))}
+      </Accordion>
+    </div>
+  );
+}
 

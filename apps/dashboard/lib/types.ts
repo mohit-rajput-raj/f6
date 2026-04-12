@@ -141,6 +141,8 @@ export type EditorCanvasTypes =
   | 'DropColumnNode'
   | 'IfElseNode'
   | 'SwitchCaseNode'
+  | 'SubflowNode'
+  | 'SheetEditorNode'
   | 'Email'
   | 'Condition'
   | 'AI'

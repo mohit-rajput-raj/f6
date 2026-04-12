@@ -6,7 +6,6 @@ import {
 } from "@repo/ui/components/ui/resizable";
 import Flow from "./reactFlow";
 import { TabsDemo } from "./tabs";
-import { SheetDemo } from "@/components/dashboard/sheet";
 import { useUIStore } from "@/stores/ui.store";
 import { Button } from "@repo/ui/components/ui/button";
 import { IconDirectionHorizontal } from "@tabler/icons-react";
@@ -23,6 +22,19 @@ import { TabsBottom } from "./tabsBottom";
 import { SidebarTrigger } from "@repo/ui/components/ui/sidebar";
 import type { EditorNodeType } from "@/lib/types";
 import type { Edge } from "@xyflow/react";
+import { publishWorkflow } from "../_actions/publish.service";
+import { toast } from "sonner";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@repo/ui/components/ui/dialog";
+import { Input } from "@repo/ui/components/ui/input";
+import { Label } from "@repo/ui/components/ui/label";
+import { Textarea } from "@repo/ui/components/ui/textarea";
 
 interface WorkFlowEditorProps {
   workflowId?: string;
@@ -79,6 +91,11 @@ function WorkFlowEditorInner() {
     hasUnsavedChanges,
   } = useEditorWorkFlow();
   const [isRunning, setIsRunning] = React.useState(false);
+  const [publishOpen, setPublishOpen] = React.useState(false);
+  const [publishName, setPublishName] = React.useState("");
+  const [publishDesc, setPublishDesc] = React.useState("");
+  const [publishIcon, setPublishIcon] = React.useState("⚡");
+  const [isPublishing, setIsPublishing] = React.useState(false);
 
   if (isPending) {
     return <p className="p-10">Loading workflow...</p>;
@@ -93,12 +110,40 @@ function WorkFlowEditorInner() {
     }
   };
 
+  const handlePublish = async () => {
+    if (!flowId || !session?.user?.id || !publishName.trim()) {
+      toast.error("Please provide a workflow name");
+      return;
+    }
+    setIsPublishing(true);
+    try {
+      await publishWorkflow({
+        workflowId: flowId,
+        publisherId: session.user.id,
+        name: publishName.trim(),
+        description: publishDesc.trim() || undefined,
+        icon: publishIcon || "⚡",
+        tags: [],
+        categories: [],
+      });
+      toast.success("Workflow published to marketplace!");
+      setPublishOpen(false);
+      setPublishName("");
+      setPublishDesc("");
+    } catch (err: any) {
+      console.error("Publish failed:", err);
+      toast.error(err?.message || "Failed to publish workflow");
+    } finally {
+      setIsPublishing(false);
+    }
+  };
+
   return (
     <>
       <div className="flex justify-between">
         <div className="flex gap-1">
           <SidebarTrigger className="-ml-1" />
-          <SheetDemo />
+
           <Button onClick={handleRuns} disabled={isRunning}>
             {isRunning ? "Running..." : "▶ Execute"}
           </Button>
@@ -123,6 +168,12 @@ function WorkFlowEditorInner() {
             className={hasUnsavedChanges ? "bg-blue-600 hover:bg-blue-700 text-white" : ""}
           >
             {isSaving ? "Saving..." : hasUnsavedChanges ? "💾 Save*" : "💾 Saved"}
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => setPublishOpen(true)}
+          >
+            📤 Publish
           </Button>
         </div>
         <div>
@@ -187,6 +238,60 @@ function WorkFlowEditorInner() {
           </div>
         </ResizablePanel>
       </ResizablePanelGroup>
+
+      {/* Publish Dialog */}
+      <Dialog open={publishOpen} onOpenChange={setPublishOpen}>
+        <DialogContent className="dark bg-zinc-950 border-zinc-800">
+          <DialogHeader>
+            <DialogTitle>Publish Workflow</DialogTitle>
+            <DialogDescription>
+              Share this workflow as a reusable node in the marketplace.
+              Only the structure and settings will be shared — not actual data.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1">
+              <Label htmlFor="pub-icon">Icon (emoji)</Label>
+              <Input
+                id="pub-icon"
+                value={publishIcon}
+                onChange={(e) => setPublishIcon(e.target.value)}
+                placeholder="⚡"
+                className="w-20"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="pub-name">Workflow Name *</Label>
+              <Input
+                id="pub-name"
+                value={publishName}
+                onChange={(e) => setPublishName(e.target.value)}
+                placeholder="e.g. Attendance Calculator"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="pub-desc">Description</Label>
+              <Textarea
+                id="pub-desc"
+                value={publishDesc}
+                onChange={(e) => setPublishDesc(e.target.value)}
+                placeholder="What does this workflow do?"
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPublishOpen(false)}>Cancel</Button>
+            <Button
+              onClick={handlePublish}
+              disabled={isPublishing || !publishName.trim()}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white"
+            >
+              {isPublishing ? "Publishing..." : "Publish"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

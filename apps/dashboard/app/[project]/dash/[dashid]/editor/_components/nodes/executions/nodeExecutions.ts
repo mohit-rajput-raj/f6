@@ -318,6 +318,41 @@ export const executeWorkflow = async (
           break;
         }
 
+        case "SubflowNode": {
+          // Execute the published workflow's inner graph
+          const ds: Dataset = inputValue ?? { columns: [], data: [] };
+          const innerDef = nodeData?.publishedDefinition;
+
+          if (innerDef && innerDef.nodes && innerDef.edges) {
+            // Create virtual input nodes with the incoming data
+            const innerNodes = innerDef.nodes.map((n: any) => {
+              // If it's an input node type, inject our data
+              if (["InputFileNode", "SpreadsheetInputNode", "DataLibraryInputNode"].includes(n.type)) {
+                return { ...n, data: { ...n.data, text: ds } };
+              }
+              return { ...n };
+            });
+
+            // Run the inner workflow synchronously by collecting outputs
+            const innerEdges = innerDef.edges;
+            // For now, simple pass-through — the inner execution would need
+            // a non-stateful version of executeWorkflow
+            // TODO: Implement recursive inner execution
+            outputValue = ds;
+          } else {
+            outputValue = ds;
+          }
+          break;
+        }
+
+        case "SheetEditorNode": {
+          // Terminal node — accepts data but produces no downstream output
+          // The actual push-to-sheet is triggered by the node's button or on exec
+          const ds: Dataset = inputValue ?? { columns: [], data: [] };
+          outputValue = ds; // Still store as result for the push button to use
+          break;
+        }
+
         case "OutputNode2":
         case "baseOutput":
         case "FileOutputNode":

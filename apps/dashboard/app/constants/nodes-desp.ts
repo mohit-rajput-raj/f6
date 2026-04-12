@@ -44,4 +44,10 @@ export const EditorCanvasDefaultCardTypes: Record<string, { description: string;
   Trigger: { description: 'Workflow trigger', type: 'Trigger' },
   Action: { description: 'Workflow action', type: 'Action' },
   Wait: { description: 'Wait/delay', type: 'Action' },
+
+  // Published workflow nodes
+  SubflowNode: { description: 'Run a published workflow as a single node', type: 'Workflow' },
+
+  // Sheet management
+  SheetEditorNode: { description: 'Push data into a target sheet with block-code column mapping', type: 'Output' },
 }

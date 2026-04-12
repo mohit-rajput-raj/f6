@@ -21,7 +21,7 @@ import { Copy, Lock, Unlock, Trash2, ClipboardCopy } from "lucide-react";
 export function NodeMenu() {
   const handleDelete = useDeleteNode();
   const nodeId = useNodeId();
-  const { setNodes, pushHistory } = useEditorWorkFlow();
+  const { setNodes, pushHistory, setEdges } = useEditorWorkFlow();
 
   const handleDuplicate = useCallback(() => {
     if (!nodeId) return;
@@ -62,7 +62,17 @@ export function NodeMenu() {
       return nds;
     });
   }, [nodeId, setNodes]);
+  const handelDeleteEdges = useCallback(() => {
+    if (!nodeId) return;
 
+    pushHistory();
+
+    setEdges((eds) =>
+      eds.filter(
+        (edge) => edge.source !== nodeId && edge.target !== nodeId
+      )
+    );
+  }, [nodeId, setEdges, pushHistory]);
   const handleToggleLock = useCallback(() => {
     if (!nodeId) return;
     pushHistory();
@@ -109,6 +119,13 @@ export function NodeMenu() {
           <DropdownMenuItem onClick={handleDelete} className="text-red-600 focus:text-red-600">
             <Trash2 className="size-3.5 mr-2" />
             Delete
+            <DropdownMenuShortcut>⌫</DropdownMenuShortcut>
+          </DropdownMenuItem>
+        </DropdownMenuGroup>
+        <DropdownMenuGroup>
+          <DropdownMenuItem onClick={handelDeleteEdges} className="text-red-600 focus:text-red-600">
+            <Trash2 className="size-3.5 mr-2" />
+            Delete all edges
             <DropdownMenuShortcut>⌫</DropdownMenuShortcut>
           </DropdownMenuItem>
         </DropdownMenuGroup>

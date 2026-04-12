@@ -15,7 +15,7 @@ import dynamic from 'next/dynamic';
 import SyncProvider from "@/context/syncProvider";
 
 // const SyncfusionLicense = dynamic(() => import('@/app/syncfusion'), { ssr: false });
-const Team = dynamic(() => import('@/components/dashboard/sheet/syncSheet'), { ssr: false });
+const SyncComponent = dynamic(() => import('@/components/dashboard/sheet/syncSheet'), { ssr: false });
 export function TabsBottom() {
     return (
         <div className="flex w-full h-full flex-col gap-6 ">
@@ -32,7 +32,7 @@ export function TabsBottom() {
 
 
 
-                        <Team />
+                        <SyncComponent />
                         {/* </SyncProvider> */}
                     </div>
                 </TabsContent>
