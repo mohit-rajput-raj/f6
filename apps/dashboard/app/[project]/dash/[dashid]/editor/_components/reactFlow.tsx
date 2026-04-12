@@ -62,11 +62,13 @@ import { UnionMergeNode } from "./nodes/calcy-nodes/union-merge-node";
 import { DropColumnNode } from "./nodes/calcy-nodes/drop-column-node";
 import { IfElseNode } from "./nodes/calcy-nodes/if-else-node";
 import { SwitchCaseNode } from "./nodes/calcy-nodes/switch-case-node";
+import { SubflowNode } from "./nodes/calcy-nodes/subflow-node";
+import { SheetEditorNode } from "./nodes/output-nodes/sheet-editor-node";
 
 const Flow = ({ handleRuns }: { handleRuns: () => void }) => {
   const nodeTypess = useMemo(
     () => ({
-      // Input nodes
+    
       InputFileNode: InputFileNode,
       InputImage: InputImage,
       InputText: InputText,
@@ -74,7 +76,7 @@ const Flow = ({ handleRuns }: { handleRuns: () => void }) => {
       SpreadsheetInputNode: SpreadsheetInputNode,
       DataLibraryInputNode: DataLibraryInputNode,
 
-      // Transform nodes
+    
       FilterNode: FilterNode,
       CamelCaseNode: CamelCaseNode,
       LowercaseNode: LowercaseNode,
@@ -83,18 +85,18 @@ const Flow = ({ handleRuns }: { handleRuns: () => void }) => {
       SelectColumnsNode: SelectColumnsNode,
       DropColumnNode: DropColumnNode,
 
-      // Logic nodes
+ 
       IfElseNode: IfElseNode,
       SwitchCaseNode: SwitchCaseNode,
 
-      // Math nodes
+
       MathColumnNode: MathColumnNode,
       MathRowNode: MathRowNode,
       FormulaNode: FormulaNode,
       AggregateNode: AggregateNode,
       CountNode: CountNode,
 
-      // Combine nodes
+ 
       MergeNode: MergeNode,
       UpdateMergeNode: UpdateMergeNode,
       SheetMergeNode: SheetMergeNode,
@@ -102,15 +104,21 @@ const Flow = ({ handleRuns }: { handleRuns: () => void }) => {
       ColumnMapNode: ColumnMapNode,
       UnionMergeNode: UnionMergeNode,
 
-      // Output nodes
+ 
       OutputNode2: OutputNode2,
       FileOutputNode: FileOutputNode,
       baseOutput: OutputNode,
 
-      // Legacy
+     
       FilterCsvNode: EditorCanvasCardSingle,
       baseNodebar: ActionBarNodeDemo,
       baseNodeFull: BaseNodeFullDemo,
+
+      // Published workflow node
+      SubflowNode: SubflowNode,
+
+      // Sheet editor node (no output)
+      SheetEditorNode: SheetEditorNode,
     }),
     []
   );
@@ -171,18 +179,38 @@ const Flow = ({ handleRuns }: { handleRuns: () => void }) => {
 
       pushHistory();
 
+      // Check for subflow metadata (when dragging installed workflows)
+      let extraData: any = {};
+      if (type === "SubflowNode") {
+        try {
+          const subflowRaw = event.dataTransfer.getData("application/subflow-data");
+          if (subflowRaw) {
+            const subflowData = JSON.parse(subflowRaw);
+            extraData = {
+              publishedName: subflowData.publishedName,
+              publishedIcon: subflowData.publishedIcon,
+              publishedDefinition: subflowData.publishedDefinition,
+              inputSchema: subflowData.inputSchema,
+              outputSchema: subflowData.outputSchema,
+              config: { publishedWorkflowId: subflowData.publishedWorkflowId },
+            };
+          }
+        } catch {}
+      }
+
       const newNode = {
         id: v4(),
         type,
         position,
         data: {
-          title: type,
+          title: extraData.publishedName || type,
           description:
             EditorCanvasDefaultCardTypes[type]?.description ?? "",
           completed: false,
           current: false,
           metadata: {},
           type: type,
+          ...extraData,
         },
       };
       //@ts-ignore

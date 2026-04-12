@@ -21,6 +21,8 @@ model User {
   workflows        Workflow[]
   dataLibraryFiles DataLibraryFile[]
   sharedNodes      SharedNode[]     @relation("CreatedSharedNodes")
+  publishedWorkflows PublishedWorkflow[] @relation("PublishedWorkflows")
+  installedWorkflows WorkflowInstallation[] @relation("InstalledWorkflows")
 
   @@unique([email])
   @@map("user")
@@ -97,6 +99,7 @@ model Workflow {
   versions         WorkflowVersion[]
   shares           WorkflowShare[]
   dataLibraryFiles DataLibraryFile[]
+  publishedVersions PublishedWorkflow[]
 
   @@index([userId])
   @@index([isPublic])
@@ -123,7 +126,7 @@ model WorkflowShare {
   id         String   @id @default(uuid()) @db.Uuid
   workflowId String   @db.Uuid
   sharedWith String?  @db.Uuid
-  permission String   // "view", "use", "edit"
+  permission String  
   createdAt  DateTime @default(now())
 
   workflow   Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
@@ -139,9 +142,9 @@ model DataLibraryFile {
   workflowId  String?  @db.Uuid
   name        String
   description String?
-  fileType    String   // "csv", "xlsx", "json", "calculated"
-  data        Json?    // { columns: string[], data: any[][] }
-  metadata    Json?    // { rowCount, colCount, fileSize, sourceNodeId, etc. }
+  fileType    String   
+  data        Json?   
+  metadata    Json?  
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -159,12 +162,12 @@ model SharedNode {
   shareKey        String   @unique
   creatorId       String
 
-  expectedColumns Json     // ["col1", "col2", ...]
-  data            Json?    // The mapped dataset from the other user
+  expectedColumns Json     
+  data            Json?    
 
   name            String
   description     String?
-  status          String   @default("pending") // "pending", "filled", "consumed"
+  status          String   @default("pending") 
 
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -174,4 +177,57 @@ model SharedNode {
   @@index([creatorId])
   @@index([shareKey])
   @@map("shared_node")
+}
+
+model PublishedWorkflow {
+  id              String   @id @default(uuid()) @db.Uuid
+  workflowId      String   @db.Uuid
+  publisherId     String
+
+  name            String
+  description     String?
+  icon            String?          // emoji or icon name
+  version         String   @default("1.0.0")
+
+  // The serialized workflow definition (nodes + edges, minus runtime data)
+  definition      Json
+
+  // Schema: what inputs/outputs does this workflow expect?
+  inputSchema     Json?    // [{ name, type, description }]
+  outputSchema    Json?    // [{ name, type, description }]
+
+  downloads       Int      @default(0)
+  isPublic        Boolean  @default(true)
+  tags            String[] @default([])
+  categories      String[] @default([])
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  publisher       User     @relation("PublishedWorkflows", fields: [publisherId], references: [id], onDelete: Cascade)
+  workflow        Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  installations   WorkflowInstallation[]
+
+  @@index([publisherId])
+  @@index([workflowId])
+  @@index([isPublic])
+  @@map("published_workflow")
+}
+
+model WorkflowInstallation {
+  id                  String   @id @default(uuid()) @db.Uuid
+  userId              String
+  publishedWorkflowId String   @db.Uuid
+
+  // User-specific config (e.g., block code mappings)
+  config              Json?
+
+  createdAt           DateTime @default(now())
+
+  user                User     @relation("InstalledWorkflows", fields: [userId], references: [id], onDelete: Cascade)
+  publishedWorkflow   PublishedWorkflow @relation(fields: [publishedWorkflowId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, publishedWorkflowId])
+  @@index([userId])
+  @@map("workflow_installation")
 }

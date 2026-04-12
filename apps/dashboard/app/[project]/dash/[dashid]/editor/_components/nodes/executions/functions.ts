@@ -391,7 +391,7 @@ export const applySelectColumns = (
 // ── Count In Row ──
 export const applyCountInRow = (
   dataset: Dataset,
-  config: { valueToCount?: string; resultColumn?: string; selectedColumns?: string[] }
+  config: { valueToCount?: string; resultColumn?: string; selectedColumns?: string[]; columnsToDrop?: string[] }
 ): Dataset => {
   if (!config.valueToCount) return dataset;
 
@@ -403,17 +403,29 @@ export const applyCountInRow = (
     ? config.selectedColumns.map(c => dataset.columns.indexOf(c)).filter(i => i >= 0)
     : dataset.columns.map((_, i) => i);
 
-  const valueLower = config.valueToCount.trim().toLowerCase();
+  const valuesToMatch = config.valueToCount.split('&&').map(v => v.trim().toLowerCase()).filter(v => v);
 
   const newData = dataset.data.map((row) => {
     let count = 0;
     for (const idx of searchIndices) {
-      if (idx < row.length && String(row[idx] ?? "").trim().toLowerCase() === valueLower) {
-        count++;
+      if (idx < row.length) {
+        const cellVal = String(row[idx] ?? "").trim().toLowerCase();
+        if (valuesToMatch.includes(cellVal)) {
+          count++;
+        }
       }
     }
     return [...row, count];
   });
+
+  const toDrop = config.columnsToDrop ?? [];
+  if (toDrop.length > 0) {
+    const indicesToKeep = newColumns.map((c, i) => toDrop.includes(c) ? -1 : i).filter(i => i >= 0);
+    return {
+      columns: indicesToKeep.map(i => newColumns[i]),
+      data: newData.map(row => indicesToKeep.map(i => row[i]))
+    };
+  }
 
   return { columns: newColumns, data: newData };
 };

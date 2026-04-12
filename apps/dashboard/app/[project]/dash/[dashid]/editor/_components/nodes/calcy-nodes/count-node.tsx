@@ -28,6 +28,7 @@ export const CountNode = memo(({ id, data }: { id: string; data: any }) => {
 
   // Optional: letting users pick which columns to search, defaults to all if empty
   const selectedColumns = config.selectedColumns || [];
+  const columnsToDrop = config.columnsToDrop || [];
   const availableColumns = data.inputColumns || [];
 
   const updateConfig = useCallback(
@@ -75,13 +76,13 @@ export const CountNode = memo(({ id, data }: { id: string; data: any }) => {
             <Label className="text-xs font-semibold text-muted-foreground">What to count?</Label>
             <Input
               type="text"
-              placeholder="e.g. P or Absent"
+              placeholder="e.g. P && A"
               value={valueToCount}
               onChange={(e) => updateConfig("valueToCount", e.target.value)}
               className="h-8 text-xs"
             />
             <p className="text-[10px] text-muted-foreground font-medium pt-1">
-              Counts occurrences of this exact value across a row.
+              Counts occurrences across a row. Use && for multiple values (e.g., P && A).
             </p>
           </div>
 
@@ -112,6 +113,25 @@ export const CountNode = memo(({ id, data }: { id: string; data: any }) => {
             />
             <p className="text-[9px] text-muted-foreground">
               If left empty, all columns will be searched.
+            </p>
+          </div>
+
+          <div className="space-y-1 pt-2 border-t">
+            <Label className="text-xs text-muted-foreground font-semibold">
+              Drop Columns from Output (Optional)
+            </Label>
+            <MultiSelect
+              options={availableColumns.map((col: string) => ({
+                label: col,
+                value: col,
+              }))}
+              onValueChange={(vals) => updateConfig("columnsToDrop", vals)}
+              defaultValue={columnsToDrop}
+              placeholder="Select columns to drop"
+              maxCount={2}
+            />
+            <p className="text-[9px] text-muted-foreground border-b pb-1">
+              These columns won't pass to the next node.
             </p>
           </div>
         </BaseNodeContent>

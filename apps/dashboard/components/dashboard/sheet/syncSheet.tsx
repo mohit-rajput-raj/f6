@@ -12,7 +12,7 @@ import { toast } from "sonner";
 import { useSession } from "@/lib/auth-client";
 import { createDataLibraryFile } from "@/app/[project]/dash/[dashid]/(documents)/data-library/actions";
 
-export default function Team() {
+export default function SyncComponent() {
   const spreadsheetRef = useRef<SpreadsheetComponent>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -148,7 +148,7 @@ export default function Team() {
       setExportMessage(
         `✓ Created input node: ${columns.length} columns × ${data.length} rows`
       );
-      try { toast.success(`Input node created: ${data.length} rows`); } catch {}
+      try { toast.success(`Input node created: ${data.length} rows`); } catch { }
     }).catch((err) => {
       console.error("Export Error:", err);
       setExportMessage("Export failed. See console.");
@@ -252,7 +252,7 @@ export default function Team() {
       });
     });
 
-    try { toast.success(`Output loaded into spreadsheet: ${dataset.data.length} rows`); } catch {}
+    try { toast.success(`Output loaded into spreadsheet: ${dataset.data.length} rows`); } catch { }
   };
 
   // ─── Save selection to Data Library ───
@@ -332,9 +332,8 @@ export default function Team() {
       <div className="flex flex-wrap items-center gap-1">
         {/* File Upload */}
         <label
-          className={`cursor-pointer px-2 py-1 text-xs border border-border rounded-lg font-medium transition ${
-            isLoading ? "bg-gray-400" : "bg-background hover:bg-muted"
-          }`}
+          className={`cursor-pointer px-2 py-1 text-xs border border-border rounded-lg font-medium transition ${isLoading ? "bg-gray-400" : "bg-background hover:bg-muted"
+            }`}
         >
           📂 Open .xlsx / .csv
           <input
@@ -349,7 +348,7 @@ export default function Team() {
 
         <Button
           onClick={handleClear}
-          className="px-2 py-1 text-xs rounded-lg font-medium transition"
+          className="px-2 py-1 text-xs rounded-lg bg-background shadow-sm font-medium transition"
           disabled={isLoading}
         >
           Clear
@@ -357,7 +356,7 @@ export default function Team() {
 
         <Button
           onClick={exportSelectedToCSV}
-          className="px-2 py-1 text-xs rounded-lg font-medium transition"
+          className="px-2 py-1 bg-background shadow-sm text-xs rounded-lg font-medium transition"
           disabled={isLoading}
         >
           📥 Export CSV
@@ -366,16 +365,16 @@ export default function Team() {
         {/* KEY BUTTON: Export selection as Input Node */}
         <Button
           onClick={exportAsInputNode}
-          className="px-2 py-1 text-xs rounded-lg font-medium bg-blue-600 text-white hover:bg-blue-700 transition"
+          className="px-2 py-1 text-xs rounded-lg font-medium bg-background shadow-sm text-white  transition"
           disabled={isLoading}
         >
-            🔗 Export as Input Node
+          🔗 Export as Input Node
         </Button>
 
         {/* Save selection to Data Library */}
         <Button
           onClick={saveSelectionToLibrary}
-          className="px-2 py-1 text-xs rounded-lg font-medium bg-emerald-600 text-white hover:bg-emerald-700 transition"
+          className="px-2 py-1 text-xs rounded-lg font-medium bg-background shadow-sm text-white  transition"
           disabled={isLoading || savingToLibrary}
         >
           💾 Save to Library
@@ -404,11 +403,10 @@ export default function Team() {
         )}
         {exportMessage && (
           <span
-            className={`text-xs font-medium ${
-              exportMessage.includes("✓") || exportMessage.includes("Success")
-                ? "text-green-600"
-                : "text-orange-600"
-            }`}
+            className={`text-xs font-medium ${exportMessage.includes("✓") || exportMessage.includes("Success")
+              ? "text-green-600"
+              : "text-orange-600"
+              }`}
           >
             {exportMessage}
           </span>

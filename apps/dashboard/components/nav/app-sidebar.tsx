@@ -314,7 +314,7 @@ export const AppSidebar = ({ val, ...props }: AppSidebarProps) => {
               <a href="#">
                 <IconLamp className="!size-5" />
                 {/* <IconInnerShadowTop className="!size-5" /> */}
-                <span className="text-base font-semibold">Machine</span>
+                <span className="text-base font-semibold">UNIXL</span>
               </a>
             </SidebarMenuButton>
           </SidebarMenuItem>
