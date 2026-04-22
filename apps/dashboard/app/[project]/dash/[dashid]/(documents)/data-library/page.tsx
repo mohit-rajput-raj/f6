@@ -25,6 +25,7 @@ import { Input } from '@repo/ui/components/ui/input';
 import { toast } from 'sonner';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
+import Spreadsheet from 'react-spreadsheet';
 
 interface DataLibraryFileItem {
   id: string;
@@ -433,29 +434,14 @@ const DataLibrary = () => {
               Close
             </Button>
           </div>
-          <div className="max-h-[300px] overflow-auto border rounded-lg">
-            <table className="w-full text-xs">
-              <thead className="sticky top-0 bg-muted">
-                <tr>
-                  {previewData.columns.map((col, i) => (
-                    <th key={i} className="px-2 py-1.5 text-left font-semibold border-r last:border-r-0 whitespace-nowrap">
-                      {col}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {previewData.data.map((row, ri) => (
-                  <tr key={ri} className="border-t hover:bg-muted/30">
-                    {row.map((cell: any, ci: number) => (
-                      <td key={ci} className="px-2 py-1 border-r last:border-r-0 truncate max-w-[150px]">
-                        {String(cell ?? '')}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="max-h-[400px] overflow-auto border rounded-lg">
+            <Spreadsheet
+              data={previewData.data.map(row =>
+                row.map((cell: any) => ({ value: String(cell ?? '') }))
+              )}
+              columnLabels={previewData.columns}
+              className="w-full"
+            />
             {previewData.data.length >= 50 && (
               <div className="text-center text-xs text-muted-foreground py-2 border-t">
                 Showing first 50 rows

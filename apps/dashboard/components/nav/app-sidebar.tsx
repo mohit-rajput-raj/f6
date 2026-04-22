@@ -219,6 +219,11 @@ const data = {
       icon: IconDatabase,
     },
     {
+      name: "Sheet Library",
+      url: "/sheet-library",
+      icon: IconListDetails,
+    },
+    {
       name: "Reports",
       url: "/reports",
       icon: IconReport,
@@ -311,7 +316,7 @@ export const AppSidebar = ({ val, ...props }: AppSidebarProps) => {
               asChild
               className="data-[slot=sidebar-menu-button]:!p-1.5"
             >
-              <a href="#">
+              <a href="/">
                 <IconLamp className="!size-5" />
                 {/* <IconInnerShadowTop className="!size-5" /> */}
                 <span className="text-base font-semibold">UNIXL</span>

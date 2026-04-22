@@ -14,7 +14,7 @@ const Header = (props: Props) => {
   const { data: session, isPending: isPending } = useSession();
   // const 
   return (
-    <header className="flex justify-end items-center p-4 gap-4 h-16  w-full top-0 left-0 z-20 fixed">
+    <header className="flex justify-end items-center p-4 gap-4 h-16  w-full top-0 left-0 z-20 fixed backdrop-blur-sm bg-zinc-900/20">
       {session?.user ? (
         <button onClick={() => signOut()}>Sign out</button>
       ) : isPending ? (
@@ -24,7 +24,7 @@ const Header = (props: Props) => {
       )}
 
       {!isPending && <a href={`/projects/${main_id}/projects`}>dashboard</a>}
-      <ModeToggle />
+      {/* <ModeToggle /> */}
     </header>
   );
 };

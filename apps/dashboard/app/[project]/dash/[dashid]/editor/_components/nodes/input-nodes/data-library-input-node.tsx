@@ -80,15 +80,15 @@ export const DataLibraryInputNode = memo(({ id, data }: { id: string; data: any 
         nds.map(n =>
           n.id === id
             ? {
-                ...n,
-                data: {
-                  ...n.data,
-                  text: { columns: fileData.columns, data: fileData.data },
-                  dataLibraryFileId: fileId,
-                  inputColumns: fileData.columns,
-                  rowCount: fileData.data.length,
-                },
-              }
+              ...n,
+              data: {
+                ...n.data,
+                text: { columns: fileData.columns, data: fileData.data },
+                dataLibraryFileId: fileId,
+                inputColumns: fileData.columns,
+                rowCount: fileData.data.length,
+              },
+            }
             : n
         )
       );
@@ -108,7 +108,7 @@ export const DataLibraryInputNode = memo(({ id, data }: { id: string; data: any 
         <IconTrash className="size-4 cursor-pointer text-red-400 hover:text-red-600" onClick={handleDelete} />
       </div>
 
-      <BaseNode className="min-w-[300px]">
+      <BaseNode className="max-w-[300px]">
         <BaseNodeHeader className="border-b flex items-center gap-2 px-3 py-1.5 bg-emerald-700 text-white">
           <Database className="size-4" />
           <BaseNodeHeaderTitle>Data Library</BaseNodeHeaderTitle>
@@ -141,11 +141,10 @@ export const DataLibraryInputNode = memo(({ id, data }: { id: string; data: any 
                   key={file.id}
                   onClick={() => loadFile(file.id)}
                   disabled={loadingFile}
-                  className={`w-full text-left px-2 py-1.5 rounded text-xs transition border ${
-                    selectedFileId === file.id
-                      ? 'bg-emerald-100 dark:bg-emerald-900 border-emerald-500'
-                      : 'hover:bg-muted border-transparent'
-                  } ${loadingFile ? 'opacity-50 cursor-wait' : ''}`}
+                  className={`w-full text-left px-2 py-1.5 rounded text-xs transition border ${selectedFileId === file.id
+                    ? 'bg-emerald-100 dark:bg-emerald-900 border-emerald-500'
+                    : 'hover:bg-muted border-transparent'
+                    } ${loadingFile ? 'opacity-50 cursor-wait' : ''}`}
                 >
                   <div className="font-medium truncate">{file.name}</div>
                   {(file.metadata as any)?.rowCount !== undefined && (

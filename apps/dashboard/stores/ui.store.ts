@@ -8,6 +8,8 @@ interface UIStore {
     setSidebarOpen: (open: boolean) => void;
     minimapOpen?: boolean;
     setMinimapOpen?: (open: boolean) => void;
+    selectedNodeId: string | null;
+    setSelectedNodeId: (id: string | null) => void;
 }
 
 export const useUIStore = create<UIStore>((set) => ({
@@ -17,4 +19,6 @@ export const useUIStore = create<UIStore>((set) => ({
     setMinimapOpen: (open: boolean) => set({ minimapOpen: open }),
      bottombarOpen: false,
     setBottombarOpen: (open: boolean) => set({ bottombarOpen: open }),
+    selectedNodeId: null,
+    setSelectedNodeId: (id: string | null) => set({ selectedNodeId: id }),
 }));

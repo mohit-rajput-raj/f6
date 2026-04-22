@@ -430,14 +430,36 @@ export const applyCountInRow = (
   return { columns: newColumns, data: newData };
 };
 
-// ── Update Merge (accumulate values) ──
+// ── Update Merge (accumulate values with per-column custom formulas) ──
+
+/** Safely evaluate a math expression with named variables */
+const safeEvalFormula = (formula: string, vars: Record<string, number>): number => {
+  try {
+    let expr = formula;
+    // Sort variable names by length (longest first) to avoid partial replacements
+    const sortedVarNames = Object.keys(vars).sort((a, b) => b.length - a.length);
+    for (const name of sortedVarNames) {
+      const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp(`\\b${escapedName}\\b`, 'g');
+      expr = expr.replace(regex, String(vars[name]));
+    }
+    // Only allow numbers, basic math operators, parens, and whitespace
+    const sanitized = expr.replace(/[^0-9+\-*/().%\s]/g, '');
+    return Function(`"use strict"; return (${sanitized})`)();
+  } catch {
+    return 0;
+  }
+};
+
 export const applyUpdateMerge = (
   existing: Dataset,
   newData: Dataset,
   config: {
     keyColumn?: string;
-    updateMode?: string; // "add", "replace", "max", "concat"
+    columnFormulas?: Record<string, string>;
     targetColumns?: string[];
+    updateMode?: string;
+    columnModes?: Record<string, string>;
   }
 ): Dataset => {
   if (!config.keyColumn) return existing;
@@ -446,7 +468,7 @@ export const applyUpdateMerge = (
   const keyIdxNew = newData.columns.indexOf(config.keyColumn);
   if (keyIdxExisting === -1 || keyIdxNew === -1) return existing;
 
-  const updateMode = config.updateMode ?? "add";
+  const columnFormulas = config.columnFormulas ?? {};
   const targetCols = config.targetColumns ?? [];
 
   // Build a lookup of existing rows by key
@@ -455,7 +477,6 @@ export const applyUpdateMerge = (
     existingMap.set(String(row[keyIdxExisting] ?? ""), idx);
   });
 
-  // Determine which columns to update
   const targetIndicesExisting = targetCols.map((c) => existing.columns.indexOf(c)).filter((i) => i >= 0);
   const targetIndicesNew = targetCols.map((c) => newData.columns.indexOf(c)).filter((i) => i >= 0);
 
@@ -466,34 +487,42 @@ export const applyUpdateMerge = (
     const existingIdx = existingMap.get(key);
 
     if (existingIdx !== undefined) {
-      // Update existing row
+      // Build scope of all existing column values
+      const rowScope: Record<string, number> = {};
+      existing.columns.forEach((col, idx) => {
+        rowScope[col] = Number(resultData[existingIdx][idx] ?? 0);
+      });
+
+      // Build scope of new row values
+      const newRowScope: Record<string, number> = {};
+      newData.columns.forEach((col, idx) => {
+        newRowScope[col] = Number(newRow[idx] ?? 0);
+      });
+
       for (let t = 0; t < targetCols.length; t++) {
         const eIdx = targetIndicesExisting[t];
         const nIdx = targetIndicesNew[t];
         if (eIdx === undefined || nIdx === undefined || eIdx < 0 || nIdx < 0) continue;
 
-        const oldVal = resultData[existingIdx][eIdx];
-        const newVal = newRow[nIdx];
+        const colName = targetCols[t];
+        const formula = columnFormulas[colName] ?? 'left + right';
+        const oldVal = Number(resultData[existingIdx][eIdx] ?? 0);
+        const newVal = Number(newRow[nIdx] ?? 0);
 
-        switch (updateMode) {
-          case "add":
-            resultData[existingIdx][eIdx] = Number(oldVal ?? 0) + Number(newVal ?? 0);
-            break;
-          case "replace":
-            resultData[existingIdx][eIdx] = newVal;
-            break;
-          case "max":
-            resultData[existingIdx][eIdx] = Math.max(Number(oldVal ?? 0), Number(newVal ?? 0));
-            break;
-          case "concat":
-            resultData[existingIdx][eIdx] = `${String(oldVal ?? "")}${String(newVal ?? "")}`;
-            break;
-          default:
-            resultData[existingIdx][eIdx] = newVal;
+        const formulaVars: Record<string, number> = {
+          ...rowScope,
+          left: oldVal,
+          right: newVal,
+        };
+        for (const [col, val] of Object.entries(newRowScope)) {
+          formulaVars[`new_${col}`] = val;
         }
+
+        const result = safeEvalFormula(formula, formulaVars);
+        resultData[existingIdx][eIdx] = isNaN(result) ? 0 : result;
+        rowScope[colName] = resultData[existingIdx][eIdx];
       }
     } else {
-      // New row — append it, map columns
       const newMappedRow = new Array(existing.columns.length).fill(null);
       existing.columns.forEach((col, idx) => {
         const newColIdx = newData.columns.indexOf(col);
@@ -790,6 +819,117 @@ export const applySwitchCase = (
     result[key] = { columns: dataset.columns, data: outputs[key] };
   }
   return result;
+};
+
+// ── Subject Block (prefix columns with subjectCode:sectionType:) ──
+export const applySubjectBlock = (
+  dataset: Dataset,
+  subjectCode: string,
+  sectionType: string,
+  keyColumn: string
+): Dataset => {
+  if (!subjectCode || !sectionType || !keyColumn) return dataset;
+
+  const keyIdx = dataset.columns.indexOf(keyColumn);
+  if (keyIdx === -1) return dataset;
+
+  const prefix = `${subjectCode}:${sectionType}:`;
+  const newColumns = dataset.columns.map((col, i) =>
+    i === keyIdx ? col : `${prefix}${col}`
+  );
+
+  return { columns: newColumns, data: dataset.data };
+};
+
+// ── Block Concat (join base + N blocks side-by-side on key column) ──
+export const applyBlockConcat = (
+  baseData: Dataset,
+  blocks: Dataset[],
+  keyColumn: string
+): Dataset => {
+  if (!keyColumn || !baseData || baseData.columns.length === 0) {
+    return baseData ?? { columns: [], data: [] };
+  }
+
+  const baseKeyIdx = baseData.columns.indexOf(keyColumn);
+  if (baseKeyIdx === -1) return baseData;
+
+  // Start with base columns
+  let resultColumns = [...baseData.columns];
+
+  // Build row map from base data (key → row values)
+  const rowMap = new Map<string, any[]>();
+  baseData.data.forEach(row => {
+    const key = String(row[baseKeyIdx] ?? "");
+    rowMap.set(key, [...row]);
+  });
+
+  // For each block, append its non-key columns
+  for (const block of blocks) {
+    if (!block || block.columns.length === 0) continue;
+
+    const blockKeyIdx = block.columns.indexOf(keyColumn);
+    if (blockKeyIdx === -1) continue;
+
+    // Get non-key column indices
+    const nonKeyIndices = block.columns
+      .map((_, i) => i)
+      .filter(i => i !== blockKeyIdx);
+
+    // Append non-key column names
+    const newCols = nonKeyIndices.map(i => block.columns[i]);
+    resultColumns = [...resultColumns, ...newCols];
+
+    // For each existing row, append block data
+    const prevColCount = resultColumns.length - newCols.length;
+    const nullFill = new Array(newCols.length).fill(null);
+
+    // Update existing rows
+    rowMap.forEach((rowValues, key) => {
+      const blockRow = block.data.find(
+        r => String(r[blockKeyIdx] ?? "") === key
+      );
+      if (blockRow) {
+        const blockValues = nonKeyIndices.map(i => blockRow[i]);
+        rowValues.push(...blockValues);
+      } else {
+        rowValues.push(...nullFill);
+      }
+    });
+
+    // Add new rows from block that don't exist in base
+    block.data.forEach(blockRow => {
+      const key = String(blockRow[blockKeyIdx] ?? "");
+      if (!rowMap.has(key)) {
+        // Create a row with nulls for base + previous blocks, fill in block data
+        const newRow = new Array(prevColCount).fill(null);
+        newRow[baseKeyIdx] = key; // set the key column
+        const blockValues = nonKeyIndices.map(i => blockRow[i]);
+        newRow.push(...blockValues);
+        rowMap.set(key, newRow);
+      }
+    });
+  }
+
+  // Convert map to array, maintaining order
+  const resultData: any[][] = [];
+  // First add rows in base order
+  const baseKeys = baseData.data.map(r => String(r[baseKeyIdx] ?? ""));
+  const addedKeys = new Set<string>();
+  for (const key of baseKeys) {
+    if (rowMap.has(key) && !addedKeys.has(key)) {
+      resultData.push(rowMap.get(key)!);
+      addedKeys.add(key);
+    }
+  }
+  // Then add any new rows from blocks
+  rowMap.forEach((row, key) => {
+    if (!addedKeys.has(key)) {
+      resultData.push(row);
+    }
+  });
+
+  return { columns: resultColumns, data: resultData };
 };
 
 // ── Debounce utility ──

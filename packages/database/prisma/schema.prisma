@@ -23,6 +23,7 @@ model User {
   sharedNodes      SharedNode[]     @relation("CreatedSharedNodes")
   publishedWorkflows PublishedWorkflow[] @relation("PublishedWorkflows")
   installedWorkflows WorkflowInstallation[] @relation("InstalledWorkflows")
+  masterSheets     MasterSheet[]
 
   @@unique([email])
   @@map("user")
@@ -230,4 +231,39 @@ model WorkflowInstallation {
   @@unique([userId, publishedWorkflowId])
   @@index([userId])
   @@map("workflow_installation")
+}
+
+model MasterSheet {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String
+  name        String
+  data        Json?    // { columns: string[], data: any[][] }
+  metadata    Json?    // { rowCount, colCount, blockCodes, lastMergedAt }
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  history     MasterSheetHistory[]
+
+  @@index([userId])
+  @@map("master_sheet")
+}
+
+model MasterSheetHistory {
+  id            String   @id @default(uuid()) @db.Uuid
+  masterSheetId String   @db.Uuid
+  userId        String
+  userName      String
+  action        String   // "merge" | "reject" | "update"
+  dataBefore    Json?    // snapshot before change
+  dataAfter     Json?    // snapshot after change
+  changeSummary String?  // "Added 3 columns from CO24553:Th"
+
+  createdAt     DateTime @default(now())
+
+  masterSheet   MasterSheet @relation(fields: [masterSheetId], references: [id], onDelete: Cascade)
+
+  @@index([masterSheetId])
+  @@map("master_sheet_history")
 }
