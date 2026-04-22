@@ -32,42 +32,52 @@ export async function publishWorkflow({
   const nodes = def?.reactFlow?.nodes ?? [];
   const edges = def?.reactFlow?.edges ?? [];
 
-  // 2. Extract input/output schema from nodes
-  const inputNodes = nodes.filter((n: any) =>
-    ["InputFileNode", "SpreadsheetInputNode", "DataLibraryInputNode", "TextInputNode"].includes(n.type)
-  );
-  const outputNodes = nodes.filter((n: any) =>
-    ["FileOutputNode", "OutputNode2", "baseOutput", "SheetEditorNode"].includes(n.type)
-  );
+  // 2. Validate: Must have at least one WorkflowInputNode
+  const inputBoundaryNodes = nodes.filter((n: any) => n.type === "WorkflowInputNode");
+  const outputBoundaryNodes = nodes.filter((n: any) => n.type === "WorkflowOutputNode");
 
-  const inputSchema = inputNodes.map((n: any) => ({
+  if (inputBoundaryNodes.length === 0) {
+    throw new Error(
+      "Cannot publish: Add at least one 'Workflow Input' boundary node to define the input interface."
+    );
+  }
+
+  // 3. Build inputSchema from WorkflowInputNode configs
+  const inputSchema = inputBoundaryNodes.map((n: any) => ({
     nodeId: n.id,
-    type: n.type,
-    title: n.data?.title ?? n.type,
+    type: "WorkflowInputNode",
+    label: n.data?.config?.label ?? "Input",
+    dataType: n.data?.config?.dataType ?? "dataset",
+    description: n.data?.config?.description ?? "",
+    requiredColumns: n.data?.config?.requiredColumns ?? "",
   }));
 
-  const outputSchema = outputNodes.map((n: any) => ({
+  // 4. Build outputSchema from WorkflowOutputNode configs (may be empty)
+  const outputSchema = outputBoundaryNodes.map((n: any) => ({
     nodeId: n.id,
-    type: n.type,
-    title: n.data?.title ?? n.type,
+    type: "WorkflowOutputNode",
+    label: n.data?.config?.label ?? "Output",
+    dataType: n.data?.config?.dataType ?? "dataset",
+    description: n.data?.config?.description ?? "",
   }));
 
-  // 3. Strip runtime data from nodes before storing
+  // 5. Strip ALL runtime data from every node — keep only config, type, position
   const cleanNodes = nodes.map((n: any) => ({
-    ...n,
+    id: n.id,
+    type: n.type,
+    position: n.position,
     data: {
-      ...n.data,
-      result: undefined,
-      rowCount: undefined,
-      error: undefined,
-      inputColumns: undefined,
-      leftColumns: undefined,
-      rightColumns: undefined,
-      text: undefined, // Don't share actual data
+      title: n.data?.title,
+      description: n.data?.description,
+      type: n.data?.type,
+      config: n.data?.config,         // Keep settings/config
+      metadata: n.data?.metadata,
+      // Everything below is stripped (runtime data):
+      // result, rowCount, error, inputColumns, leftColumns, rightColumns, text
     },
   }));
 
-  // 4. Create published workflow
+  // 6. Create published workflow with ENTIRE graph
   const published = await prisma.publishedWorkflow.create({
     data: {
       workflowId,

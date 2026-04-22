@@ -50,4 +50,8 @@ export const EditorCanvasDefaultCardTypes: Record<string, { description: string;
 
   // Sheet management
   SheetEditorNode: { description: 'Push data into a target sheet with block-code column mapping', type: 'Output' },
+
+  // Publish boundary nodes
+  WorkflowInputNode: { description: 'Define the input boundary for publishing', type: 'Publish' },
+  WorkflowOutputNode: { description: 'Define the output boundary for publishing (optional)', type: 'Publish' },
 }

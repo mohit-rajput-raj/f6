@@ -131,6 +131,10 @@ import {
   IconTransform,
   IconTypography,
   IconFileImport,
+  IconUpload,
+  IconDownload,
+  IconLayoutColumns,
+  IconTable,
 } from "@tabler/icons-react";
 import { EditorCanvasTypes } from "@/lib/types";
 import {
@@ -160,6 +164,18 @@ const nodes = [
         type: "DataLibraryInputNode",
         icon: <IconFile />,
         description: "Import from Data Library",
+      },
+      {
+        title: "Text Value",
+        type: "TextValueNode",
+        icon: <IconTypography />,
+        description: "Single text value (e.g. subject code)",
+      },
+      {
+        title: "Number Value",
+        type: "NumberValueNode",
+        icon: <IconCalculator />,
+        description: "Single number value",
       },
     ]
   },
@@ -289,6 +305,18 @@ const nodes = [
         icon: <IconRowInsertBottom />,
         description: "Stack datasets vertically",
       },
+      {
+        title: "Subject Block",
+        type: "SubjectBlockNode",
+        icon: <IconTable />,
+        description: "Map data with subject/section prefix",
+      },
+      {
+        title: "Block Concat",
+        type: "BlockConcatNode",
+        icon: <IconLayoutColumns />,
+        description: "Join blocks into master sheet",
+      },
     ]
   },
   {
@@ -305,6 +333,26 @@ const nodes = [
         type: "SheetEditorNode",
         icon: <IconPencil />,
         description: "Push data to a target sheet",
+      },
+    ]
+  }
+]
+
+const publishNodes = [
+  {
+    title: "Publish",
+    types: [
+      {
+        title: "Workflow Input",
+        type: "WorkflowInputNode",
+        icon: <IconUpload />,
+        description: "Define input boundary for publishing",
+      },
+      {
+        title: "Workflow Output",
+        type: "WorkflowOutputNode",
+        icon: <IconDownload />,
+        description: "Define output boundary (optional)",
       },
     ]
   }
@@ -434,6 +482,41 @@ export function ItemImage() {
                       <span className="text-xs text-muted-foreground">
                         {item.description}
                       </span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+        ))}
+      </Accordion>
+
+      {/* Publish Boundary Nodes */}
+      <Accordion type="multiple" defaultValue={["Publish"]} className="w-full mt-2">
+        {publishNodes.map((group) => (
+          <AccordionItem key={group.title} value={group.title}>
+            <AccordionTrigger className="text-sm font-semibold text-indigo-400">
+              📦 {group.title}
+            </AccordionTrigger>
+            <AccordionContent>
+              <div className="flex flex-col gap-2">
+                {group.types.map((item, i) => (
+                  <button
+                    key={i}
+                    onClick={() => onItemClick(item.type)}
+                    draggable
+                    onDragStart={(e) => {
+                      e.dataTransfer.setData("application/reactflow", item.type);
+                      e.dataTransfer.effectAllowed = "move";
+                    }}
+                    className="flex items-center gap-3 rounded-md border border-indigo-800/40 bg-indigo-950/20 p-2.5 text-left hover:bg-indigo-900/30 transition cursor-grab active:cursor-grabbing"
+                  >
+                    <span className="text-indigo-400">
+                      {item.icon}
+                    </span>
+                    <div className="flex flex-col">
+                      <span className="text-sm font-medium">{item.title}</span>
+                      <span className="text-xs text-muted-foreground">{item.description}</span>
                     </div>
                   </button>
                 ))}

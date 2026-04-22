@@ -64,6 +64,12 @@ import { IfElseNode } from "./nodes/calcy-nodes/if-else-node";
 import { SwitchCaseNode } from "./nodes/calcy-nodes/switch-case-node";
 import { SubflowNode } from "./nodes/calcy-nodes/subflow-node";
 import { SheetEditorNode } from "./nodes/output-nodes/sheet-editor-node";
+import { WorkflowInputNode } from "./nodes/calcy-nodes/workflow-input-node";
+import { WorkflowOutputNode } from "./nodes/calcy-nodes/workflow-output-node";
+import { SubjectBlockNode } from "./nodes/calcy-nodes/subject-block-node";
+import { BlockConcatNode } from "./nodes/calcy-nodes/block-concat-node";
+import { TextValueNode } from "./nodes/input-nodes/text-value-node";
+import { NumberValueNode } from "./nodes/input-nodes/number-value-node";
 
 const Flow = ({ handleRuns }: { handleRuns: () => void }) => {
   const nodeTypess = useMemo(
@@ -119,12 +125,24 @@ const Flow = ({ handleRuns }: { handleRuns: () => void }) => {
 
       // Sheet editor node (no output)
       SheetEditorNode: SheetEditorNode,
+
+      // Publish boundary nodes
+      WorkflowInputNode: WorkflowInputNode,
+      WorkflowOutputNode: WorkflowOutputNode,
+
+      // Master sheet nodes
+      SubjectBlockNode: SubjectBlockNode,
+      BlockConcatNode: BlockConcatNode,
+
+      // Value input nodes
+      TextValueNode: TextValueNode,
+      NumberValueNode: NumberValueNode,
     }),
     []
   );
 
   const debouncedRun = debounce(handleRuns, 600);
-  const { minimapOpen } = useUIStore();
+  const { minimapOpen, setSelectedNodeId } = useUIStore();
   const { edges, nodes, setEdges, setNodes, pushHistory } =
     useEditorWorkFlow();
   const [reactFlowInstance, setReactFlowInstance] =
@@ -223,6 +241,10 @@ const Flow = ({ handleRuns }: { handleRuns: () => void }) => {
     pushHistory();
   }, [pushHistory]);
 
+  const onNodeClick = useCallback((_event: any, node: any) => {
+    setSelectedNodeId(node.id);
+  }, [setSelectedNodeId]);
+
   return (
     <div className="w-full h-[100%]">
       <ContextMenuDemo>
@@ -237,6 +259,7 @@ const Flow = ({ handleRuns }: { handleRuns: () => void }) => {
           onConnect={onConnect}
           onInit={setReactFlowInstance}
           onNodeDragStop={onNodeDragStop}
+          onNodeClick={onNodeClick}
           fitView
           minZoom={0.2}
           maxZoom={3}
