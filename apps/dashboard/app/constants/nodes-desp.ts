@@ -54,4 +54,20 @@ export const EditorCanvasDefaultCardTypes: Record<string, { description: string;
   // Publish boundary nodes
   WorkflowInputNode: { description: 'Define the input boundary for publishing', type: 'Publish' },
   WorkflowOutputNode: { description: 'Define the output boundary for publishing (optional)', type: 'Publish' },
+
+  // Master sheet nodes
+  SubjectBlockNode: { description: 'Map data with subject/section prefix', type: 'Combine' },
+  BlockConcatNode: { description: 'Join blocks into master sheet', type: 'Combine' },
+
+  // Value input nodes
+  TextValueNode: { description: 'Single text value (e.g. subject code)', type: 'Input' },
+  NumberValueNode: { description: 'Single number value', type: 'Input' },
+
+  // Desk panel nodes
+  DeskTextInputNode: { description: 'Text input from Desk panel with editable placeholder', type: 'Input' },
+  DeskSheetNode: { description: 'Sheet data loaded from Desk panel', type: 'Input' },
+  OutputPreviewNode: { description: 'Preview output data in Desk panel spreadsheet', type: 'Output' },
+  TrueFalseNode: { description: 'Boolean toggle — generates a checkbox on the desk block', type: 'Input' },
+  BlockOutputSenderNode: { description: 'Send output data to the next desk block', type: 'Output' },
+  MasterSheetPreviewNode: { description: 'Preview data in the bottom MasterSheet panel (with ID)', type: 'Output' },
 }

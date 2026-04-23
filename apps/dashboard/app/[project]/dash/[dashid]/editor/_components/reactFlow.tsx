@@ -70,6 +70,12 @@ import { SubjectBlockNode } from "./nodes/calcy-nodes/subject-block-node";
 import { BlockConcatNode } from "./nodes/calcy-nodes/block-concat-node";
 import { TextValueNode } from "./nodes/input-nodes/text-value-node";
 import { NumberValueNode } from "./nodes/input-nodes/number-value-node";
+import { DeskTextInputNode } from "./nodes/input-nodes/desk-text-input-node";
+import { DeskSheetNode } from "./nodes/input-nodes/desk-sheet-node";
+import { OutputPreviewNode } from "./nodes/output-nodes/output-preview-node";
+import { TrueFalseNode } from "./nodes/input-nodes/true-false-node";
+import { BlockOutputSenderNode } from "./nodes/output-nodes/block-output-sender-node";
+import { MasterSheetPreviewNode } from "./nodes/output-nodes/mastersheet-preview-node";
 
 const Flow = ({ handleRuns }: { handleRuns: () => void }) => {
   const nodeTypess = useMemo(
@@ -137,13 +143,21 @@ const Flow = ({ handleRuns }: { handleRuns: () => void }) => {
       // Value input nodes
       TextValueNode: TextValueNode,
       NumberValueNode: NumberValueNode,
+
+      // Desk panel nodes
+      DeskTextInputNode: DeskTextInputNode,
+      DeskSheetNode: DeskSheetNode,
+      OutputPreviewNode: OutputPreviewNode,
+      TrueFalseNode: TrueFalseNode,
+      BlockOutputSenderNode: BlockOutputSenderNode,
+      MasterSheetPreviewNode: MasterSheetPreviewNode,
     }),
     []
   );
 
   const debouncedRun = debounce(handleRuns, 600);
   const { minimapOpen, setSelectedNodeId } = useUIStore();
-  const { edges, nodes, setEdges, setNodes, pushHistory } =
+  const { edges, nodes, setEdges, setNodes, pushHistory, deskBlockId } =
     useEditorWorkFlow();
   const [reactFlowInstance, setReactFlowInstance] =
     useState<ReactFlowInstance>();
@@ -216,6 +230,12 @@ const Flow = ({ handleRuns }: { handleRuns: () => void }) => {
         } catch {}
       }
 
+      // Auto-inject deskBlockId for desk-type nodes
+      const deskNodeTypes = ["DeskTextInputNode", "DeskSheetNode", "OutputPreviewNode", "TrueFalseNode", "BlockOutputSenderNode", "MasterSheetPreviewNode"];
+      if (deskBlockId && deskNodeTypes.includes(type)) {
+        extraData.deskBlockId = deskBlockId;
+      }
+
       const newNode = {
         id: v4(),
         type,
@@ -234,7 +254,7 @@ const Flow = ({ handleRuns }: { handleRuns: () => void }) => {
       //@ts-ignore
       setNodes((nds) => nds.concat(newNode));
     },
-    [reactFlowInstance, pushHistory]
+    [reactFlowInstance, pushHistory, deskBlockId]
   );
 
   const onNodeDragStop = useCallback(() => {

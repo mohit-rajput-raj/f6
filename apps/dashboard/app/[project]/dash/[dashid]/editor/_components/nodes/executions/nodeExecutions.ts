@@ -498,11 +498,127 @@ export const executeWorkflow = async (
           break;
         }
 
+        // ── Desk panel nodes ──────────────────────────
+        case "DeskTextInputNode": {
+          // Read value from desk store (block-scoped)
+          try {
+            const { useDeskStore } = await import("@/stores/desk-store");
+            const deskBlockId = nodeData?.deskBlockId;
+            const deskInputId = nodeData?.deskInputId;
+            if (deskBlockId && deskInputId) {
+              const input = useDeskStore.getState().getTextInputById(deskBlockId, deskInputId);
+              outputValue = input?.value ?? nodeData?.text ?? "";
+            } else {
+              outputValue = nodeData?.text ?? "";
+            }
+          } catch {
+            outputValue = nodeData?.text ?? "";
+          }
+          break;
+        }
+
+        case "DeskSheetNode": {
+          // Read sheet data from desk store (block-scoped)
+          try {
+            const { useDeskStore } = await import("@/stores/desk-store");
+            const deskBlockId = nodeData?.deskBlockId;
+            const deskSheetId = nodeData?.deskSheetId;
+            if (deskBlockId && deskSheetId) {
+              const sheet = useDeskStore.getState().getSheetById(deskBlockId, deskSheetId);
+              if (sheet?.data) {
+                outputValue = sheet.data as Dataset;
+              } else {
+                outputValue = nodeData?.text ?? { columns: [], data: [] };
+              }
+            } else {
+              const fileData = nodeData?.text;
+              if (fileData && typeof fileData === "object" && fileData.columns) {
+                outputValue = fileData as Dataset;
+              } else {
+                outputValue = { columns: [], data: [] };
+              }
+            }
+          } catch {
+            outputValue = nodeData?.text ?? { columns: [], data: [] };
+          }
+          break;
+        }
+
+        case "OutputPreviewNode": {
+          // Push result to desk store for Syncfusion preview (block-scoped)
+          const ds: Dataset = inputValue ?? { columns: [], data: [] };
+          outputValue = ds;
+          if (ds && ds.columns && ds.columns.length > 0) {
+            try {
+              const { useDeskStore } = await import("@/stores/desk-store");
+              const deskBlockId = nodeData?.deskBlockId;
+              if (deskBlockId) {
+                useDeskStore.getState().setBlockOutput(deskBlockId, ds);
+              }
+            } catch (e) {
+              console.warn("Could not push to desk store:", e);
+            }
+          }
+          break;
+        }
+
+        case "MasterSheetPreviewNode": {
+          // Push result to desk store's masterSheetPreview (bottom panel)
+          const msDs: Dataset = inputValue ?? { columns: [], data: [] };
+          outputValue = msDs;
+          if (msDs && msDs.columns && msDs.columns.length > 0) {
+            try {
+              const { useDeskStore } = await import("@/stores/desk-store");
+              useDeskStore.getState().setMasterSheetPreview(msDs);
+            } catch (e) {
+              console.warn("Could not push to master sheet:", e);
+            }
+          }
+          break;
+        }
+
         case "OutputNode2":
         case "baseOutput":
         case "FileOutputNode":
           outputValue = inputValue;
           break;
+
+        case "TrueFalseNode": {
+          // Read checkbox state from desk store
+          try {
+            const { useDeskStore } = await import("@/stores/desk-store");
+            const deskBlockId = nodeData?.deskBlockId;
+            const checkboxId = nodeData?.checkboxId || currentId;
+            if (deskBlockId) {
+              const block = useDeskStore.getState().blocks.find(b => b.id === deskBlockId);
+              const field = block?.checkboxFields.find(f => f.id === checkboxId);
+              outputValue = field?.checked ?? false;
+            } else {
+              outputValue = false;
+            }
+          } catch {
+            outputValue = false;
+          }
+          break;
+        }
+
+        case "BlockOutputSenderNode": {
+          // Store input data as block output for the next block
+          const ds: Dataset = inputValue ?? { columns: [], data: [] };
+          outputValue = ds;
+          if (ds && ds.columns && ds.columns.length > 0) {
+            try {
+              const { useDeskStore } = await import("@/stores/desk-store");
+              const deskBlockId = nodeData?.deskBlockId;
+              if (deskBlockId) {
+                useDeskStore.getState().setBlockOutput(deskBlockId, ds);
+              }
+            } catch (e) {
+              console.warn("Could not push to desk store:", e);
+            }
+          }
+          break;
+        }
 
         default:
           outputValue = inputValue;

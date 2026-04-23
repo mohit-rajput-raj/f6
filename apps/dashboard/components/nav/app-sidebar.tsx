@@ -4,6 +4,7 @@ import * as React from "react"
 import {
   IconCamera,
   IconChartBar,
+  IconChartTreemap,
   IconDashboard,
   IconDatabase,
   IconFileAi,
@@ -18,6 +19,7 @@ import {
   IconReport,
   IconSearch,
   IconSettings,
+  IconTerminal,
   IconUsers,
 } from "@tabler/icons-react"
 
@@ -117,9 +119,14 @@ const data = {
   ],
   navMain: [
     {
-      title: "Dashboard",
+      title: "Desk",
+      url: "/desk",
+      icon: IconTerminal,
+    },
+    {
+      title: "Execution Flow",
       url: "/editor",
-      icon: IconDashboard,
+      icon: IconChartTreemap,
     },
     {
       title: "Lifecycle",

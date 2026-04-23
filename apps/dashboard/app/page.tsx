@@ -39,7 +39,7 @@ export default function Home() {
           </div>
 
           <h1 className="max-w-4xl text-5xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-br from-white via-neutral-200 to-white/40 sm:text-7xl">
-            Build powerful workflows at warp speed.
+            Build powerful workflows at UNIXL.
           </h1>
 
           <p className="max-w-2xl mt-6 text-lg font-medium leading-relaxed sm:text-xl text-neutral-400">

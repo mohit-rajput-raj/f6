@@ -16,7 +16,7 @@ export const applyFilter = (
   dataset: Dataset,
   config: FilterConfig
 ): Dataset => {
-  if (!config.column || !config.value || !config.condition) return dataset;
+  if (!dataset?.columns || !config.column || !config.value || !config.condition) return dataset ?? { columns: [], data: [] };
 
   const colIndex = dataset.columns.indexOf(config.column);
   if (colIndex === -1) return dataset;
@@ -77,7 +77,7 @@ export const applyMathColumn = (
     resultColumn?: string;
   }
 ): Dataset => {
-  if (!config.column || !config.operation) return dataset;
+  if (!dataset?.columns || !config.column || !config.operation) return dataset ?? { columns: [], data: [] };
 
   const colIndex = dataset.columns.indexOf(config.column);
   if (colIndex === -1) return dataset;
@@ -123,6 +123,7 @@ export const applyMathRow = (
   dataset: Dataset,
   config: { columns?: string[]; aggregation?: string; resultColumn?: string }
 ): Dataset => {
+  if (!dataset?.columns) return dataset ?? { columns: [], data: [] };
   if (!config.columns || config.columns.length === 0 || !config.aggregation)
     return dataset;
 
@@ -166,7 +167,7 @@ export const applySort = (
   dataset: Dataset,
   config: { column?: string; direction?: string }
 ): Dataset => {
-  if (!config.column) return dataset;
+  if (!dataset?.columns || !config.column) return dataset ?? { columns: [], data: [] };
 
   const colIndex = dataset.columns.indexOf(config.column);
   if (colIndex === -1) return dataset;
@@ -251,7 +252,7 @@ export const applyFormula = (
   dataset: Dataset,
   config: { formula?: string; resultColumn?: string }
 ): Dataset => {
-  if (!config.formula) return dataset;
+  if (!dataset?.columns || !config.formula) return dataset ?? { columns: [], data: [] };
 
   const resultName = config.resultColumn || "formula_result";
 
@@ -295,7 +296,9 @@ export const applyMerge = (
   }
 ): Dataset => {
   if (!config.leftColumn || !config.rightColumn)
-    return leftDataset;
+    return leftDataset ?? { columns: [], data: [] };
+  if (!leftDataset?.columns || !rightDataset?.columns)
+    return leftDataset ?? { columns: [], data: [] };
 
   const leftIdx = leftDataset.columns.indexOf(config.leftColumn);
   const rightIdx = rightDataset.columns.indexOf(config.rightColumn);
@@ -356,7 +359,7 @@ export const applyRenameColumn = (
   dataset: Dataset,
   config: { oldName?: string; newName?: string }
 ): Dataset => {
-  if (!config.oldName || !config.newName) return dataset;
+  if (!dataset?.columns || !config.oldName || !config.newName) return dataset ?? { columns: [], data: [] };
 
   const newColumns = dataset.columns.map((c) =>
     c === config.oldName ? config.newName! : c
@@ -370,6 +373,8 @@ export const applySelectColumns = (
   dataset: Dataset,
   config: { selectedColumns?: string[]; mode?: string }
 ): Dataset => {
+  if (!dataset?.columns)
+    return dataset ?? { columns: [], data: [] };
   if (!config.selectedColumns || config.selectedColumns.length === 0)
     return dataset;
 
@@ -393,7 +398,7 @@ export const applyCountInRow = (
   dataset: Dataset,
   config: { valueToCount?: string; resultColumn?: string; selectedColumns?: string[]; columnsToDrop?: string[] }
 ): Dataset => {
-  if (!config.valueToCount) return dataset;
+  if (!dataset?.columns || !config.valueToCount) return dataset ?? { columns: [], data: [] };
 
   const resultName = config.resultColumn || "CountResult";
   const newColumns = [...dataset.columns, resultName];
@@ -462,7 +467,8 @@ export const applyUpdateMerge = (
     columnModes?: Record<string, string>;
   }
 ): Dataset => {
-  if (!config.keyColumn) return existing;
+  if (!config.keyColumn) return existing ?? { columns: [], data: [] };
+  if (!existing?.columns || !newData?.columns) return existing ?? { columns: [], data: [] };
 
   const keyIdxExisting = existing.columns.indexOf(config.keyColumn);
   const keyIdxNew = newData.columns.indexOf(config.keyColumn);
@@ -547,7 +553,8 @@ export const applySheetMerge = (
     rightPrefix?: string;
   }
 ): Dataset => {
-  if (!config.keyColumn) return left;
+  if (!config.keyColumn) return left ?? { columns: [], data: [] };
+  if (!left?.columns || !right?.columns) return left ?? { columns: [], data: [] };
 
   const leftKeyIdx = left.columns.indexOf(config.keyColumn);
   const rightKeyIdx = right.columns.indexOf(config.keyColumn);
@@ -612,6 +619,8 @@ export const applyAppend = (
     mode?: string; // "match" or "all"
   }
 ): Dataset => {
+  if (!top?.columns) return top ?? { columns: [], data: [] };
+  if (!bottom?.columns) return top;
   const mode = config.mode ?? "all";
 
   if (mode === "match") {
@@ -675,6 +684,7 @@ export const applyUnionMerge = (
 ): Dataset => {
   const keys = config.keyColumns ?? [];
   if (keys.length === 0) return { columns: [], data: [] };
+  if (!left?.columns || !right?.columns) return left ?? { columns: [], data: [] };
 
   const leftKeyIndices = keys.map(k => left.columns.indexOf(k));
   const rightKeyIndices = keys.map(k => right.columns.indexOf(k));
@@ -723,6 +733,7 @@ export const applyDropColumns = (
   dataset: Dataset,
   config: { columnsToDrop?: string[] }
 ): Dataset => {
+  if (!dataset?.columns) return dataset ?? { columns: [], data: [] };
   const toDrop = config.columnsToDrop ?? [];
   if (toDrop.length === 0) return dataset;
 

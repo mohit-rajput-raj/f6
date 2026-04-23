@@ -135,6 +135,9 @@ import {
   IconDownload,
   IconLayoutColumns,
   IconTable,
+  IconEye,
+  IconForms,
+  IconTableImport,
 } from "@tabler/icons-react";
 import { EditorCanvasTypes } from "@/lib/types";
 import {
@@ -176,6 +179,18 @@ const nodes = [
         type: "NumberValueNode",
         icon: <IconCalculator />,
         description: "Single number value",
+      },
+      {
+        title: "Desk Text Input",
+        type: "DeskTextInputNode",
+        icon: <IconForms />,
+        description: "Text from Desk panel input",
+      },
+      {
+        title: "Desk Sheet",
+        type: "DeskSheetNode",
+        icon: <IconTableImport />,
+        description: "Sheet data from Desk panel",
       },
     ]
   },
@@ -333,6 +348,18 @@ const nodes = [
         type: "SheetEditorNode",
         icon: <IconPencil />,
         description: "Push data to a target sheet",
+      },
+      {
+        title: "Output Preview",
+        type: "OutputPreviewNode",
+        icon: <IconEye />,
+        description: "Preview output in Desk panel",
+      },
+      {
+        title: "Master Sheet Preview",
+        type: "MasterSheetPreviewNode",
+        icon: <IconTable />,
+        description: "Show data in bottom MasterSheet (with ID)",
       },
     ]
   }
