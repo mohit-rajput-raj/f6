@@ -2,8 +2,9 @@
 
 import { prisma } from "@repo/db";
 
-export async function getMasterSheets(userId: string) {
-  return prisma.masterSheet.findMany({
+export async function getMasterSheets(userId: string, userEmail?: string) {
+  // Own sheets
+  const ownSheets = await prisma.masterSheet.findMany({
     where: { userId },
     select: {
       id: true,
@@ -15,6 +16,33 @@ export async function getMasterSheets(userId: string) {
     },
     orderBy: { updatedAt: "desc" },
   });
+
+  // Shared sheets (via email)
+  if (userEmail) {
+    const sharedEntries = await prisma.deskShare.findMany({
+      where: { invitedEmail: userEmail },
+      include: {
+        masterSheet: {
+          select: {
+            id: true,
+            name: true,
+            data: true,
+            metadata: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+        },
+      },
+    });
+
+    const sharedSheets = sharedEntries
+      .map((s) => s.masterSheet)
+      .filter((s) => !ownSheets.some((own) => own.id === s.id));
+
+    return [...ownSheets, ...sharedSheets];
+  }
+
+  return ownSheets;
 }
 
 export async function getMasterSheet(id: string, userId: string) {

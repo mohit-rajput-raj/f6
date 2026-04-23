@@ -11,6 +11,7 @@ import React, {
 import type { Edge } from "@xyflow/react";
 import { EditorCanvasCardType, EditorNodeType } from "@/lib/types";
 import { saveWorkflow } from "@/app/[project]/dash/[dashid]/editor/_actions/editor.service";
+import { syncBlockFieldsFromWorkflow } from "@/app/[project]/dash/[dashid]/desk/desk-block-actions";
 import { toast } from "sonner";
 
 // ─── Dataset type used across all nodes ──────────────────────
@@ -41,6 +42,7 @@ type EditorWorkFlowContextType = {
   isSaving: boolean;
   hasUnsavedChanges: boolean;
   workflowId: string | null;
+  deskBlockId: string | null;
 };
 
 const EditorWorkFlowContext = createContext<
@@ -53,6 +55,7 @@ type EditorProps = {
   initialNodes?: EditorNodeType[];
   initialEdges?: Edge[];
   workflowId?: string;
+  deskBlockId?: string;
 };
 
 const MAX_HISTORY = 50;
@@ -62,6 +65,7 @@ export const EditorWorkFlowContextProvider = ({
   initialNodes = [],
   initialEdges = [],
   workflowId,
+  deskBlockId,
 }: EditorProps) => {
   const [nodes, setNodes] = useState<EditorNodeType[]>(initialNodes);
   const [edges, setEdges] = useState<Edge[]>(initialEdges);
@@ -172,6 +176,12 @@ export const EditorWorkFlowContextProvider = ({
       }));
 
       await saveWorkflow(workflowId, cleanNodes, currentEdges);
+
+      // If this is a desk block editor, sync its fields
+      if (deskBlockId) {
+        await syncBlockFieldsFromWorkflow(workflowId);
+      }
+
       setHasUnsavedChanges(false);
       toast.success("Workflow saved");
     } catch (err) {
@@ -224,6 +234,7 @@ export const EditorWorkFlowContextProvider = ({
         isSaving,
         hasUnsavedChanges,
         workflowId: workflowId ?? null,
+        deskBlockId: deskBlockId ?? null,
       }}
     >
       {children}

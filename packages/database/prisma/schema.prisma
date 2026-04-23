@@ -101,6 +101,8 @@ model Workflow {
   shares           WorkflowShare[]
   dataLibraryFiles DataLibraryFile[]
   publishedVersions PublishedWorkflow[]
+  deskBlocks        DeskBlock[] @relation("ProjectBlocks")
+  blockEditor       DeskBlock?  @relation("BlockEditor")
 
   @@index([userId])
   @@index([isPublic])
@@ -245,6 +247,7 @@ model MasterSheet {
 
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   history     MasterSheetHistory[]
+  shares      DeskShare[]
 
   @@index([userId])
   @@map("master_sheet")
@@ -266,4 +269,45 @@ model MasterSheetHistory {
 
   @@index([masterSheetId])
   @@map("master_sheet_history")
+}
+
+model DeskShare {
+  id                String   @id @default(uuid()) @db.Uuid
+  masterSheetId     String   @db.Uuid
+  invitedEmail      String
+  invitedUserId     String?
+  permission        String   @default("editor") // "editor" | "viewer"
+  projectWorkflowId String?  @db.Uuid           // link to project for desk-level sharing
+  status            String   @default("pending") // "pending" | "accepted" | "rejected"
+
+  createdAt         DateTime @default(now())
+
+  masterSheet   MasterSheet @relation(fields: [masterSheetId], references: [id], onDelete: Cascade)
+
+  @@unique([masterSheetId, invitedEmail])
+  @@index([invitedEmail])
+  @@index([projectWorkflowId])
+  @@map("desk_share")
+}
+
+model DeskBlock {
+  id                String   @id @default(uuid()) @db.Uuid
+  projectWorkflowId String   @db.Uuid
+  editorWorkflowId  String   @unique @db.Uuid
+  blockOrder        Int      @default(0)
+
+  textInputs        Json?    // [{id, placeholder, value}]
+  sheets            Json?    // [{id, name, data: {columns, data}}]
+  outputPreview     Json?    // {columns, data}
+  checkboxFields    Json?    // [{id, label, checked}]
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  projectWorkflow   Workflow @relation("ProjectBlocks", fields: [projectWorkflowId], references: [id], onDelete: Cascade)
+  editorWorkflow    Workflow @relation("BlockEditor", fields: [editorWorkflowId], references: [id], onDelete: Cascade)
+
+  @@index([projectWorkflowId])
+  @@index([blockOrder])
+  @@map("desk_block")
 }

@@ -40,18 +40,21 @@ interface WorkFlowEditorProps {
   workflowId?: string;
   initialNodes?: EditorNodeType[];
   initialEdges?: Edge[];
+  deskBlockId?: string;
 }
 
 export function WorkFlowEditor({
   workflowId,
   initialNodes = [],
   initialEdges = [],
+  deskBlockId,
 }: WorkFlowEditorProps) {
   return (
     <EditorWorkFlowContextProvider
       workflowId={workflowId}
       initialNodes={initialNodes}
       initialEdges={initialEdges}
+      deskBlockId={deskBlockId}
     >
       <WorkFlowEditorInner />
     </EditorWorkFlowContextProvider>
@@ -174,6 +177,58 @@ function WorkFlowEditorInner() {
             onClick={() => setPublishOpen(true)}
           >
             📤 Publish
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => {
+              const data = JSON.stringify(
+                { nodes, edges, meta: { exportedAt: new Date().toISOString(), workflowId: flowId } },
+                null,
+                2
+              );
+              const blob = new Blob([data], { type: "application/json" });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = `workflow-${flowId?.slice(0, 8) ?? "export"}.json`;
+              a.click();
+              URL.revokeObjectURL(url);
+              toast.success("Workflow exported");
+            }}
+          >
+            📥 Export
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => {
+              const input = document.createElement("input");
+              input.type = "file";
+              input.accept = ".json";
+              input.onchange = (e: any) => {
+                const file = e.target?.files?.[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = () => {
+                  try {
+                    const parsed = JSON.parse(reader.result as string);
+                    if (parsed.nodes && parsed.edges) {
+                      pushHistory();
+                      setNodes(parsed.nodes);
+                      setEdges(parsed.edges);
+                      toast.success("Workflow imported successfully");
+                    } else {
+                      toast.error("Invalid workflow file — missing nodes or edges");
+                    }
+                  } catch {
+                    toast.error("Failed to parse workflow file");
+                  }
+                };
+                reader.readAsText(file);
+              };
+              input.click();
+            }}
+          >
+            📤 Import
           </Button>
         </div>
         <div>

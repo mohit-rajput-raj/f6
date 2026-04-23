@@ -46,7 +46,7 @@ export const ProjectList = () => {
   const { setDashid } = useRouteAuthContextHook();
   const { data: session, isPending } = useSession();
   const userId = session?.user?.id;
-const {dashid,setDashidValue} = useEditorStore();
+  const { dashid, setDashidValue } = useEditorStore();
   const [search, setSearch] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const queryClient = useQueryClient();
@@ -84,12 +84,12 @@ const {dashid,setDashidValue} = useEditorStore();
   const handleRoute = (id: string) => {
     if (!id) return;
     setDashidValue(id);
-    window.open(`/dashboard/dash/${id}/editor`, "_blank");
+    window.open(`/dashboard/dash/${id}/desk`, "_blank");
   };
 
   const onDelete = (flowId: string) => {
     if (!userId) return;
-    setDeletingId(flowId); 
+    setDeletingId(flowId);
     deletemutation.mutate({ id: userId, flowId });
   };
 
@@ -196,7 +196,7 @@ export const CreateWorkFlow = () => {
     onSuccess: (newWorkflow) => {
       refetch();
       setOpen(false);
-      window.open(`/dashboard/dash/${newWorkflow.id}/editor`, "_blank");
+      window.open(`/dashboard/dash/${newWorkflow.id}/desk`, "_blank");
 
       methods.reset();
     },
