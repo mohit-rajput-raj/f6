@@ -97,6 +97,7 @@ export default function DeskPage() {
         setBlocks(
           dbBlocks.map((b) => ({
             ...b,
+            actionButtons: [],
             isExecuting: false,
           }))
         )
@@ -143,13 +144,15 @@ export default function DeskPage() {
     })
   }, [blocks, debouncedSaveBlock])
 
+
+
   // ─── Add new block ────────────────────────────────────────
   const handleAddBlock = useCallback(async () => {
     if (!dashid || !userId) return
     setIsAddingBlock(true)
     try {
       const newBlock = await createDeskBlock(dashid, userId)
-      addBlock({ ...newBlock, isExecuting: false })
+      addBlock({ ...newBlock, actionButtons: [], isExecuting: false })
       toast.success("Block added")
     } catch (err: any) {
       toast.error(err?.message || "Failed to add block")
@@ -215,6 +218,23 @@ export default function DeskPage() {
     },
     [setBlockExecuting, setBlockOutput]
   )
+
+  // Watch for triggered action buttons to auto-execute their block
+  useEffect(() => {
+    blocks.forEach((block) => {
+      if (block.actionButtons?.some(a => a.triggered) && !block.isExecuting) {
+        // Run the block execution
+        handleExecuteBlock(block.id).then(() => {
+          // Reset the triggered buttons after execution
+          block.actionButtons?.forEach(a => {
+            if (a.triggered) {
+              useDeskStore.getState().resetActionButton(block.id, a.id);
+            }
+          });
+        });
+      }
+    });
+  }, [blocks, handleExecuteBlock]);
 
   // ─── OCR Handler ──────────────────────────────────────────
   const handleOcrUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {

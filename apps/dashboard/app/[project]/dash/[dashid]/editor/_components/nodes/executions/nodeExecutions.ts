@@ -24,6 +24,7 @@ import {
   applySwitchCase,
   applySubjectBlock,
   applyBlockConcat,
+  applyDynamicBlockConcat,
   Dataset,
 } from "./functions";
 import api from "@/lib/axios";
@@ -498,6 +499,250 @@ export const executeWorkflow = async (
           break;
         }
 
+        case "MasterSheetLibraryNode": {
+          // Resolve sheet name from handle or use loaded data
+          const msNameEdge = incomingEdges.find(e => e.targetHandle === "sheet-name");
+          const resolvedMsName = msNameEdge
+            ? String(runtimeData.get(`${msNameEdge.source}__${msNameEdge.sourceHandle}`) ?? runtimeData.get(msNameEdge.source) ?? "")
+            : "";
+
+          // If a name is resolved via port, try to load from master sheet store
+          if (resolvedMsName) {
+            try {
+              const { useMasterSheetStore } = await import("@/stores/master-sheet-store");
+              const sheet = useMasterSheetStore.getState().sheets[resolvedMsName];
+              if (sheet?.data) {
+                outputValue = sheet.data as Dataset;
+              } else {
+                // Fallback to node's loaded data
+                outputValue = nodeData?.text ?? { columns: [], data: [] };
+              }
+            } catch {
+              outputValue = nodeData?.text ?? { columns: [], data: [] };
+            }
+            setNodes(nds =>
+              nds.map(node =>
+                node.id === currentId
+                  ? { ...node, data: { ...node.data, resolvedSheetName: resolvedMsName } }
+                  : node
+              )
+            );
+          } else {
+            const fileData = nodeData?.text;
+            if (fileData && typeof fileData === "object" && fileData.columns) {
+              outputValue = fileData as Dataset;
+            } else {
+              outputValue = { columns: [], data: [] };
+            }
+          }
+          break;
+        }
+
+        case "BlockExtractorNode": {
+          // Get input data
+          const beDataEdge = incomingEdges.find(e => e.targetHandle === "data");
+          const beInputData: Dataset = beDataEdge
+            ? (runtimeData.get(`${beDataEdge.source}__${beDataEdge.sourceHandle}`) ?? runtimeData.get(beDataEdge.source) ?? { columns: [], data: [] })
+            : (inputValue ?? { columns: [], data: [] });
+
+          // Get code and type
+          const beCodeEdge = incomingEdges.find(e => e.targetHandle === "code");
+          const beTypeEdge = incomingEdges.find(e => e.targetHandle === "type");
+          const beCodeRaw = beCodeEdge
+            ? String(runtimeData.get(`${beCodeEdge.source}__${beCodeEdge.sourceHandle}`) ?? runtimeData.get(beCodeEdge.source) ?? "")
+            : nodeData?.config?.blockCode ?? "";
+          const beTypeRaw = beTypeEdge
+            ? String(runtimeData.get(`${beTypeEdge.source}__${beTypeEdge.sourceHandle}`) ?? runtimeData.get(beTypeEdge.source) ?? "")
+            : nodeData?.config?.sectionType ?? "";
+
+          const beCode = beCodeRaw.trim();
+          const beType = beTypeRaw.trim();
+          const bePrefix = beCode && beType ? `${beCode}:${beType}:` : "";
+          const bePrefixLower = bePrefix.toLowerCase();
+
+          if (!bePrefix || !beInputData?.columns?.length) {
+            outputValue = { columns: [], data: [] };
+          } else {
+            // Find base columns (no ':') and matching prefixed columns
+            const baseColumns = beInputData.columns.filter(c => !c.includes(':'));
+            const matchingCols = beInputData.columns.filter(c => c.toLowerCase().startsWith(bePrefixLower));
+            // Strip prefix from matching columns
+            const strippedCols = matchingCols.map(c => {
+              // Strip preserving original casing of the suffix
+              const lowerC = c.toLowerCase();
+              if (lowerC.startsWith(bePrefixLower)) {
+                return c.slice(bePrefix.length);
+              }
+              return c;
+            });
+
+            const extractedColumns = [...baseColumns, ...strippedCols];
+            const baseIndices = baseColumns.map(c => beInputData.columns.indexOf(c));
+            const matchIndices = matchingCols.map(c => beInputData.columns.indexOf(c));
+            const allIndices = [...baseIndices, ...matchIndices];
+
+            const extractedData = beInputData.data.map(row =>
+              allIndices.map(idx => row[idx] ?? null)
+            );
+
+            outputValue = { columns: extractedColumns, data: extractedData };
+
+            // Update node UI metadata
+            setNodes(nds =>
+              nds.map(node =>
+                node.id === currentId
+                  ? {
+                    ...node,
+                    data: {
+                      ...node.data,
+                      resolvedBlockCode: beCode || undefined,
+                      resolvedSectionType: beType || undefined,
+                      extractedColumns: strippedCols,
+                      baseColumns,
+                      totalInputCols: beInputData.columns.length,
+                    },
+                  }
+                  : node
+              )
+            );
+          }
+          break;
+        }
+
+        case "DynamicBlockConcatNode": {
+          // Resolve sheet name from handle or config
+          const dbcSheetNameEdge = incomingEdges.find(e => e.targetHandle === "sheet-name");
+          const dbcResolvedSheetName = dbcSheetNameEdge
+            ? String(runtimeData.get(`${dbcSheetNameEdge.source}__${dbcSheetNameEdge.sourceHandle}`) ?? runtimeData.get(dbcSheetNameEdge.source) ?? "")
+            : "";
+          const dbcMasterSheetName = dbcResolvedSheetName || nodeData?.config?.sheetName || 'Master Sheet';
+
+          // Get existing mastersheet data from handle
+          const msEdge = incomingEdges.find(e => e.targetHandle === "mastersheet");
+          const existingMsData: Dataset = msEdge
+            ? (runtimeData.get(`${msEdge.source}__${msEdge.sourceHandle}`) ?? runtimeData.get(msEdge.source) ?? { columns: [], data: [] })
+            : { columns: [], data: [] };
+
+          // Get code and type from handles
+          const codeEdge = incomingEdges.find(e => e.targetHandle === "code");
+          const typeEdge = incomingEdges.find(e => e.targetHandle === "type");
+          const resolvedCode = codeEdge 
+            ? String(runtimeData.get(`${codeEdge.source}__${codeEdge.sourceHandle}`) ?? runtimeData.get(codeEdge.source) ?? "")
+            : nodeData?.config?.blockCode ?? "";
+          const resolvedType = typeEdge
+            ? String(runtimeData.get(`${typeEdge.source}__${typeEdge.sourceHandle}`) ?? runtimeData.get(typeEdge.source) ?? "")
+            : nodeData?.config?.sectionType ?? "";
+
+          // Get block data from handle
+          const blockEdge = incomingEdges.find(e => e.targetHandle === "block");
+          let incomingBlockData: Dataset | null = null;
+          if (blockEdge) {
+            incomingBlockData = runtimeData.get(`${blockEdge.source}__${blockEdge.sourceHandle}`) ?? runtimeData.get(blockEdge.source);
+          }
+
+          // Determine key column — resolve from port, config, or infer from data
+          const keyEdge = incomingEdges.find(e => e.targetHandle === "key");
+          const resolvedKeyFromPort = keyEdge
+            ? String(runtimeData.get(`${keyEdge.source}__${keyEdge.sourceHandle}`) ?? runtimeData.get(keyEdge.source) ?? "")
+            : "";
+          const dbcKeyCol = resolvedKeyFromPort
+            || nodeData?.config?.keyColumn
+            || (existingMsData.columns?.length > 0 ? existingMsData.columns.find(c => !c.includes(':')) : '')
+            || (incomingBlockData?.columns?.length ? incomingBlockData?.columns?.find((c: string) => !c.includes(':')) : '')
+            || '';
+
+          // Determine base columns from existing mastersheet (or defaults if none)
+          const baseCols = existingMsData.columns?.length > 0
+            ? existingMsData.columns.filter(c => !c.includes(':'))
+            : [dbcKeyCol, "Name", "Student_Name", "Student Name", "Roll_No"];
+
+          // If we have code, type, and block data, format the block columns
+          let formattedBlockData: Dataset | null = null;
+          const prefix = resolvedCode && resolvedType ? `${resolvedCode}:${resolvedType}` : "";
+          
+          if (incomingBlockData?.columns && prefix) {
+            const formattedColumns = incomingBlockData.columns.map(col => {
+              // Don't prefix the key column!
+              if (col === dbcKeyCol) return col;
+              // Don't prefix known base columns
+              if (baseCols.includes(col)) return col;
+              // If already prefixed with this exact prefix, leave it
+              if (col.startsWith(`${prefix}:`)) return col;
+              // Otherwise, add the prefix
+              // If it has some other prefix, we replace it or prepend? Usually prepend or replace. We'll replace if it has one, or prepend.
+              const parts = col.split(':');
+              if (parts.length >= 3) {
+                // likely already code:type:ColName, replace prefix
+                return `${prefix}:${parts.slice(2).join(':')}`;
+              }
+              return `${prefix}:${col}`;
+            });
+            formattedBlockData = { columns: formattedColumns, data: incomingBlockData.data };
+          } else {
+            formattedBlockData = incomingBlockData;
+          }
+
+          const dbcBlocks = formattedBlockData ? [formattedBlockData] : [];
+
+          // Apply dynamic block concat
+          outputValue = applyDynamicBlockConcat(existingMsData, dbcBlocks, dbcKeyCol);
+
+          // Find if we are replacing an existing block
+          const existingCodes: string[] = [];
+          if (existingMsData?.columns) {
+            for (const col of existingMsData.columns) {
+              const parts = col.split(':');
+              if (parts.length >= 2) {
+                const code = `${parts[0]}:${parts[1]}`;
+                if (!existingCodes.includes(code)) existingCodes.push(code);
+              }
+            }
+          }
+          const isReplacing = prefix ? existingCodes.includes(prefix) : false;
+
+          // Push to master sheet store for preview
+          if (outputValue && outputValue.columns && outputValue.columns.length > 0) {
+            try {
+              const { useMasterSheetStore } = await import("@/stores/master-sheet-store");
+              useMasterSheetStore.getState().pushData({
+                masterSheetName: dbcMasterSheetName,
+                sheetName: dbcMasterSheetName,
+                data: outputValue,
+                blockCodenames: prefix ? [prefix] : [],
+                pushedBy: 'workflow',
+                pushedByName: 'Workflow Execution',
+                pushedAt: Date.now(),
+                sourceNodeId: currentId,
+              });
+            } catch (e) {
+              console.warn("Could not push to master sheet store:", e);
+            }
+          }
+
+          // Update node with metadata
+          setNodes(nds =>
+            nds.map(node =>
+              node.id === currentId
+                ? {
+                  ...node,
+                  data: {
+                    ...node.data,
+                    mastersheetColumns: existingMsData.columns ?? [],
+                    blockColumns: incomingBlockData?.columns ?? [],
+                    resolvedSheetName: dbcResolvedSheetName || undefined,
+                    resolvedKeyColumn: dbcKeyCol || undefined,
+                    resolvedBlockCode: resolvedCode || undefined,
+                    resolvedSectionType: resolvedType || undefined,
+                    isReplacing,
+                    hasMastersheet: existingMsData.columns?.length > 0,
+                  },
+                }
+                : node
+            )
+          );
+          break;
+        }
+
         // ── Desk panel nodes ──────────────────────────
         case "DeskTextInputNode": {
           // Read value from desk store (block-scoped)
@@ -505,6 +750,7 @@ export const executeWorkflow = async (
             const { useDeskStore } = await import("@/stores/desk-store");
             const deskBlockId = nodeData?.deskBlockId;
             const deskInputId = nodeData?.deskInputId;
+            let val = "";
             if (deskBlockId && deskInputId) {
               const input = useDeskStore.getState().getTextInputById(deskBlockId, deskInputId);
               outputValue = input?.value ?? nodeData?.text ?? "";
@@ -513,6 +759,24 @@ export const executeWorkflow = async (
             }
           } catch {
             outputValue = nodeData?.text ?? "";
+          }
+          break;
+        }
+
+        case "ActionButtonNode": {
+          // Read triggered state from desk store
+          try {
+            const { useDeskStore } = await import("@/stores/desk-store");
+            const deskBlockId = nodeData?.deskBlockId;
+            const actionId = nodeData?.actionId;
+            let triggered = false;
+            if (deskBlockId && actionId) {
+              const block = useDeskStore.getState().blocks.find(b => b.id === deskBlockId);
+              triggered = block?.actionButtons?.find(a => a.id === actionId)?.triggered ?? false;
+            }
+            outputValue = triggered;
+          } catch (e) {
+            outputValue = false;
           }
           break;
         }
@@ -563,9 +827,22 @@ export const executeWorkflow = async (
         }
 
         case "MasterSheetPreviewNode": {
-          // Push result to desk store's masterSheetPreview (bottom panel)
-          const msDs: Dataset = inputValue ?? { columns: [], data: [] };
+          // Input edge — try named "in" handle first, then any unnamed edge, then generic inputValue
+          const dataEdge = incomingEdges.find((e: any) => e.targetHandle === "in")
+            || incomingEdges.find((e: any) => !e.targetHandle || e.targetHandle === null);
+          const msDs: Dataset = dataEdge
+            ? (runtimeData.get(`${dataEdge.source}__${dataEdge.sourceHandle}`) ?? runtimeData.get(dataEdge.source) ?? inputValue ?? { columns: [], data: [] })
+            : (inputValue ?? { columns: [], data: [] });
+
+          // Save trigger edge
+          const saveEdge = incomingEdges.find((e: any) => e.targetHandle === "save-trigger");
+          const saveTriggered = saveEdge
+            ? Boolean(runtimeData.get(`${saveEdge.source}__${saveEdge.sourceHandle}`) ?? runtimeData.get(saveEdge.source))
+            : false;
+
           outputValue = msDs;
+          let saveStatus = '';
+
           if (msDs && msDs.columns && msDs.columns.length > 0) {
             try {
               const { useDeskStore } = await import("@/stores/desk-store");
@@ -573,7 +850,47 @@ export const executeWorkflow = async (
             } catch (e) {
               console.warn("Could not push to master sheet:", e);
             }
+
+            if (saveTriggered) {
+              try {
+                // Determine sheet name from node data or fallback
+                const sheetName = nodeData?.mastersheetId || 'Master Sheet';
+                // Try to get user info from next-auth if possible, but in this context we might need to rely on the server action picking it up or the store having it.
+                const { upsertMasterSheetByName } = await import("@/app/[project]/dash/[dashid]/(documents)/data-library/master-sheet-actions");
+                
+                // Try to extract userId from clerk global object or fallback to an empty string.
+                // In a true environment, the server action would use auth() internally, but since the signature requires it, we pass it.
+                // It might fail if userId is strictly validated, but since this runs on client-side, we can get it from Clerk.
+                const userId = (window as any).Clerk?.user?.id || nodeData?.userId || "";
+                
+                if (userId) {
+                  await upsertMasterSheetByName({ name: sheetName, data: msDs, userId });
+                  saveStatus = 'saved';
+                } else {
+                  saveStatus = 'error (no user id)';
+                }
+              } catch (err) {
+                console.error("Failed to save mastersheet:", err);
+                saveStatus = 'error';
+              }
+            }
           }
+
+          // Update node UI
+          setNodes(nds =>
+            nds.map(node =>
+              node.id === currentId
+                ? {
+                  ...node,
+                  data: {
+                    ...node.data,
+                    saveTriggered,
+                    lastSaveStatus: saveStatus || node.data.lastSaveStatus,
+                  },
+                }
+                : node
+            )
+          );
           break;
         }
 
@@ -895,6 +1212,104 @@ async function executeInnerWorkflow(
           }
           const kcIn = nodeData?.config?.keyColumn ?? baseDataIn.columns[0] ?? "";
           outputValue = applyBlockConcat(baseDataIn, blocksIn, kcIn);
+          break;
+        }
+
+        case "MasterSheetLibraryNode": {
+          const fileData = (currentNode.data as any)?.text;
+          if (fileData && typeof fileData === "object" && fileData.columns) {
+            outputValue = fileData as Dataset;
+          } else {
+            outputValue = { columns: [], data: [] };
+          }
+          break;
+        }
+
+        case "BlockExtractorNode": {
+          const beDataEdge = incomingEdges.find((e: any) => e.targetHandle === "data");
+          const beInputData: Dataset = beDataEdge
+            ? (runtimeData.get(`${beDataEdge.source}__${beDataEdge.sourceHandle}`) ?? runtimeData.get(beDataEdge.source) ?? { columns: [], data: [] })
+            : (inputValue ?? { columns: [], data: [] });
+          const beCodeEdge = incomingEdges.find((e: any) => e.targetHandle === "code");
+          const beTypeEdge = incomingEdges.find((e: any) => e.targetHandle === "type");
+          const beCodeRaw = beCodeEdge ? String(runtimeData.get(`${beCodeEdge.source}__${beCodeEdge.sourceHandle}`) ?? runtimeData.get(beCodeEdge.source) ?? "") : nodeData?.config?.blockCode ?? "";
+          const beTypeRaw = beTypeEdge ? String(runtimeData.get(`${beTypeEdge.source}__${beTypeEdge.sourceHandle}`) ?? runtimeData.get(beTypeEdge.source) ?? "") : nodeData?.config?.sectionType ?? "";
+          const beCode = beCodeRaw.trim();
+          const beType = beTypeRaw.trim();
+          const bePrefix = beCode && beType ? `${beCode}:${beType}:` : "";
+          const bePrefixLower = bePrefix.toLowerCase();
+          
+          if (!bePrefix || !beInputData?.columns?.length) {
+            outputValue = { columns: [], data: [] };
+          } else {
+            const baseColumns = beInputData.columns.filter(c => !c.includes(':'));
+            const matchingCols = beInputData.columns.filter(c => c.toLowerCase().startsWith(bePrefixLower));
+            const strippedCols = matchingCols.map(c => {
+              const lowerC = c.toLowerCase();
+              return lowerC.startsWith(bePrefixLower) ? c.slice(bePrefix.length) : c;
+            });
+            const extractedColumns = [...baseColumns, ...strippedCols];
+            const baseIndices = baseColumns.map(c => beInputData.columns.indexOf(c));
+            const matchIndices = matchingCols.map(c => beInputData.columns.indexOf(c));
+            const allIndices = [...baseIndices, ...matchIndices];
+            outputValue = { columns: extractedColumns, data: beInputData.data.map(row => allIndices.map(idx => row[idx] ?? null)) };
+          }
+          break;
+        }
+
+        case "DynamicBlockConcatNode": {
+          const dbcMsEdge = incomingEdges.find((e: any) => e.targetHandle === "mastersheet");
+          const dbcExistingData: Dataset = dbcMsEdge
+            ? (runtimeData.get(`${dbcMsEdge.source}__${dbcMsEdge.sourceHandle}`) ?? runtimeData.get(dbcMsEdge.source) ?? { columns: [], data: [] })
+            : { columns: [], data: [] };
+
+          const codeEdge = incomingEdges.find((e: any) => e.targetHandle === "code");
+          const typeEdge = incomingEdges.find((e: any) => e.targetHandle === "type");
+          const resolvedCode = codeEdge 
+            ? String(runtimeData.get(`${codeEdge.source}__${codeEdge.sourceHandle}`) ?? runtimeData.get(codeEdge.source) ?? "")
+            : nodeData?.config?.blockCode ?? "";
+          const resolvedType = typeEdge
+            ? String(runtimeData.get(`${typeEdge.source}__${typeEdge.sourceHandle}`) ?? runtimeData.get(typeEdge.source) ?? "")
+            : nodeData?.config?.sectionType ?? "";
+
+          const blockEdge = incomingEdges.find((e: any) => e.targetHandle === "block");
+          let incomingBlockData: Dataset | null = null;
+          if (blockEdge) {
+            incomingBlockData = runtimeData.get(`${blockEdge.source}__${blockEdge.sourceHandle}`) ?? runtimeData.get(blockEdge.source);
+          }
+
+          // Key from port, config, or infer
+          const keyEdge = incomingEdges.find((e: any) => e.targetHandle === "key");
+          const resolvedKeyInner = keyEdge
+            ? String(runtimeData.get(`${keyEdge.source}__${keyEdge.sourceHandle}`) ?? runtimeData.get(keyEdge.source) ?? "")
+            : "";
+          const dbcKc = resolvedKeyInner
+            || nodeData?.config?.keyColumn
+            || (dbcExistingData.columns?.length > 0 ? dbcExistingData.columns.find(c => !c.includes(':')) : '')
+            || (incomingBlockData?.columns?.length ? incomingBlockData?.columns?.find((c: string) => !c.includes(':')) : '')
+            || '';
+          const baseCols = dbcExistingData.columns?.length > 0
+            ? dbcExistingData.columns.filter(c => !c.includes(':'))
+            : [dbcKc, "Name", "Student_Name", "Student Name", "Roll_No"];
+
+          let formattedBlockData: Dataset | null = null;
+          const prefix = resolvedCode && resolvedType ? `${resolvedCode}:${resolvedType}` : "";
+          if (incomingBlockData?.columns && prefix) {
+            const formattedColumns = incomingBlockData.columns.map(col => {
+              if (col === dbcKc) return col;
+              if (baseCols.includes(col)) return col;
+              if (col.startsWith(`${prefix}:`)) return col;
+              const parts = col.split(':');
+              if (parts.length >= 3) return `${prefix}:${parts.slice(2).join(':')}`;
+              return `${prefix}:${col}`;
+            });
+            formattedBlockData = { columns: formattedColumns, data: incomingBlockData.data };
+          } else {
+            formattedBlockData = incomingBlockData;
+          }
+
+          const dbcBlocksInner = formattedBlockData ? [formattedBlockData] : [];
+          outputValue = applyDynamicBlockConcat(dbcExistingData, dbcBlocksInner, dbcKc);
           break;
         }
 

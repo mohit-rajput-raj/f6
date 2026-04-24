@@ -70,4 +70,10 @@ export const EditorCanvasDefaultCardTypes: Record<string, { description: string;
   TrueFalseNode: { description: 'Boolean toggle — generates a checkbox on the desk block', type: 'Input' },
   BlockOutputSenderNode: { description: 'Send output data to the next desk block', type: 'Output' },
   MasterSheetPreviewNode: { description: 'Preview data in the bottom MasterSheet panel (with ID)', type: 'Output' },
+
+  // Dynamic master sheet nodes
+  MasterSheetLibraryNode: { description: 'Load existing MasterSheet from library by name', type: 'Input' },
+  DynamicBlockConcatNode: { description: 'Code-driven block merge into MasterSheet using Subject Block codes', type: 'Combine' },
+  BlockExtractorNode: { description: 'Extract block from MasterSheet by code', type: 'Combine' },
+  ActionButtonNode: { description: 'Button for Desk MasterSheet panel', type: 'Input' },
 }

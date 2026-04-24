@@ -25,6 +25,13 @@ export interface CheckboxField {
   nodeId: string;
 }
 
+export interface ActionButton {
+  id: string;
+  label: string;
+  nodeId: string;
+  triggered: boolean;
+}
+
 export interface DeskBlockState {
   id: string;
   blockOrder: number;
@@ -34,6 +41,7 @@ export interface DeskBlockState {
   sheets: DeskSheet[];
   outputPreview: Dataset | null;
   checkboxFields: CheckboxField[];
+  actionButtons: ActionButton[];
   isExecuting: boolean;
 }
 
@@ -96,6 +104,13 @@ interface DeskState {
   addCheckboxField: (blockId: string, field: CheckboxField) => void;
   removeCheckboxField: (blockId: string, fieldId: string) => void;
   toggleCheckbox: (blockId: string, fieldId: string) => void;
+
+  // ─── Per-block Action Button Actions ───
+  addActionButton: (blockId: string, button: ActionButton) => void;
+  removeActionButton: (blockId: string, buttonId: string) => void;
+  triggerActionButton: (blockId: string, buttonId: string) => void;
+  resetActionButton: (blockId: string, buttonId: string) => void;
+  updateActionButtonLabel: (blockId: string, buttonId: string, label: string) => void;
 
   // ─── Per-block Execution ───
   setBlockExecuting: (blockId: string, v: boolean) => void;
@@ -290,6 +305,54 @@ export const useDeskStore = create<DeskState>()((set, get) => ({
         ...b,
         checkboxFields: b.checkboxFields.map((f) =>
           f.id === fieldId ? { ...f, checked: !f.checked } : f,
+        ),
+      })),
+    })),
+
+  // ─── Action Button Actions ─────────────────────────────────
+  addActionButton: (blockId, button) =>
+    set((s) => ({
+      blocks: mapBlock(s.blocks, blockId, (b) => {
+        const buttons = b.actionButtons ?? [];
+        if (buttons.find((a) => a.id === button.id)) return b;
+        return { ...b, actionButtons: [...buttons, button] };
+      }),
+    })),
+
+  removeActionButton: (blockId, buttonId) =>
+    set((s) => ({
+      blocks: mapBlock(s.blocks, blockId, (b) => ({
+        ...b,
+        actionButtons: (b.actionButtons ?? []).filter((a) => a.id !== buttonId),
+      })),
+    })),
+
+  triggerActionButton: (blockId, buttonId) =>
+    set((s) => ({
+      blocks: mapBlock(s.blocks, blockId, (b) => ({
+        ...b,
+        actionButtons: (b.actionButtons ?? []).map((a) =>
+          a.id === buttonId ? { ...a, triggered: true } : a
+        ),
+      })),
+    })),
+
+  resetActionButton: (blockId, buttonId) =>
+    set((s) => ({
+      blocks: mapBlock(s.blocks, blockId, (b) => ({
+        ...b,
+        actionButtons: (b.actionButtons ?? []).map((a) =>
+          a.id === buttonId ? { ...a, triggered: false } : a
+        ),
+      })),
+    })),
+
+  updateActionButtonLabel: (blockId, buttonId, label) =>
+    set((s) => ({
+      blocks: mapBlock(s.blocks, blockId, (b) => ({
+        ...b,
+        actionButtons: (b.actionButtons ?? []).map((a) =>
+          a.id === buttonId ? { ...a, label } : a
         ),
       })),
     })),
