@@ -138,6 +138,8 @@ import {
   IconEye,
   IconForms,
   IconTableImport,
+
+  IconDatabase,
 } from "@tabler/icons-react";
 import { EditorCanvasTypes } from "@/lib/types";
 import {
@@ -191,6 +193,18 @@ const nodes = [
         type: "DeskSheetNode",
         icon: <IconTableImport />,
         description: "Sheet data from Desk panel",
+      },
+      {
+        title: "MasterSheet Library",
+        type: "MasterSheetLibraryNode",
+        icon: <IconDatabase />,
+        description: "Load existing MasterSheet from library",
+      },
+      {
+        title: "Action Button",
+        type: "ActionButtonNode",
+        icon: <IconForms />,
+        description: "Button for Desk MasterSheet panel",
       },
     ]
   },
@@ -331,6 +345,18 @@ const nodes = [
         type: "BlockConcatNode",
         icon: <IconLayoutColumns />,
         description: "Join blocks into master sheet",
+      },
+      {
+        title: "Dynamic Block Concat",
+        type: "DynamicBlockConcatNode",
+        icon: <IconDatabase />,
+        description: "Code-driven block merge into MasterSheet",
+      },
+      {
+        title: "Block Extractor",
+        type: "BlockExtractorNode",
+        icon: <IconLayoutColumns />,
+        description: "Extract block by code",
       },
     ]
   },

@@ -76,6 +76,10 @@ import { OutputPreviewNode } from "./nodes/output-nodes/output-preview-node";
 import { TrueFalseNode } from "./nodes/input-nodes/true-false-node";
 import { BlockOutputSenderNode } from "./nodes/output-nodes/block-output-sender-node";
 import { MasterSheetPreviewNode } from "./nodes/output-nodes/mastersheet-preview-node";
+import { MasterSheetLibraryNode } from "./nodes/input-nodes/mastersheet-library-node";
+import { DynamicBlockConcatNode } from "./nodes/calcy-nodes/dynamic-block-concat-node";
+import { BlockExtractorNode } from "./nodes/calcy-nodes/block-extractor-node";
+import { ActionButtonNode } from "./nodes/input-nodes/action-button-node";
 
 const Flow = ({ handleRuns }: { handleRuns: () => void }) => {
   const nodeTypess = useMemo(
@@ -151,6 +155,10 @@ const Flow = ({ handleRuns }: { handleRuns: () => void }) => {
       TrueFalseNode: TrueFalseNode,
       BlockOutputSenderNode: BlockOutputSenderNode,
       MasterSheetPreviewNode: MasterSheetPreviewNode,
+      MasterSheetLibraryNode: MasterSheetLibraryNode,
+      DynamicBlockConcatNode: DynamicBlockConcatNode,
+      BlockExtractorNode: BlockExtractorNode,
+      ActionButtonNode: ActionButtonNode,
     }),
     []
   );

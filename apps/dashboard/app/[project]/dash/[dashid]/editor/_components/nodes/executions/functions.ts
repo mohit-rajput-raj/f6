@@ -943,6 +943,182 @@ export const applyBlockConcat = (
   return { columns: resultColumns, data: resultData };
 };
 
+// ── Dynamic Block Concat (code-driven merge into existing mastersheet) ──
+export const applyDynamicBlockConcat = (
+  existingSheet: Dataset,
+  blocks: Dataset[],
+  keyColumn: string
+): Dataset => {
+  // If no blocks, return existing sheet as-is
+  if (!blocks || blocks.length === 0) {
+    return existingSheet ?? { columns: [], data: [] };
+  }
+
+  // Determine base columns (non-prefixed, like Enrollment_No, Name)
+  const getBaseColumns = (ds: Dataset): string[] =>
+    ds.columns.filter(col => !col.includes(':'));
+
+  const getCodeFromColumn = (col: string): string | null => {
+    const parts = col.split(':');
+    if (parts.length >= 2) return `${parts[0]}:${parts[1]}`;
+    return null;
+  };
+
+  const getColumnsForCode = (columns: string[], code: string): string[] =>
+    columns.filter(col => col.startsWith(code + ':'));
+
+  // If no existing sheet, build from first block's base + all block columns
+  if (!existingSheet || !existingSheet.columns || existingSheet.columns.length === 0) {
+    // Start with base data from the first block that has a key column
+    let resultColumns: string[] = [];
+    const rowMap = new Map<string, any[]>();
+
+    for (const block of blocks) {
+      if (!block || !block.columns || block.columns.length === 0) continue;
+
+      const blockKeyIdx = block.columns.indexOf(keyColumn);
+      if (blockKeyIdx === -1) continue;
+
+      // Add base columns from this block if not yet added
+      const blockBase = getBaseColumns(block);
+      for (const bc of blockBase) {
+        if (!resultColumns.includes(bc)) resultColumns.push(bc);
+      }
+
+      // Add prefixed columns from this block
+      const prefixedCols = block.columns.filter(c => c.includes(':'));
+      for (const pc of prefixedCols) {
+        if (!resultColumns.includes(pc)) resultColumns.push(pc);
+      }
+
+      // Merge rows by key
+      for (const row of block.data) {
+        const key = String(row[blockKeyIdx] ?? '');
+        let targetRow = rowMap.get(key);
+        if (!targetRow) {
+          targetRow = new Array(resultColumns.length).fill(null);
+          rowMap.set(key, targetRow);
+        }
+
+        // Map values to correct column positions
+        for (let i = 0; i < block.columns.length; i++) {
+          const colIdx = resultColumns.indexOf(block.columns[i]);
+          if (colIdx >= 0) {
+            targetRow[colIdx] = row[i];
+          }
+        }
+
+        // Ensure row length matches column count
+        while (targetRow.length < resultColumns.length) targetRow.push(null);
+      }
+    }
+
+    const resultData = Array.from(rowMap.values());
+    return { columns: resultColumns, data: resultData };
+  }
+
+  // ── Merge blocks into existing sheet by code ──
+  const existingBase = getBaseColumns(existingSheet);
+  const existingKeyIdx = existingSheet.columns.indexOf(keyColumn);
+  if (existingKeyIdx === -1) return existingSheet;
+
+  // Detect existing block codes
+  const existingCodes = new Set<string>();
+  for (const col of existingSheet.columns) {
+    const code = getCodeFromColumn(col);
+    if (code) existingCodes.add(code);
+  }
+
+  // Collect incoming block codes and their columns
+  const incomingCodeMap = new Map<string, string[]>(); // code → new column names
+  for (const block of blocks) {
+    if (!block || !block.columns || block.columns.length === 0) continue;
+    for (const col of block.columns) {
+      const code = getCodeFromColumn(col);
+      if (code) {
+        if (!incomingCodeMap.has(code)) incomingCodeMap.set(code, []);
+        if (!incomingCodeMap.get(code)!.includes(col)) {
+          incomingCodeMap.get(code)!.push(col);
+        }
+      }
+    }
+  }
+
+  // Determine which existing columns to remove (blocks being replaced)
+  const columnsToRemove = new Set<string>();
+  for (const code of incomingCodeMap.keys()) {
+    if (existingCodes.has(code)) {
+      const oldCols = getColumnsForCode(existingSheet.columns, code);
+      for (const c of oldCols) columnsToRemove.add(c);
+    }
+  }
+
+  // Build new column list: base + kept existing prefixed cols + new block cols
+  const keptCols = existingSheet.columns.filter(c => !columnsToRemove.has(c));
+  const newPrefixedCols: string[] = [];
+  for (const [_, cols] of incomingCodeMap) {
+    for (const col of cols) {
+      if (!keptCols.includes(col) && !newPrefixedCols.includes(col)) {
+        newPrefixedCols.push(col);
+      }
+    }
+  }
+
+  const mergedColumns = [...keptCols, ...newPrefixedCols];
+
+  // Build row map from existing data
+  const rowMap = new Map<string, any[]>();
+  const keyOrder: string[] = [];
+
+  for (const row of existingSheet.data) {
+    const key = String(row[existingKeyIdx] ?? '');
+    const newRow = new Array(mergedColumns.length).fill(null);
+
+    for (let i = 0; i < existingSheet.columns.length; i++) {
+      const col = existingSheet.columns[i];
+      if (columnsToRemove.has(col)) continue;
+      const newIdx = mergedColumns.indexOf(col);
+      if (newIdx >= 0) newRow[newIdx] = row[i];
+    }
+
+    rowMap.set(key, newRow);
+    if (!keyOrder.includes(key)) keyOrder.push(key);
+  }
+
+  // Merge incoming block data
+  for (const block of blocks) {
+    if (!block || !block.columns || block.columns.length === 0) continue;
+    const blockKeyIdx = block.columns.indexOf(keyColumn);
+    if (blockKeyIdx === -1) continue;
+
+    for (const row of block.data) {
+      const key = String(row[blockKeyIdx] ?? '');
+      let targetRow = rowMap.get(key);
+
+      if (!targetRow) {
+        targetRow = new Array(mergedColumns.length).fill(null);
+        rowMap.set(key, targetRow);
+        keyOrder.push(key);
+      }
+
+      // Fill in block data columns
+      for (let i = 0; i < block.columns.length; i++) {
+        const newIdx = mergedColumns.indexOf(block.columns[i]);
+        if (newIdx >= 0) targetRow[newIdx] = row[i];
+      }
+    }
+  }
+
+  // Build result preserving key order
+  const resultData: any[][] = [];
+  for (const key of keyOrder) {
+    const row = rowMap.get(key);
+    if (row) resultData.push(row);
+  }
+
+  return { columns: mergedColumns, data: resultData };
+};
+
 // ── Debounce utility ──
 export function debounce<T extends (...args: any[]) => void>(
   fn: T,

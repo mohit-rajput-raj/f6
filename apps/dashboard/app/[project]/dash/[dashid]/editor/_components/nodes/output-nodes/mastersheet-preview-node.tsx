@@ -2,7 +2,7 @@
 
 import { memo, useState, useCallback } from 'react';
 import { Handle, Position, useReactFlow } from '@xyflow/react';
-import { Table2, Hash } from 'lucide-react';
+import { Table2, Hash, Save, Loader2 } from 'lucide-react';
 import {
   BaseNode, BaseNodeContent, BaseNodeHeader, BaseNodeHeaderTitle,
 } from "@/components/dashboard/flow/Node/baseNode";
@@ -10,6 +10,7 @@ import { NodeMenu } from "../node-menu";
 import { IconTrash } from "@tabler/icons-react";
 import { useDeleteNode } from "../settings/triggers";
 import { Badge } from "@repo/ui/components/ui/badge";
+import { Button } from "@repo/ui/components/ui/button";
 
 /**
  * MasterSheetPreviewNode — terminal node that pushes data to the desk panel's
@@ -18,11 +19,19 @@ import { Badge } from "@repo/ui/components/ui/badge";
  * data.mastersheetId = user-defined ID string (e.g. "attendance", "marks")
  *                      so the desk page knows which node's output to show.
  * data.result        = { columns, data } — set by execution engine
+ * 
+ * Now also supports:
+ * - save-trigger input port: when connected to an ActionButtonNode, 
+ *   triggers saving the mastersheet to DB
+ * - Built-in save button for manual saves
  */
 export const MasterSheetPreviewNode = memo(({ id, data }: { id: string; data: any }) => {
   const { setNodes } = useReactFlow();
   const handleDelete = useDeleteNode();
   const mastersheetId: string = data.mastersheetId ?? '';
+  const [isSaving, setIsSaving] = useState(false);
+  const saveTriggered = data.saveTriggered ?? false;
+  const lastSaveStatus = data.lastSaveStatus ?? '';
 
   const updateMastersheetId = useCallback((newId: string) => {
     setNodes(nds =>
@@ -98,10 +107,43 @@ export const MasterSheetPreviewNode = memo(({ id, data }: { id: string; data: an
               Connect input data, then execute to preview
             </div>
           )}
+
+          {/* Save status */}
+          {lastSaveStatus && (
+            <div className={`text-[10px] text-center font-medium rounded px-2 py-1 ${lastSaveStatus === 'saved'
+              ? 'bg-emerald-50 dark:bg-emerald-950 text-emerald-600'
+              : lastSaveStatus === 'error'
+                ? 'bg-red-50 dark:bg-red-950 text-red-500'
+                : 'bg-zinc-50 dark:bg-zinc-900 text-muted-foreground'
+              }`}>
+              {lastSaveStatus === 'saved' ? '✅ Saved to DB' : lastSaveStatus === 'error' ? '❌ Save failed' : lastSaveStatus}
+            </div>
+          )}
+
+          {/* Save trigger indicator */}
+          <div className="border-t pt-2 space-y-1">
+            <div className="flex items-center gap-2">
+              <div className={`w-2 h-2 rounded-full ${saveTriggered ? 'bg-emerald-500' : 'bg-zinc-300 dark:bg-zinc-600'}`} />
+              <span className="text-[9px] text-muted-foreground">
+                Save Trigger: <span className="font-semibold">{saveTriggered ? 'Connected ✓' : 'Connect ActionButton →'}</span>
+              </span>
+            </div>
+          </div>
         </BaseNodeContent>
 
-        {/* Input handle only — terminal node */}
-        <Handle type="target" position={Position.Left} id="in" className="w-3 h-3 bg-indigo-600" />
+        {/* Input handle — data */}
+        <Handle type="target" position={Position.Left} id="in" className="w-3 h-3 bg-indigo-600" style={{ top: '40%' }} />
+        
+        {/* Save trigger handle */}
+        <Handle type="target" position={Position.Left} id="save-trigger" className="w-3 h-3 bg-rose-500" style={{ top: '80%' }} />
+
+        {/* Handle labels */}
+        <div className="absolute left-[-4px] text-[7px] text-indigo-500 font-medium" style={{ top: '37%', transform: 'translateX(-100%)' }}>
+          Data
+        </div>
+        <div className="absolute left-[-4px] text-[7px] text-rose-500 font-medium" style={{ top: '77%', transform: 'translateX(-100%)' }}>
+          Save Trigger
+        </div>
       </BaseNode>
     </>
   );
