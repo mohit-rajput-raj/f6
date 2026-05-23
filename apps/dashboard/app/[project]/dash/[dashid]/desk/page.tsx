@@ -41,6 +41,7 @@ import { InviteNotification } from "./_components/InviteNotification"
 import { MasterSheetPanel } from "./_components/MasterSheetPanel"
 import { executeWorkflow } from "../editor/_components/nodes/executions/nodeExecutions"
 import { getWorkFlow } from "../editor/_actions/editor.service"
+import { HelixLoader, RoseLoader } from "curls-loaders"
 
 // ─── Main Component ─────────────────────────────────────────
 export default function DeskPage() {
@@ -321,7 +322,15 @@ export default function DeskPage() {
     return (
       <div className="h-screen w-full flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-3">
-          <Loader2 className="size-8 animate-spin text-teal-500" />
+          <RoseLoader
+            size={141}
+            color="#707070"
+            secondaryColor="#00313d"
+            speed={3.5}
+            strokeWidth={3}
+            petals={10}
+            denominator={4}
+          />
           <p className="text-sm text-muted-foreground">Loading desk...</p>
         </div>
       </div>

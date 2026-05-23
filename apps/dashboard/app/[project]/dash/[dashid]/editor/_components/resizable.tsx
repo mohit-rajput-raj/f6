@@ -35,6 +35,7 @@ import {
 import { Input } from "@repo/ui/components/ui/input";
 import { Label } from "@repo/ui/components/ui/label";
 import { Textarea } from "@repo/ui/components/ui/textarea";
+import { RoseLoader } from "curls-loaders";
 
 interface WorkFlowEditorProps {
   workflowId?: string;
@@ -101,7 +102,15 @@ function WorkFlowEditorInner() {
   const [isPublishing, setIsPublishing] = React.useState(false);
 
   if (isPending) {
-    return <p className="p-10">Loading workflow...</p>;
+    return <RoseLoader
+      size={141}
+      color="#707070"
+      secondaryColor="#00313d"
+      speed={3.5}
+      strokeWidth={3}
+      petals={10}
+      denominator={4}
+    />;
   }
 
   const handleRuns = async () => {

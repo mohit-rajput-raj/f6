@@ -5,6 +5,7 @@ import { Spotlight } from "@repo/ui/components/ui/spotlight-new";
 import { Button } from "@repo/ui/components/ui/button";
 import { client } from "@/lib/orpc";
 import Link from 'next/link';
+import { HelixLoader } from 'curls-loaders'
 import {
   ArrowRight,
   Database,
@@ -32,6 +33,7 @@ export default function Home() {
         </div>
         <Spotlight />
 
+
         <div className="relative z-10 container flex flex-col items-center px-4 mx-auto text-center md:px-6">
           <div className="inline-flex items-center px-3 py-1 mb-8 text-sm font-medium border rounded-full border-white/10 bg-white/5 text-neutral-300 backdrop-blur-sm">
             <span className="flex w-2 h-2 mr-2 rounded-full bg-indigo-500 animate-pulse"></span>
@@ -49,7 +51,7 @@ export default function Home() {
           <div className="flex flex-col items-center gap-4 mt-10 sm:flex-row">
             <Link href="/login">
               <span className="inline-flex items-center justify-center px-8 py-4 text-base font-medium text-white transition-all duration-300 rounded-full shadow-[0_0_40px_-10px_rgba(99,102,241,0.5)] bg-indigo-600 hover:bg-indigo-500 hover:scale-105">
-                Start Building Now
+                <HelixLoader color='#fff' /> Start Building Now
                 <ArrowRight className="w-4 h-4 ml-2" />
               </span>
             </Link>
