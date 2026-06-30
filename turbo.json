@@ -49,6 +49,10 @@
       "cache": false
     },
 
+    "@repo/auth#build": {
+      "dependsOn": ["^build"],
+      "outputs": []
+    },
     "build": {
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
