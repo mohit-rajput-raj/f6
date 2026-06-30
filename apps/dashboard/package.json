@@ -14,6 +14,7 @@
     "@hookform/resolvers": "^5.2.2",
     "@orpc/client": "^1.13.4",
     "@orpc/server": "^1.13.4",
+    "@prisma/client": "7.8.0",
     "@repo/auth": "workspace:*",
     "@repo/db": "workspace:*",
     "@repo/orpc": "workspace:*",
