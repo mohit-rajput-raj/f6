@@ -14,7 +14,8 @@
     "UNLOCK_KEY",
     "GEMINI_API_KEY",
     "BACKEND_PYTHON_URL",
-    "AUTH_BASE_URL"
+    "AUTH_BASE_URL",
+    "NEXT_PUBLIC_AUTH_BASE_URL"
   ],
   "tasks": {
     
@@ -59,7 +60,8 @@
         "UNLOCK_KEY",
         "GEMINI_API_KEY",
         "BACKEND_PYTHON_URL",
-        "AUTH_BASE_URL"
+        "AUTH_BASE_URL",
+        "NEXT_PUBLIC_AUTH_BASE_URL"
       ]
     },
     "build": {
@@ -80,7 +82,8 @@
         "UNLOCK_KEY",
         "GEMINI_API_KEY",
         "BACKEND_PYTHON_URL",
-        "AUTH_BASE_URL"
+        "AUTH_BASE_URL",
+        "NEXT_PUBLIC_AUTH_BASE_URL"
       ]
     },
     "lint": {
@@ -104,7 +107,8 @@
         "UNLOCK_KEY",
         "GEMINI_API_KEY",
         "BACKEND_PYTHON_URL",
-        "AUTH_BASE_URL"
+        "AUTH_BASE_URL",
+        "NEXT_PUBLIC_AUTH_BASE_URL"
       ],
       "cache": false,
       "persistent": true

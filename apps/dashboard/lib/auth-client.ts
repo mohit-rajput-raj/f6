@@ -8,6 +8,5 @@ export const {
   useSession,
   // ... other hooks
 } = createAuthClient({
-  baseURL: "http://localhost:3002/",   // relative → works in dev & prod
-  // fetchOptions: { credentials: "include" } // usually not needed
+  baseURL: process.env.NEXT_PUBLIC_AUTH_BASE_URL || process.env.AUTH_BASE_URL || "http://localhost:3002/", 
 });
