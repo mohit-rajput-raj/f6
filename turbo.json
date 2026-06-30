@@ -51,7 +51,14 @@
 
     "@repo/auth#build": {
       "dependsOn": ["^build"],
-      "outputs": []
+      "outputs": [],
+      "env": [
+        "DATABASE_URL",
+        "NODE_ENV",
+        "UNLOCK_KEY",
+        "GEMINI_API_KEY",
+        "BACKEND_PYTHON_URL"
+      ]
     },
     "build": {
       "dependsOn": ["^build"],
