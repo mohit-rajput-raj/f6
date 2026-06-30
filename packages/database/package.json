@@ -2,6 +2,7 @@
     "name": "@repo/db",
     "version": "0.0.0",
     "scripts": {
+        "build": "prisma generate",
         "db:studio": "prisma studio",
         "db:migrate": "prisma migrate dev ",
         "db:deploy": "prisma migrate deploy",

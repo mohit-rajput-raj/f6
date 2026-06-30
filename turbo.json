@@ -48,7 +48,7 @@
     "build": {
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "outputs": [".next/**", "!.next/cache/**"],
+      "outputs": [".next/**", "!.next/cache/**", "src/generated/**"],
       "env": [
         "DATABASE_URL",
         "GOOGLE_CLIENT_ID",
