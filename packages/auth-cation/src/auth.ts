@@ -7,7 +7,7 @@ export const auth = betterAuth({
   database: prismaAdapter(prisma, {
     provider: "postgresql",
   }),
-  baseURL: process.env.AUTH_BASE_URL || "http://localhost:3002/",
+  baseURL: process.env.AUTH_BASE_URL || process.env.BETTER_AUTH_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3002/"),
   socialProviders: {
     google: {
       prompt: "select_account",
@@ -17,9 +17,11 @@ export const auth = betterAuth({
   },
   trustedOrigins:
     process.env.NODE_ENV === "production"
-      ? [process.env.AUTH_BASE_URL!].filter((url): url is string =>
-          Boolean(url),
-        )
+      ? [
+          process.env.AUTH_BASE_URL,
+          process.env.BETTER_AUTH_URL,
+          process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : undefined,
+        ].filter((url): url is string => Boolean(url))
       : [
           "http://localhost:3000",
           "http://localhost:3001",
