@@ -29,11 +29,16 @@ import { useRouter } from "next/navigation"
 export function NavProjects({
   items,
   val ,
-  main_id
+  main_id , global
 }: {
   main_id?:string,
   val?:string,
   items: {
+    name: string
+    url: string
+    icon: Icon
+  }[],
+  global:{
     name: string
     url: string
     icon: Icon
@@ -49,13 +54,14 @@ export function NavProjects({
           <SidebarMenuItem key={item.name}>
             <SidebarMenuButton className="cursor-pointer" asChild onClick={() => router.push( "/"+val+"/"+ main_id+ item.url)}>
               <a >
-                <item.icon />
-                <span>{item.name}</span>
+                <item.icon size={10} />
+                <span className="text-sm">{item.name}</span>
               </a>
             </SidebarMenuButton>
            
           </SidebarMenuItem>
         ))}
+       
         <SidebarMenuItem>
           <SidebarMenuButton className="text-sidebar-foreground/70">
             <IconDots className="text-sidebar-foreground/70" />

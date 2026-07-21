@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import {
+  IconBell,
   IconCamera,
   IconChartBar,
   IconChartTreemap,
@@ -248,10 +249,11 @@ const data = {
       icon: IconDatabase,
     },
     {
-      name: "People",
-      url: "/people",
-      icon: IconReport,
+      name: "Connections",
+      url: "/connections",
+      icon: IconPlugConnected,
     },
+
     {
       name: "Billing",
       url: "/billing",
@@ -275,8 +277,25 @@ const data = {
       icon: IconPlugConnected,
 
     },
+    {
+      name: "Notifications",
+      url: "/notifications",
+      icon: IconBell,
+    },
 
   ],
+  global: [
+    {
+      name: "People",
+      url: "/peoples",
+      icon: IconReport,
+    },
+    {
+      name: "New Updates",
+      url: "/new-updates",
+      icon: IconReport,
+    }
+  ]
 }
 type AppSidebarProps = React.ComponentProps<typeof Sidebar> & {
   val: string;
@@ -284,16 +303,14 @@ type AppSidebarProps = React.ComponentProps<typeof Sidebar> & {
 };
 import { NavProjects } from "./nav-projects"
 import { ColapsebleNavMain } from "./colapseble-nave-main"
-import { BookOpen, Bot, Settings2, SquareTerminal } from "lucide-react"
+import { Bell, BookOpen, Bot, Settings2, SquareTerminal } from "lucide-react"
 import { signOut } from "@/lib/auth-client"
 import { Button } from "@repo/ui/components/ui/button"
 import { usePathname, useRouter } from "next/navigation"
 import { useEditorStore } from "@/stores/user.store"
 export const AppSidebar = ({ val, ...props }: AppSidebarProps) => {
-  // console.log(val);
   const pathname = usePathname(); // ← Call ONCE at top level
   const navigate = useRouter()
-  // Derive dashid with useMemo → stable reference if pathname doesn't change
   const dashid = React.useMemo(() => {
     const segments = pathname.split("/");
     return segments[2] === "dash" ? segments[3] || "0" : "0";
@@ -302,13 +319,11 @@ export const AppSidebar = ({ val, ...props }: AppSidebarProps) => {
   const { setDashid, main_id } = useRouteAuthContextHook(); // assuming you don't need dash_id/main_id here
 
   React.useEffect(() => {
-    // Only set if there's a real value (prevents unnecessary sets)
     if (dashid && dashid !== "0") {
       setDashid(dashid);
     }
     // Optional: log only in dev to debug
     if (process.env.NODE_ENV === "development") {
-      console.log("dashid updated:", dashid);
     }
   }, [dashid, setDashid]);
 
@@ -342,7 +357,7 @@ export const AppSidebar = ({ val, ...props }: AppSidebarProps) => {
       )}
       {val === "projects" && (<SidebarContent>
         {/* <NavMain items={data.navMain} /> */}
-        <NavProjects items={data.projects} main_id={main_id} val={val} />
+        <NavProjects items={data.projects} global={data.global} main_id={main_id} val={val} />
       </SidebarContent>)}
       <SidebarFooter className="flex gap-3 justify-between ">
         <Button asChild variant={'outline'}><button onClick={() => {

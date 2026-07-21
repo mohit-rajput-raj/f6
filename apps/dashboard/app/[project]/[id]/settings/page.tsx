@@ -1,11 +1,18 @@
-import React from 'react'
+"use client";
 
-type Props = {}
+import { useEffect } from "react";
+import { useRouter, useParams } from "next/navigation";
 
-const Settings = (props: Props) => {
-  return (
-    <div>Settings</div>
-  )
+export default function SettingsRootPage() {
+  const router = useRouter();
+  const params = useParams();
+
+  const project = params?.project || "projects";
+  const id = params?.id || "0";
+
+  useEffect(() => {
+    router.replace(`/${project}/${id}/settings/general/profile`);
+  }, [router, project, id]);
+
+  return null;
 }
-
-export default Settings

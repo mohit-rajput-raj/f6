@@ -110,6 +110,7 @@ export const ProjectList = () => {
           <TableHeader>
             <TableRow>
               <TableHead>Name</TableHead>
+              <TableHead>members</TableHead>
               <TableHead>Created At</TableHead>
               <TableHead>Updated At</TableHead>
               <TableHead className="w-[50px]"></TableHead>
@@ -125,6 +126,9 @@ export const ProjectList = () => {
                   onClick={() => handleRoute(workflow.id)}
                 >
                   <TableCell className="font-semibold">{workflow.name}</TableCell>
+                  <TableCell>
+                    <UserAvatarStack users={workflow.users} remainingCount={workflow.remainingCount} />
+                  </TableCell>
                   <TableCell>{new Date(workflow.createdAt).toLocaleDateString()}</TableCell>
                   <TableCell>{new Date(workflow.updatedAt).toLocaleDateString()}</TableCell>
                   <TableCell onClick={(e) => e.stopPropagation()}>
@@ -174,6 +178,7 @@ import {
 import { useForm } from "react-hook-form";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEditorStore } from "@/stores/user.store";
+import { UserAvatarStack } from "./membersListPictures";
 export const CreateWorkFlow = () => {
   const [loading, setLoading] = useState(false);
   const queryClient = useQueryClient();

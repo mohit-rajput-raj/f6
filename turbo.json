@@ -16,7 +16,10 @@
     "GEMINI_API_KEY",
     "BACKEND_PYTHON_URL",
     "AUTH_BASE_URL",
-    "NEXT_PUBLIC_AUTH_BASE_URL"
+    "NEXT_PUBLIC_AUTH_BASE_URL",
+    "CLOUDINARY_CLOUD_NAME",
+    "CLOUDINARY_API_KEY",
+    "CLOUDINARY_API_SECRET"
   ],
   "tasks": {
     
@@ -86,7 +89,10 @@
         "GEMINI_API_KEY",
         "BACKEND_PYTHON_URL",
         "AUTH_BASE_URL",
-        "NEXT_PUBLIC_AUTH_BASE_URL"
+        "NEXT_PUBLIC_AUTH_BASE_URL",
+        "CLOUDINARY_CLOUD_NAME",
+        "CLOUDINARY_API_KEY",
+        "CLOUDINARY_API_SECRET"
       ]
     },
     "lint": {
@@ -112,7 +118,10 @@
         "GEMINI_API_KEY",
         "BACKEND_PYTHON_URL",
         "AUTH_BASE_URL",
-        "NEXT_PUBLIC_AUTH_BASE_URL"
+        "NEXT_PUBLIC_AUTH_BASE_URL",
+        "CLOUDINARY_CLOUD_NAME",
+        "CLOUDINARY_API_KEY",
+        "CLOUDINARY_API_SECRET"
       ],
       "cache": false,
       "persistent": true

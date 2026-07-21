@@ -28,7 +28,7 @@ import { toast } from "sonner";
 import { v4 } from "uuid";
 import { EditorCanvasDefaultCardTypes } from "@/app/constants/nodes-desp";
 import EditorCanvasCardSingle from "./nodes/input-nodes/canvas-card";
-import { CamelCaseNode, TextInputNode } from "./nodes/input-nodes/test-nodes";
+// import { CamelCaseNode, TextInputNode } from "./nodes/input-nodes/test-nodes";
 import { OutputNode2 } from "./nodes/output-nodes/textoutput";
 import { LowercaseNode } from "./nodes/calcy-nodes/lowercase";
 import { FilterNode } from "./nodes/calcy-nodes/filter-node";
@@ -88,13 +88,13 @@ const Flow = ({ handleRuns }: { handleRuns: () => void }) => {
       InputFileNode: InputFileNode,
       InputImage: InputImage,
       InputText: InputText,
-      TextInputNode: TextInputNode,
+      // TextInputNode: TextInputNode,
       SpreadsheetInputNode: SpreadsheetInputNode,
       DataLibraryInputNode: DataLibraryInputNode,
 
     
       FilterNode: FilterNode,
-      CamelCaseNode: CamelCaseNode,
+      // CamelCaseNode: CamelCaseNode,
       LowercaseNode: LowercaseNode,
       SortNode: SortNode,
       RenameColumnNode: RenameColumnNode,

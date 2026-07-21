@@ -3,13 +3,18 @@
 import { useSession } from "@/lib/auth-client";
 import { prisma } from "@repo/db";
 
-export const createWorkFlow = async ({id,name}:{id:string, name:string}) => {
+export const createWorkFlow = async ({
+  id,
+  name,
+}: {
+  id: string;
+  name: string;
+}) => {
   try {
-    
     if (!id) {
       throw new Error("User not authenticated");
     }
-    
+
     const newWorkflow = await prisma.workflow.create({
       data: {
         userId: id,
@@ -25,7 +30,7 @@ export const createWorkFlow = async ({id,name}:{id:string, name:string}) => {
         tags: [],
       },
     });
-    
+
     return newWorkflow;
   } catch (error) {
     console.error("Failed to create workflow:", error);
@@ -33,33 +38,26 @@ export const createWorkFlow = async ({id,name}:{id:string, name:string}) => {
   }
 };
 export async function getWorkFlow(id: string) {
-  console.log("getWorkFlow called with id:", id); 
-
   const res = await prisma.workflow.findUnique({
     where: {
       id: id,
     },
-   
   });
 
-  console.log("hit - workflows found:", res);  
-
-  return res;  
+  return res;
 }
-export async function getAllWorkFlow(id:string) {
+export async function getAllWorkFlow(id: string) {
   return prisma.workflow.findMany({
-    where:{
-        userId:id,
-        
+    where: {
+      userId: id,
     },
     select: {
       name: true,
-      id:true,
+      id: true,
       createdAt: true,
       updatedAt: true,
     },
-    orderBy: { createdAt: 'desc' },
-   
+    orderBy: { createdAt: "desc" },
   });
 }
 
@@ -70,39 +68,35 @@ export const deleteWorkFlow = async ({
   flowId,
   id,
 }: {
-  id: string
-  flowId: string
+  id: string;
+  flowId: string;
 }) => {
   try {
     const workflow = await prisma.workflow.findFirst({
       where: {
         id: flowId,
-        userId: id, 
+        userId: id,
       },
-    })
+    });
 
     if (!workflow) {
-      throw new Error("Workflow not found or unauthorized")
+      throw new Error("Workflow not found or unauthorized");
     }
 
     const deleted = await prisma.workflow.delete({
       where: {
         id: flowId,
       },
-    })
+    });
 
-    return deleted
+    return deleted;
   } catch (error) {
-    console.error("Delete workflow error:", error)
-    throw error
+    console.error("Delete workflow error:", error);
+    throw error;
   }
-}
+};
 
-export async function saveWorkflow(
-  id: string,
-  nodes: any[],
-  edges: any[]
-) {
+export async function saveWorkflow(id: string, nodes: any[], edges: any[]) {
   try {
     const updated = await prisma.workflow.update({
       where: { id },

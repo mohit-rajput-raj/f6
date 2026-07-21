@@ -29,7 +29,6 @@ const { setNodes } = useReactFlow();
     const res =async () => {
       const data = await api.post("/process-json-stream",form);
       updateText(data.data);
-      console.log(data);
     };
     res();
     

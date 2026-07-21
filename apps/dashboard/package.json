@@ -16,6 +16,8 @@
     "@orpc/server": "^1.13.4",
     "@prisma/client": "7.8.0",
     "@repo/auth": "workspace:*",
+    
+    "@repo/cloudinary": "workspace:*",
     "@repo/db": "workspace:*",
     "@repo/orpc": "workspace:*",
     "@repo/ui": "workspace:*",
