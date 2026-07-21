@@ -31,13 +31,11 @@ const Files = () => {
     });
 
     setRes(res.data);
-    console.log(resdata);
 
   };
 
   const hello = async () => {
     const res = await api.get("/");
-    console.log(res.data);
   };
 
   return (

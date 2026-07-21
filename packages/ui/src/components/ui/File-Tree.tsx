@@ -265,7 +265,7 @@ const Folder = forwardRef<
             defaultValue={expandedItems}
             value={expandedItems}
             onValueChange={(value) => {
-              setExpandedItems?.((prev) => [...(prev ?? [] ), value[0]])
+              setExpandedItems?.((prev) => [...(prev ?? []), value[0]])
             }}
           >
             {children}

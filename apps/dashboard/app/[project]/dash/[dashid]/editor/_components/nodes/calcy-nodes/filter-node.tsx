@@ -21,7 +21,7 @@ import {
 } from "@repo/ui/components/ui/select";
 import { Input } from "@repo/ui/components/ui/input";
 import { Label } from "@repo/ui/components/ui/label";
-import { NodeData } from '../input-nodes/test-nodes'; // adjust if needed
+import { NodeData } from '@/types/types';
 
 type FilterCondition =
   | 'text-exact' | 'text-contains' | 'text-starts' | 'text-ends'

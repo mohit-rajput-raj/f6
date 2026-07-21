@@ -21,7 +21,6 @@ const layout = async ({ children, params }: LayoutProps) => {
     redirect("/auth/sign-in");
   }
   const { project } = await params;
-  console.log(project);
 
 
 
@@ -30,7 +29,7 @@ const layout = async ({ children, params }: LayoutProps) => {
 
       <SidebarProvider
         style={{
-          "--sidebar-width": "calc(var(--spacing) * 62)",
+          "--sidebar-width": "calc(var(--spacing) * 46)",
           "--header-height": "calc(var(--spacing) * 12)",
         } as React.CSSProperties}
       >

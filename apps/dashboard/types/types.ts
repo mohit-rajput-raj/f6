@@ -93,3 +93,11 @@ export const nodeMapper: Record<string, string> = {
   Discord: 'discordNode',
   'Google Drive': 'googleNode',
 }
+
+
+export type NodeData = {
+  label?: string;
+  text?: string;           // for TextInputNode
+  result?: string;         // runtime result (filled by executor)
+  [key: string]: any;
+};
