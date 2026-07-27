@@ -72,6 +72,7 @@ export const FileOutputNode = memo(({ id, data }: { id: string; data: any }) => 
 
     setSavingToLibrary(true);
     try {
+      const dashid = typeof window !== 'undefined' ? window.location.pathname.split('/dash/')[1]?.split('/')[0] : undefined;
       await createDataLibraryFile({
         userId: session.user.id,
         name: fileName || 'Workflow Output',
@@ -83,6 +84,7 @@ export const FileOutputNode = memo(({ id, data }: { id: string; data: any }) => 
           colCount: result.columns.length,
           sourceNodeId: id,
         },
+        workflowId: dashid,
       });
       toast.success(`Saved "${fileName}" to Data Library`);
     } catch (err) {

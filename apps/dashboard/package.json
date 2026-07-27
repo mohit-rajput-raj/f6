@@ -16,11 +16,12 @@
     "@orpc/server": "^1.13.4",
     "@prisma/client": "7.8.0",
     "@repo/auth": "workspace:*",
-    
     "@repo/cloudinary": "workspace:*",
     "@repo/db": "workspace:*",
     "@repo/orpc": "workspace:*",
     "@repo/ui": "workspace:*",
+    "@supabase/ssr": "^0.12.3",
+    "@supabase/supabase-js": "^2.110.8",
     "@syncfusion/ej2-base": "^32.2.9",
     "@syncfusion/ej2-buttons": "^32.2.9",
     "@syncfusion/ej2-calendars": "^32.2.9",

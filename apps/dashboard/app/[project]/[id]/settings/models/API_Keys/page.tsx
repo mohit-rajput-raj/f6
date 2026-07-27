@@ -47,7 +47,7 @@ function ApiKeysForm() {
   const handleCreateKey = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newKeyName.trim()) {
-      toast.error("Please provide a name for the API key.");
+      toast.error("Please provide a name for the API key."); 
       return;
     }
 
@@ -82,22 +82,73 @@ function ApiKeysForm() {
     setShowSecret((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
+  const [geminiKey, setGeminiKey] = useState(() => (typeof window !== "undefined" ? localStorage.getItem("GEMINI_API_KEY") || "" : ""));
+  const [openaiKey, setOpenaiKey] = useState(() => (typeof window !== "undefined" ? localStorage.getItem("OPENAI_API_KEY") || "" : ""));
+  const [claudeKey, setClaudeKey] = useState(() => (typeof window !== "undefined" ? localStorage.getItem("CLAUDE_API_KEY") || "" : ""));
+
+  const handleSaveProviderKeys = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (typeof window !== "undefined") {
+      localStorage.setItem("GEMINI_API_KEY", geminiKey);
+      localStorage.setItem("OPENAI_API_KEY", openaiKey);
+      localStorage.setItem("CLAUDE_API_KEY", claudeKey);
+    }
+    toast.success("AI Model provider keys saved successfully!");
+  };
+
   return (
     <Card className="w-full max-w-4xl border shadow-xs">
       <CardHeader className="space-y-1">
         <div className="flex items-center gap-2">
           <IconKey className="size-5 text-primary" />
-          <CardTitle className="text-xl font-bold tracking-tight">API Keys & Access Tokens</CardTitle>
+          <CardTitle className="text-xl font-bold tracking-tight">API Keys & Model Credentials</CardTitle>
         </div>
         <CardDescription className="text-sm text-muted-foreground">
-          Manage secure API keys used to authenticate requests to UNIXL model execution workflows and SDKs.
+          Configure personal AI provider API keys (Gemini, OpenAI, Claude) for your block agent executions.
         </CardDescription>
       </CardHeader>
 
       <CardContent className="space-y-6">
-        {/* Create Key Form */}
+        {/* Model Provider Keys */}
+        <form onSubmit={handleSaveProviderKeys} className="p-4 rounded-xl bg-card border space-y-4">
+          <h4 className="text-sm font-semibold">AI Model Provider API Keys</h4>
+          <div className="space-y-3">
+            <div>
+              <label className="text-xs font-medium text-muted-foreground block mb-1">Google Gemini API Key</label>
+              <Input
+                type="password"
+                placeholder="AIzaSy..."
+                value={geminiKey}
+                onChange={(e) => setGeminiKey(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground block mb-1">OpenAI API Key</label>
+              <Input
+                type="password"
+                placeholder="sk-proj-..."
+                value={openaiKey}
+                onChange={(e) => setOpenaiKey(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground block mb-1">Anthropic Claude API Key</label>
+              <Input
+                type="password"
+                placeholder="sk-ant-..."
+                value={claudeKey}
+                onChange={(e) => setClaudeKey(e.target.value)}
+              />
+            </div>
+          </div>
+          <Button type="submit" className="gap-2 font-medium shrink-0 text-xs">
+            Save Provider Keys
+          </Button>
+        </form>
+
+        {/* Create Custom App Key Form */}
         <form onSubmit={handleCreateKey} className="p-4 rounded-xl bg-muted/30 border space-y-3">
-          <h4 className="text-sm font-semibold">Generate New API Key</h4>
+          <h4 className="text-sm font-semibold">Generate App Access Key</h4>
           <div className="flex flex-col sm:flex-row gap-3">
             <Input
               placeholder="Key description (e.g. Analytics Microservice)"

@@ -1,465 +1,627 @@
-'use client';
+"use client";
 
-import React, { useState, useEffect, useCallback } from 'react';
-import { useSession } from '@/lib/auth-client';
+import React, { useState, useEffect, useCallback } from "react";
+import { useSession } from "@/lib/auth-client";
+import { useParams } from "next/navigation";
+import { Button } from "@repo/ui/components/ui/button";
+import { Input } from "@repo/ui/components/ui/input";
+import { Badge } from "@repo/ui/components/ui/badge";
+import { Skeleton } from "@repo/ui/components/ui/skeleton";
 import {
-  createSharedNode,
-  getMySharedNodes,
-  getSharedNodeByKey,
-  submitSharedNodeData,
-  deleteSharedNode,
-} from './actions';
-import { Button } from '@repo/ui/components/ui/button';
-import { Input } from '@repo/ui/components/ui/input';
-import { Label } from '@repo/ui/components/ui/label';
-import { toast } from 'sonner';
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@repo/ui/components/ui/dialog";
+import { toast } from "sonner";
 import {
-  Share2,
-  Plus,
-  Key,
-  Copy,
-  Trash2,
-  Check,
-  Clock,
-  ArrowRight,
-  Users,
-  RefreshCw,
-  X,
-} from 'lucide-react';
+  IconUsers,
+  IconMail,
+  IconPlus,
+  IconTrash,
+  IconCheck,
+  IconX,
+  IconUserPlus,
+  IconCopy,
+  IconShieldCheck,
+  IconClock,
+  IconSearch,
+  IconSparkles,
+  IconLink,
+  IconSend,
+} from "@tabler/icons-react";
+import {
+  inviteToDesk,
+  getDeskCollaborators,
+  removeCollaborator,
+  acceptInvite,
+  rejectInvite,
+  getPendingInvites,
+  getWorkflowOwner,
+} from "../desk/desk-share-actions";
 
-interface SharedNodeItem {
+interface Collaborator {
   id: string;
-  shareKey: string;
-  name: string;
-  description: string | null;
-  expectedColumns: any;
-  data: any;
+  invitedEmail: string;
+  permission: "editor" | "viewer" | string;
+  reservedColumns: string[];
   status: string;
   createdAt: string;
 }
 
+interface PendingInvite {
+  id: string;
+  masterSheet: { id: string; name: string } | null;
+  permission: string;
+  status: string;
+}
+
 export default function TeamPage() {
   const { data: session } = useSession();
+  const params = useParams();
+  const dashid = params?.dashid as string;
   const userId = session?.user?.id;
+  const userEmail = session?.user?.email;
 
-  const [myNodes, setMyNodes] = useState<SharedNodeItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  // ─── State ────────────────────────────────────────────────
+  const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
+  const [pendingInvites, setPendingInvites] = useState<PendingInvite[]>([]);
+  const [owner, setOwner] = useState<{ id: string; email: string; name: string } | null>(null);
+  const [loadingCollabs, setLoadingCollabs] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
 
-  // Create form
-  const [showCreate, setShowCreate] = useState(false);
-  const [createName, setCreateName] = useState('');
-  const [createDesc, setCreateDesc] = useState('');
-  const [createColumns, setCreateColumns] = useState('');
-  const [creating, setCreating] = useState(false);
+  // Invite form state
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState<"editor" | "viewer">("editor");
+  const [inviting, setInviting] = useState(false);
 
-  // Join form
-  const [showJoin, setShowJoin] = useState(false);
-  const [joinKey, setJoinKey] = useState('');
-  const [joinedNode, setJoinedNode] = useState<any>(null);
-  const [columnMappings, setColumnMappings] = useState<Record<string, string>>({});
-  const [joinSubmitting, setJoinSubmitting] = useState(false);
+  // Canva-style Invitation Sent Popup Dialog state
+  const [inviteSuccessModalOpen, setInviteSuccessModalOpen] = useState(false);
+  const [lastInvitedEmail, setLastInvitedEmail] = useState("");
+  const [lastInvitedRole, setLastInvitedRole] = useState<"editor" | "viewer">("editor");
 
-  const fetchMyNodes = useCallback(async () => {
-    if (!userId) return;
-    setLoading(true);
-    try {
-      const nodes = await getMySharedNodes(userId);
-      setMyNodes(nodes as any);
-    } catch (err) {
-      console.error('Failed to fetch shared nodes:', err);
-    } finally {
-      setLoading(false);
+  // ─── Load Data ────────────────────────────────────────────
+  const loadCollaborators = useCallback(async () => {
+    if (!dashid) {
+      setLoadingCollabs(false);
+      return;
     }
-  }, [userId]);
+    setLoadingCollabs(true);
+    try {
+      const [collabs, ownerData] = await Promise.all([
+        getDeskCollaborators(undefined, dashid),
+        getWorkflowOwner(dashid)
+      ]);
+      setCollaborators(collabs as any);
+      setOwner(ownerData);
+    } catch (err) {
+      console.error("Failed to load collaborators/owner:", err);
+    } finally {
+      setLoadingCollabs(false);
+    }
+  }, [dashid]);
+
+  const loadPendingInvites = useCallback(async () => {
+    if (!userEmail) return;
+    try {
+      const invites = await getPendingInvites(userEmail);
+      setPendingInvites(invites as any);
+    } catch (err) {
+      console.error("Failed to load pending invites:", err);
+    }
+  }, [userEmail]);
 
   useEffect(() => {
-    fetchMyNodes();
-  }, [fetchMyNodes]);
+    loadCollaborators();
+    loadPendingInvites();
+  }, [loadCollaborators, loadPendingInvites]);
 
-  // Create shared node
-  const handleCreate = async () => {
-    if (!userId || !createName.trim() || !createColumns.trim()) {
-      toast.error('Please fill in name and columns');
+  // ─── Invite Handler ───────────────────────────────────────
+  const handleInvite = async () => {
+    const emailToInvite = inviteEmail.trim().toLowerCase();
+    if (!emailToInvite) {
+      toast.error("Please enter an email address.");
       return;
     }
 
-    setCreating(true);
-    try {
-      const cols = createColumns.split(',').map((c) => c.trim()).filter(Boolean);
-      if (cols.length === 0) {
-        toast.error('Enter at least one column');
-        setCreating(false);
-        return;
-      }
+    // Basic email validation regex
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(emailToInvite)) {
+      toast.error("Please enter a valid email address.");
+      return;
+    }
 
-      await createSharedNode({
-        creatorId: userId,
-        name: createName.trim(),
-        description: createDesc.trim() || undefined,
-        expectedColumns: cols,
+    setInviting(true);
+    try {
+      await inviteToDesk({
+        invitedEmail: emailToInvite,
+        permission: inviteRole,
+        projectWorkflowId: dashid,
       });
 
-      toast.success('Shared node created!');
-      setCreateName('');
-      setCreateDesc('');
-      setCreateColumns('');
-      setShowCreate(false);
-      fetchMyNodes();
-    } catch (err) {
-      console.error('Create failed:', err);
-      toast.error('Failed to create shared node');
+      // Save for popup modal display
+      setLastInvitedEmail(emailToInvite);
+      setLastInvitedRole(inviteRole);
+      setInviteSuccessModalOpen(true);
+
+      // Clear input & refresh list
+      setInviteEmail("");
+      loadCollaborators();
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to send invite");
     } finally {
-      setCreating(false);
+      setInviting(false);
     }
   };
 
-  // Join via key
-  const handleJoinLookup = async () => {
-    if (!joinKey.trim()) return;
+  // ─── Copy Link Handler ────────────────────────────────────
+  const handleCopyLink = () => {
+    if (typeof window !== "undefined") {
+      const inviteUrl = `${window.location.origin}/dash/${dashid}/desk`;
+      navigator.clipboard.writeText(inviteUrl);
+      toast.success("Desk invite link copied to clipboard!");
+    }
+  };
+
+  // ─── Action Handlers ──────────────────────────────────────
+  const handleAccept = async (shareId: string) => {
     try {
-      const node = await getSharedNodeByKey(joinKey.trim().toUpperCase());
-      if (!node) {
-        toast.error('Invalid share key');
-        return;
+      await acceptInvite(shareId);
+      toast.success("Invitation accepted! Welcome to the desk.");
+      loadPendingInvites();
+      loadCollaborators();
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to accept invite");
+    }
+  };
+
+  const handleReject = async (shareId: string) => {
+    try {
+      await rejectInvite(shareId);
+      toast.info("Invitation declined.");
+      loadPendingInvites();
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to decline invite");
+    }
+  };
+
+  const handleRemove = async (shareId: string, email: string) => {
+    if (confirm(`Remove ${email} from this desk?`)) {
+      try {
+        await removeCollaborator(shareId);
+        toast.success(`Removed ${email}`);
+        loadCollaborators();
+      } catch (err: any) {
+        toast.error(err?.message || "Failed to remove member");
       }
-      setJoinedNode(node);
-      // Initialize empty mappings
-      const expectedCols = (node.expectedColumns as string[]) || [];
-      const mappings: Record<string, string> = {};
-      expectedCols.forEach((col) => {
-        mappings[col] = '';
-      });
-      setColumnMappings(mappings);
-    } catch (err) {
-      console.error('Lookup failed:', err);
-      toast.error('Failed to look up key');
     }
   };
 
-  // Submit mapped data
-  const handleJoinSubmit = async () => {
-    if (!joinedNode) return;
-
-    setJoinSubmitting(true);
-    try {
-      // Build mapped dataset
-      const mappedData = {
-        mappings: columnMappings,
-        submittedAt: new Date().toISOString(),
-        submittedBy: session?.user?.name || 'Unknown',
-      };
-
-      await submitSharedNodeData(joinedNode.shareKey, mappedData);
-      toast.success('Data submitted successfully!');
-      setShowJoin(false);
-      setJoinedNode(null);
-      setJoinKey('');
-      setColumnMappings({});
-    } catch (err) {
-      console.error('Submit failed:', err);
-      toast.error('Failed to submit data');
-    } finally {
-      setJoinSubmitting(false);
-    }
-  };
-
-  const handleDelete = async (id: string) => {
-    if (!userId) return;
-    if (!confirm('Delete this shared node?')) return;
-    try {
-      await deleteSharedNode(id, userId);
-      toast.success('Deleted');
-      setMyNodes((prev) => prev.filter((n) => n.id !== id));
-    } catch (err) {
-      toast.error('Delete failed');
-    }
-  };
-
-  const copyKey = (key: string) => {
-    navigator.clipboard.writeText(key);
-    toast.success('Share key copied!');
-  };
-
-  const statusIcon = (status: string) => {
-    switch (status) {
-      case 'pending':
-        return <Clock className="size-4 text-amber-500" />;
-      case 'filled':
-        return <Check className="size-4 text-green-500" />;
-      case 'consumed':
-        return <Check className="size-4 text-blue-500" />;
-      default:
-        return <Clock className="size-4" />;
-    }
-  };
-
-  const statusLabel = (status: string) => {
-    switch (status) {
-      case 'pending':
-        return 'Waiting for data';
-      case 'filled':
-        return 'Data received';
-      case 'consumed':
-        return 'Consumed';
-      default:
-        return status;
-    }
-  };
-
-  if (!userId) {
-    return (
-      <div className="flex items-center justify-center h-[60vh]">
-        <p className="text-muted-foreground">Please log in to access Team Sharing.</p>
-      </div>
-    );
-  }
+  // Filter collaborators by search query
+  const filteredCollaborators = collaborators.filter((c) =>
+    c.invitedEmail.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   return (
-    <div className="p-6 max-w-5xl mx-auto space-y-8">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="p-2 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 text-white">
-            <Users className="size-6" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">Team Sharing</h1>
-            <p className="text-sm text-muted-foreground">
-              Share data between team members via unique keys
-            </p>
-          </div>
-        </div>
+    <div className="min-h-screen bg-background p-4 sm:p-8">
+      <div className="w-full mx-auto space-y-6">
 
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            onClick={() => { setShowJoin(!showJoin); setShowCreate(false); }}
-          >
-            <Key className="size-4 mr-1" /> Join via Key
-          </Button>
-          <Button
-            onClick={() => { setShowCreate(!showCreate); setShowJoin(false); }}
-          >
-            <Plus className="size-4 mr-1" /> Create Shared Node
-          </Button>
-        </div>
-      </div>
-
-      {/* Create form */}
-      {showCreate && (
-        <div className="border rounded-xl p-5 bg-card space-y-4">
-          <h3 className="font-semibold flex items-center gap-2">
-            <Share2 className="size-4" /> Create a Shared Node
-          </h3>
-          <p className="text-sm text-muted-foreground">
-            Define the columns you expect. A share key will be generated.
-            Give this key to other users so they can send you data.
-          </p>
-
-          <div className="grid gap-3">
-            <div className="space-y-1">
-              <Label className="text-xs">Name</Label>
-              <Input
-                value={createName}
-                onChange={(e) => setCreateName(e.target.value)}
-                placeholder="e.g. Attendance Data - Section A"
-              />
+        {/* ─── Header ────────────────────────────────────── */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b">
+          <div className="flex items-center gap-3">
+            <div className="p-3 rounded-2xl bg-gradient-to-br from-purple-600 via-indigo-600 to-teal-500 text-white shadow-lg shadow-purple-500/20">
+              <IconUsers className="size-6" />
             </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Description (optional)</Label>
-              <Input
-                value={createDesc}
-                onChange={(e) => setCreateDesc(e.target.value)}
-                placeholder="e.g. Need attendance from Jan to Mar"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Expected Columns (comma-separated)</Label>
-              <Input
-                value={createColumns}
-                onChange={(e) => setCreateColumns(e.target.value)}
-                placeholder="e.g. Enrollment, Name, Total Present, Total Absent"
-              />
-              <p className="text-[10px] text-muted-foreground">
-                These are the columns you expect the other user to fill in.
+            <div>
+              <h1 className="text-xl font-bold tracking-tight">Team & Common Desk</h1>
+              <p className="text-xs text-muted-foreground">
+                Invite people to collaborate on this common desk. Shared members can work on blocks together.
               </p>
             </div>
           </div>
 
-          <div className="flex gap-2 justify-end">
-            <Button variant="ghost" onClick={() => setShowCreate(false)}>Cancel</Button>
-            <Button onClick={handleCreate} disabled={creating}>
-              {creating ? 'Creating...' : 'Create & Generate Key'}
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {/* Join form */}
-      {showJoin && (
-        <div className="border rounded-xl p-5 bg-card space-y-4">
-          <h3 className="font-semibold flex items-center gap-2">
-            <Key className="size-4" /> Join via Share Key
-          </h3>
-
-          {!joinedNode ? (
-            <div className="flex gap-2">
-              <Input
-                value={joinKey}
-                onChange={(e) => setJoinKey(e.target.value.toUpperCase())}
-                placeholder="Enter share key (e.g. ABC1234XYZ)"
-                className="flex-1 uppercase tracking-wider font-mono"
-              />
-              <Button onClick={handleJoinLookup}>
-                <ArrowRight className="size-4" /> Look Up
-              </Button>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <div className="bg-muted rounded-lg p-3 text-sm">
-                <div className="font-medium">{joinedNode.name}</div>
-                {joinedNode.description && (
-                  <div className="text-xs text-muted-foreground mt-1">{joinedNode.description}</div>
-                )}
-                <div className="text-xs text-muted-foreground mt-1">
-                  By: {joinedNode.creator?.name || 'User'}
-                </div>
-              </div>
-
-              <div>
-                <Label className="text-xs font-semibold mb-2 block">
-                  Map your columns to expected columns:
-                </Label>
-                <div className="space-y-2">
-                  {((joinedNode.expectedColumns as string[]) || []).map((expectedCol) => (
-                    <div key={expectedCol} className="flex items-center gap-2">
-                      <span className="text-xs font-medium min-w-[120px] px-2 py-1 bg-violet-100 dark:bg-violet-900 rounded">
-                        {expectedCol}
-                      </span>
-                      <ArrowRight className="size-3 text-muted-foreground flex-shrink-0" />
-                      <Input
-                        value={columnMappings[expectedCol] || ''}
-                        onChange={(e) =>
-                          setColumnMappings((prev) => ({ ...prev, [expectedCol]: e.target.value }))
-                        }
-                        placeholder="Your column name"
-                        className="h-8 text-xs flex-1"
-                      />
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="flex gap-2 justify-end">
-                <Button variant="ghost" onClick={() => { setJoinedNode(null); setJoinKey(''); }}>
-                  Cancel
-                </Button>
-                <Button onClick={handleJoinSubmit} disabled={joinSubmitting}>
-                  {joinSubmitting ? 'Submitting...' : 'Submit Column Mappings'}
-                </Button>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* My shared nodes list */}
-      <div>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold">My Shared Nodes</h2>
-          <Button variant="ghost" size="sm" onClick={fetchMyNodes} disabled={loading}>
-            <RefreshCw className={`size-3.5 mr-1 ${loading ? 'animate-spin' : ''}`} /> Refresh
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleCopyLink}
+            className="gap-1.5 text-xs h-9 border-dashed hover:bg-accent shrink-0"
+          >
+            <IconLink className="size-3.5 text-teal-400" />
+            Copy Desk Link
           </Button>
         </div>
 
-        {loading ? (
-          <div className="text-center text-sm text-muted-foreground py-10">
-            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-violet-600 mx-auto mb-2" />
-            Loading...
-          </div>
-        ) : myNodes.length === 0 ? (
-          <div className="text-center py-10 text-muted-foreground">
-            <Share2 className="size-10 mx-auto mb-3 opacity-30" />
-            <p className="text-sm">No shared nodes yet</p>
-            <p className="text-xs mt-1">Create one and share the key with your team</p>
-          </div>
-        ) : (
-          <div className="grid gap-3">
-            {myNodes.map((node) => (
-              <div
-                key={node.id}
-                className="border rounded-xl p-4 bg-card hover:border-violet-300 dark:hover:border-violet-700 transition-all"
-              >
-                <div className="flex items-start justify-between">
-                  <div>
-                    <h3 className="font-semibold text-sm">{node.name}</h3>
-                    {node.description && (
-                      <p className="text-xs text-muted-foreground mt-0.5">{node.description}</p>
-                    )}
+        {/* ─── Incoming Pending Invitations Banner ──────── */}
+        {pendingInvites.length > 0 && (
+          <div className="rounded-2xl border border-amber-500/40 bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <IconClock className="size-4 text-amber-500 animate-pulse" />
+              <h2 className="text-xs font-bold uppercase tracking-wider text-amber-500">
+                Pending Desk Invitations ({pendingInvites.length})
+              </h2>
+            </div>
+            <div className="space-y-2">
+              {pendingInvites.map((invite) => (
+                <div
+                  key={invite.id}
+                  className="flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-xl border bg-card/80 backdrop-blur gap-3"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold text-xs">
+                      ✉
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold">
+                        Invitation to join {invite.masterSheet?.name || "Common Desk"}
+                      </p>
+                      <Badge variant="outline" className="text-[9px] mt-0.5 border-amber-500/30 text-amber-300">
+                        Role: {invite.permission === "editor" ? "Can edit" : "Can view"}
+                      </Badge>
+                    </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    {statusIcon(node.status)}
-                    <span className="text-xs text-muted-foreground">{statusLabel(node.status)}</span>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-3 mt-3">
-                  {/* Share key */}
-                  <div className="flex items-center gap-1.5 bg-muted rounded-lg px-3 py-1.5">
-                    <Key className="size-3 text-violet-500" />
-                    <span className="font-mono text-sm font-semibold tracking-widest">{node.shareKey}</span>
-                    <button
-                      onClick={() => copyKey(node.shareKey)}
-                      className="p-0.5 rounded hover:bg-background transition"
+                    <Button
+                      size="sm"
+                      onClick={() => handleAccept(invite.id)}
+                      className="gap-1 bg-emerald-600 hover:bg-emerald-700 text-white h-7 text-xs px-3 font-medium"
                     >
-                      <Copy className="size-3 text-muted-foreground" />
-                    </button>
-                  </div>
-
-                  {/* Columns preview */}
-                  <div className="flex flex-wrap gap-1">
-                    {((node.expectedColumns as string[]) || []).slice(0, 5).map((col, i) => (
-                      <span key={i} className="text-[10px] px-1.5 py-0.5 rounded-full bg-violet-100 dark:bg-violet-900 text-violet-700 dark:text-violet-300">
-                        {col}
-                      </span>
-                    ))}
-                    {((node.expectedColumns as string[]) || []).length > 5 && (
-                      <span className="text-[10px] text-muted-foreground">
-                        +{(node.expectedColumns as string[]).length - 5} more
-                      </span>
-                    )}
+                      <IconCheck className="size-3" />
+                      Accept &amp; Join
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleReject(invite.id)}
+                      className="gap-1 h-7 text-xs text-red-400 hover:text-red-600 hover:bg-red-950/20"
+                    >
+                      <IconX className="size-3" />
+                      Decline
+                    </Button>
                   </div>
                 </div>
-
-                {/* Data preview if filled */}
-                {node.status === 'filled' && node.data && (
-                  <div className="mt-3 p-2 bg-green-50 dark:bg-green-950 rounded-lg border border-green-200 dark:border-green-800">
-                    <div className="text-xs text-green-700 dark:text-green-300 font-medium">
-                      ✓ Data received! Use this in your workflow.
-                    </div>
-                    <pre className="text-[10px] text-muted-foreground mt-1 overflow-auto max-h-[60px]">
-                      {JSON.stringify(node.data, null, 2)}
-                    </pre>
-                  </div>
-                )}
-
-                <div className="flex justify-between items-center mt-3">
-                  <span className="text-[10px] text-muted-foreground">
-                    Created {new Date(node.createdAt).toLocaleDateString()}
-                  </span>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 text-xs text-red-500 hover:text-red-700"
-                    onClick={() => handleDelete(node.id)}
-                  >
-                    <Trash2 className="size-3 mr-1" /> Delete
-                  </Button>
-                </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         )}
+
+        {/* ─── Canva-Style Invite Box ───────────────────── */}
+        <div className="rounded-2xl border border-purple-500/20 bg-gradient-to-b from-purple-950/20 via-card to-card p-6 shadow-xl space-y-4">
+          <div className="flex items-center gap-2">
+            <IconUserPlus className="size-4 text-purple-400" />
+            <h2 className="text-sm font-bold tracking-tight">Invite People to Common Desk</h2>
+          </div>
+
+          {/* Input & Role Selector Row (Canva style) */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+            {/* Email Input */}
+            <div className="relative flex-1">
+              <IconMail className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+              <Input
+                value={inviteEmail}
+                onChange={(e) => setInviteEmail(e.target.value)}
+                placeholder="Enter email address (e.g. colleague@company.com)..."
+                className="pl-10 h-10 text-xs bg-background/80 border-purple-500/30 focus-visible:ring-purple-500"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleInvite();
+                }}
+              />
+            </div>
+
+            {/* Role Select */}
+            <div className="sm:w-36">
+              <select
+                value={inviteRole}
+                onChange={(e) => setInviteRole(e.target.value as any)}
+                className="w-full h-10 px-3 rounded-md border border-purple-500/30 bg-background text-xs font-medium focus:outline-none focus:ring-2 focus:ring-purple-500"
+              >
+                <option value="editor">Can edit</option>
+                <option value="viewer">Can view</option>
+              </select>
+            </div>
+
+            {/* Invite Button */}
+            <Button
+              onClick={handleInvite}
+              disabled={inviting || !inviteEmail.trim()}
+              className="h-10 px-5 gap-2 bg-gradient-to-r from-purple-600 via-indigo-600 to-teal-500 hover:from-purple-700 hover:to-teal-600 text-white font-semibold text-xs shadow-md shadow-purple-500/20 shrink-0"
+            >
+              {inviting ? (
+                <div className="size-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <IconSend className="size-3.5" />
+              )}
+              {inviting ? "Sending..." : "Send Invite"}
+            </Button>
+          </div>
+
+          <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-1">
+            <span>
+              🔒 Members with <strong>Can edit</strong> role can create blocks, upload CSVs, and execute workflows on the common desk.
+            </span>
+          </div>
+        </div>
+
+        {/* ─── Middle Section: Pending Invitations ─────────── */}
+        <div className="rounded-2xl border bg-card p-6 space-y-4">
+          <div className="flex items-center gap-2">
+            <IconClock className="size-4 text-amber-500 animate-pulse" />
+            <h2 className="text-sm font-bold">
+              Pending Invitations {collaborators.filter(c => c.status === 'pending').length > 0 && `(${collaborators.filter(c => c.status === 'pending').length})`}
+            </h2>
+          </div>
+
+          {loadingCollabs ? (
+            <div className="space-y-2 py-1">
+              <div className="flex items-center justify-between p-3 rounded-xl border bg-background/50 gap-3">
+                <div className="flex items-center gap-3">
+                  <Skeleton className="size-8 rounded-full shrink-0" />
+                  <div className="space-y-1.5">
+                    <Skeleton className="h-3.5 w-40 rounded" />
+                    <Skeleton className="h-2.5 w-24 rounded" />
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Skeleton className="h-6 w-16 rounded" />
+                  <Skeleton className="h-6 w-16 rounded" />
+                </div>
+              </div>
+            </div>
+          ) : collaborators.filter(c => c.status === 'pending').length === 0 ? (
+            <p className="text-xs text-muted-foreground py-4 text-center">
+              No pending invitations sent from this desk.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {collaborators
+                .filter(c => c.status === 'pending')
+                .filter(c => c.invitedEmail.toLowerCase().includes(searchQuery.toLowerCase()))
+                .map((collab) => {
+                  const initial = collab.invitedEmail.charAt(0).toUpperCase();
+                  return (
+                    <div
+                      key={collab.id}
+                      className="flex items-center justify-between p-3 rounded-xl border bg-background/50 hover:bg-muted/40 transition-all gap-3"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-8 h-8 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold text-xs shrink-0">
+                          {initial}
+                        </div>
+                        <div className="min-w-0">
+                          <span className="text-xs font-semibold truncate text-foreground block">
+                            {collab.invitedEmail}
+                          </span>
+                          <p className="text-[10px] text-muted-foreground">
+                            Invited {new Date(collab.createdAt).toLocaleDateString()}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Badge
+                          variant="outline"
+                          className={`text-[10px] px-2 py-0.5 font-medium bg-zinc-800 text-zinc-300 border-zinc-700`}
+                        >
+                          {collab.permission === "editor" ? "Can edit" : "Can view"}
+                        </Badge>
+                        <Badge variant="secondary" className="text-[10px] px-2 py-0.5 bg-amber-950/60 text-amber-300 border border-amber-800/50">
+                          Pending
+                        </Badge>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="size-7 text-zinc-500 hover:text-red-400 hover:bg-red-950/30"
+                          title="Cancel invitation"
+                          onClick={() => handleRemove(collab.id, collab.invitedEmail)}
+                        >
+                          <IconTrash className="size-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+          )}
+        </div>
+
+        {/* ─── Below Section: Current Active Members of Desk ─── */}
+        <div className="rounded-2xl border bg-card p-6 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <IconShieldCheck className="size-4 text-teal-400" />
+              <h2 className="text-sm font-bold">
+                Active Members {(!loadingCollabs) && `(${collaborators.filter(c => c.status === 'accepted').length + (owner ? 1 : 0)})`}
+              </h2>
+            </div>
+
+            {/* Search Box */}
+            {collaborators.filter(c => c.status === 'accepted').length > 0 && (
+              <div className="relative w-full sm:w-56">
+                <IconSearch className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
+                <Input
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search members..."
+                  className="pl-8 h-8 text-xs bg-background"
+                />
+              </div>
+            )}
+          </div>
+
+          {loadingCollabs ? (
+            <div className="space-y-2 py-1">
+              {Array.from({ length: 2 }).map((_, i) => (
+                <div key={i} className="flex items-center justify-between p-3 rounded-xl border bg-background/50 gap-3">
+                  <div className="flex items-center gap-3">
+                    <Skeleton className="size-8 rounded-full shrink-0" />
+                    <div className="space-y-1.5">
+                      <Skeleton className="h-3.5 w-44 rounded" />
+                      <Skeleton className="h-2.5 w-28 rounded" />
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Skeleton className="h-6 w-16 rounded" />
+                    <Skeleton className="h-6 w-16 rounded" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {/* 1. Show Owner */}
+              {owner && (!searchQuery || owner.email.toLowerCase().includes(searchQuery.toLowerCase())) && (
+                <div className="flex items-center justify-between p-3 rounded-xl border border-teal-500/20 bg-teal-950/10 hover:bg-teal-950/20 transition-all gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-teal-500 to-emerald-600 text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-sm">
+                      {owner.email.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs font-semibold truncate text-foreground">
+                          {owner.email}
+                        </span>
+                        {owner.email.toLowerCase() === userEmail?.toLowerCase() && (
+                          <Badge variant="secondary" className="text-[9px] bg-purple-500/10 text-purple-400 border-purple-500/20">
+                            You
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="text-[10px] text-muted-foreground">Desk Creator</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Badge variant="outline" className="text-[10px] px-2 py-0.5 bg-teal-950 text-teal-300 border-teal-700 font-medium">
+                      Owner
+                    </Badge>
+                  </div>
+                </div>
+              )}
+
+              {/* 2. Show Active Collaborators */}
+              {collaborators
+                .filter(c => c.status === 'accepted')
+                .filter(c => c.invitedEmail.toLowerCase().includes(searchQuery.toLowerCase()))
+                .map((collab) => {
+                  const isCurrentUser = collab.invitedEmail.toLowerCase() === userEmail?.toLowerCase();
+                  const initial = collab.invitedEmail.charAt(0).toUpperCase();
+
+                  return (
+                    <div
+                      key={collab.id}
+                      className="flex items-center justify-between p-3 rounded-xl border bg-background/50 hover:bg-muted/40 transition-all gap-3"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-teal-500 to-indigo-600 text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-sm">
+                          {initial}
+                        </div>
+
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-xs font-semibold truncate text-foreground">
+                              {collab.invitedEmail}
+                            </span>
+                            {isCurrentUser && (
+                              <Badge variant="secondary" className="text-[9px] bg-purple-500/10 text-purple-400 border-purple-500/20">
+                                You
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="text-[10px] text-muted-foreground">
+                            Joined {new Date(collab.createdAt).toLocaleDateString()}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Badge
+                          variant="outline"
+                          className={`text-[10px] px-2 py-0.5 font-medium ${
+                            collab.permission === "editor"
+                              ? "bg-indigo-950/50 text-indigo-300 border-indigo-700/50"
+                              : "bg-zinc-800 text-zinc-300 border-zinc-700"
+                          }`}
+                        >
+                          {collab.permission === "editor" ? "Can edit" : "Can view"}
+                        </Badge>
+
+                        <Badge
+                          variant="secondary"
+                          className="text-[10px] px-2 py-0.5 bg-emerald-950/60 text-emerald-300 border border-emerald-800/50 font-medium"
+                        >
+                          Active
+                        </Badge>
+
+                        {!isCurrentUser && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="size-7 text-zinc-500 hover:text-red-400 hover:bg-red-950/30"
+                            title="Remove member"
+                            onClick={() => handleRemove(collab.id, collab.invitedEmail)}
+                          >
+                            <IconTrash className="size-3.5" />
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+          )}
+        </div>
+
+        {/* ─── Canva-Style Invitation Sent Modal Dialog ─── */}
+        <Dialog open={inviteSuccessModalOpen} onOpenChange={setInviteSuccessModalOpen}>
+          <DialogContent className="sm:max-w-md bg-card border-purple-500/30 p-6 text-center space-y-4">
+            <DialogHeader className="flex flex-col items-center space-y-3">
+              {/* Glowing Success Icon */}
+              <div className="w-14 h-14 rounded-full bg-gradient-to-br from-emerald-400 to-teal-600 text-white flex items-center justify-center shadow-lg shadow-teal-500/30 mx-auto">
+                <IconCheck className="size-7 stroke-[3]" />
+              </div>
+              <DialogTitle className="text-lg font-bold">Invitation Sent!</DialogTitle>
+              <DialogDescription className="text-xs text-muted-foreground leading-relaxed max-w-xs mx-auto">
+                An email invitation has been sent to recipient to join your common desk.
+              </DialogDescription>
+            </DialogHeader>
+
+            {/* Recipient Details Card */}
+            <div className="rounded-xl border bg-background p-3.5 text-left space-y-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-muted-foreground">Recipient Email:</span>
+                <span className="font-semibold text-foreground">{lastInvitedEmail}</span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-muted-foreground">Assigned Role:</span>
+                <Badge variant="outline" className="text-[10px] bg-purple-950/50 text-purple-300 border-purple-700/50">
+                  {lastInvitedRole === "editor" ? "Can edit" : "Can view"}
+                </Badge>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-muted-foreground">Status:</span>
+                <span className="text-amber-400 font-medium text-[11px]">Pending Acceptance</span>
+              </div>
+            </div>
+
+            <DialogFooter className="flex sm:flex-row gap-2 pt-2">
+              <Button
+                variant="outline"
+                onClick={() => setInviteSuccessModalOpen(false)}
+                className="w-full text-xs"
+              >
+                Invite Another
+              </Button>
+
+              <Button
+                onClick={() => setInviteSuccessModalOpen(false)}
+                className="w-full text-xs bg-purple-600 hover:bg-purple-700 text-white font-semibold"
+              >
+                Done
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
       </div>
     </div>
   );

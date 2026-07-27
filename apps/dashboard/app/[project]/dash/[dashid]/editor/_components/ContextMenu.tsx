@@ -21,20 +21,41 @@ import { AlertBox } from "../../_components/settings/slert-asling";
 
 export function ContextMenuDemo({ children }: { children: React.ReactNode }) {
   const nodeId = useNodeId();
-  const { setNodes, setEdges } = useEditorWorkFlow();
+  const { setNodes, setEdges, saveToDb, isSaving, hasUnsavedChanges } = useEditorWorkFlow();
+
+  const handleSave = useCallback(async () => {
+    try {
+      await saveToDb();
+    } catch (e) {
+      console.error("Save error:", e);
+    }
+  }, [saveToDb]);
+
   const handelDeleteEdgesOnly = useCallback(() => {
     setEdges((edges) => []);
-  }, [nodeId, setEdges]);
+  }, [setEdges]);
+
   const handleDeleteAllNodesandEdges = useCallback(() => {
     setNodes((nodes) => []);
     setEdges((edges) => []);
-  }, [nodeId, setNodes, setEdges]);
+  }, [setNodes, setEdges]);
+
   return (
     <ContextMenu>
       <ContextMenuTrigger className="flex h-full w-full items-center justify-center ">
         {children}
       </ContextMenuTrigger>
-      <ContextMenuContent className="w-52">
+      <ContextMenuContent className="w-56">
+        <ContextMenuItem
+          inset
+          onClick={handleSave}
+          disabled={isSaving || !hasUnsavedChanges}
+          className="cursor-pointer font-medium text-teal-600 dark:text-teal-400 focus:text-teal-500"
+        >
+          {isSaving ? "💾 Saving..." : hasUnsavedChanges ? "💾 Save Workflow *" : "💾 Workflow Saved"}
+          <ContextMenuShortcut>⌘S</ContextMenuShortcut>
+        </ContextMenuItem>
+        <ContextMenuSeparator />
         <ContextMenuItem inset>
           Back
           <ContextMenuShortcut>⌘[</ContextMenuShortcut>

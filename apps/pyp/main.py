@@ -1,16 +1,12 @@
-from fastapi import FastAPI, UploadFile, File
-from fastapi.responses import StreamingResponse
-import io
-import pandas as pd
-app = FastAPI()
+"""
+UNIXL Python AI Server — FastAPI entrypoint
+"""
+
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+from app.core.config import settings
+
+# ─── Existing routers (file processing, calculations) ────────
 from fastapi import APIRouter, UploadFile, File
 from pydantic import BaseModel
 from typing import List, Any, Optional
@@ -25,17 +21,33 @@ from app.services.calculation_service import (
     transform_data,
 )
 
-router = APIRouter()
+# ─── New AI router ───────────────────────────────────────────
+from app.api.routers.ai_router import router as ai_router
+
+# ─── App Setup ───────────────────────────────────────────────
+app = FastAPI(
+    title=settings.APP_NAME,
+    version=settings.APP_VERSION,
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.CORS_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# ─── Legacy Data Processing Router ──────────────────────────
+legacy_router = APIRouter(tags=["Data Processing"])
 
 
-@router.get("/health")
+@legacy_router.get("/health")
 async def health():
-    return {"status": "ok"}
+    return {"status": "ok", "app": settings.APP_NAME, "version": settings.APP_VERSION}
 
 
-# ─── File upload endpoints ───────────────────────
-
-@router.post("/upload")
+@legacy_router.post("/upload")
 async def upload_file(file: UploadFile = File(...)):
     df = await load_dataframe(file)
     return {
@@ -45,21 +57,21 @@ async def upload_file(file: UploadFile = File(...)):
     }
 
 
-@router.post("/process")
+@legacy_router.post("/process")
 async def process_file(file: UploadFile = File(...)):
     df = await load_dataframe(file)
     updated_df = process_attendance(df)
     return dataframe_to_csv_stream(updated_df, file.filename)
 
 
-@router.post("/process-json")
+@legacy_router.post("/process-json")
 async def process_file_json(file: UploadFile = File(...)):
     df = await load_dataframe(file)
     updated_df = process_attendance(df)
     return updated_df.to_dict(orient="records")
 
 
-@router.post("/process-json-stream")
+@legacy_router.post("/process-json-stream")
 async def process_file_json_stream(file: UploadFile = File(...)):
     df = await load_dataframe(file)
     return {
@@ -67,8 +79,6 @@ async def process_file_json_stream(file: UploadFile = File(...)):
         "data": df.values.tolist(),
     }
 
-
-# ─── Calculation endpoints ───────────────────────
 
 class CalculateRequest(BaseModel):
     columns: List[str]
@@ -80,9 +90,8 @@ class CalculateRequest(BaseModel):
     result_column: Optional[str] = None
 
 
-@router.post("/calculate")
+@legacy_router.post("/calculate")
 async def calculate(req: CalculateRequest):
-    """Column math operations (add/sub/mul/div)."""
     try:
         result = calculate_column_math(
             columns=req.columns,
@@ -105,9 +114,8 @@ class FormulaRequest(BaseModel):
     result_column: Optional[str] = None
 
 
-@router.post("/formula")
+@legacy_router.post("/formula")
 async def formula(req: FormulaRequest):
-    """Evaluate a custom formula using pandas eval."""
     try:
         result = evaluate_formula(
             columns=req.columns,
@@ -127,9 +135,8 @@ class TransformRequest(BaseModel):
     config: dict
 
 
-@router.post("/transform")
+@legacy_router.post("/transform")
 async def transform(req: TransformRequest):
-    """General data transforms (sort, aggregate, etc.)."""
     try:
         result = transform_data(
             columns=req.columns,
@@ -142,4 +149,6 @@ async def transform(req: TransformRequest):
         return {"error": str(e)}
 
 
-app.include_router(router)
+# ─── Mount Routers ───────────────────────────────────────────
+app.include_router(legacy_router)
+app.include_router(ai_router)

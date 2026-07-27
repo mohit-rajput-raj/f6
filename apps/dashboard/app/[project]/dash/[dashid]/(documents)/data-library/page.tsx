@@ -19,9 +19,17 @@ import {
   Download,
   Eye,
   Plus,
+  Loader2,
 } from 'lucide-react';
 import { Button } from '@repo/ui/components/ui/button';
 import { Input } from '@repo/ui/components/ui/input';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@repo/ui/components/ui/dialog';
 import { toast } from 'sonner';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
@@ -43,7 +51,11 @@ interface PreviewData {
   data: any[][];
 }
 
+import { useParams } from 'next/navigation';
+
 const DataLibrary = () => {
+  const params = useParams();
+  const dashid = params?.dashid as string;
   const { data: session } = useSession();
   const userId = session?.user?.id;
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -54,14 +66,16 @@ const DataLibrary = () => {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [previewFile, setPreviewFile] = useState<string | null>(null);
   const [previewData, setPreviewData] = useState<PreviewData | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [deletingFileId, setDeletingFileId] = useState<string | null>(null);
 
-  // Fetch files from DB
+  // Fetch files from DB for this desk (dashid)
   const fetchFiles = useCallback(async () => {
-    if (!userId) return;
+    if (!dashid && !userId) return;
     setLoading(true);
     try {
-      const result = await getDataLibraryFiles(userId);
+      const result = await getDataLibraryFiles(dashid, userId);
       setFiles(result as any);
     } catch (err) {
       console.error('Failed to fetch files:', err);
@@ -69,7 +83,7 @@ const DataLibrary = () => {
     } finally {
       setLoading(false);
     }
-  }, [userId]);
+  }, [dashid, userId]);
 
   useEffect(() => {
     fetchFiles();
@@ -116,7 +130,9 @@ const DataLibrary = () => {
           fileSize: file.size,
           originalFileName: file.name,
         },
+        workflowId: dashid,
       });
+
 
       toast.success(`Uploaded "${file.name}" successfully`);
       await fetchFiles();
@@ -134,6 +150,7 @@ const DataLibrary = () => {
     if (!userId) return;
     if (!confirm(`Delete "${fileName}"? This cannot be undone.`)) return;
 
+    setDeletingFileId(fileId);
     try {
       await deleteDataLibraryFile(fileId, userId);
       toast.success(`Deleted "${fileName}"`);
@@ -145,6 +162,8 @@ const DataLibrary = () => {
     } catch (err) {
       console.error('Delete failed:', err);
       toast.error('Delete failed');
+    } finally {
+      setDeletingFileId(null);
     }
   };
 
@@ -186,24 +205,31 @@ const DataLibrary = () => {
 
   // Preview handler
   const handlePreview = async (fileId: string) => {
-    if (previewFile === fileId) {
+    if (previewFile === fileId && previewData) {
       setPreviewFile(null);
       setPreviewData(null);
       return;
     }
     if (!userId) return;
+    setPreviewLoading(true);
+    setPreviewFile(fileId);
+    setPreviewData(null);
     try {
       const { getDataLibraryFile } = await import('./actions');
       const file = await getDataLibraryFile(fileId, userId);
       if (!file?.data) {
         toast.error('No data to preview');
+        setPreviewFile(null);
         return;
       }
       const d = file.data as any;
-      setPreviewFile(fileId);
       setPreviewData({ columns: d.columns || [], data: (d.data || []).slice(0, 50) });
     } catch (err) {
       console.error('Preview failed:', err);
+      toast.error('Preview failed');
+      setPreviewFile(null);
+    } finally {
+      setPreviewLoading(false);
     }
   };
 
@@ -221,7 +247,7 @@ const DataLibrary = () => {
   }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
+    <div className="p-6 w-full mx-auto space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -366,9 +392,14 @@ const DataLibrary = () => {
                   variant="ghost"
                   size="sm"
                   className="h-7 text-xs text-red-500 hover:text-red-700"
+                  disabled={deletingFileId === file.id}
                   onClick={() => handleDelete(file.id, file.name)}
                 >
-                  <Trash2 className="size-3" />
+                  {deletingFileId === file.id ? (
+                    <Loader2 className="size-3 animate-spin" />
+                  ) : (
+                    <Trash2 className="size-3" />
+                  )}
                 </Button>
               </div>
             </div>
@@ -411,8 +442,18 @@ const DataLibrary = () => {
                       <Button variant="ghost" size="sm" className="h-7" onClick={() => handleDownload(file.id, file.name)}>
                         <Download className="size-3" />
                       </Button>
-                      <Button variant="ghost" size="sm" className="h-7 text-red-500" onClick={() => handleDelete(file.id, file.name)}>
-                        <Trash2 className="size-3" />
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 text-red-500"
+                        disabled={deletingFileId === file.id}
+                        onClick={() => handleDelete(file.id, file.name)}
+                      >
+                        {deletingFileId === file.id ? (
+                          <Loader2 className="size-3 animate-spin" />
+                        ) : (
+                          <Trash2 className="size-3" />
+                        )}
                       </Button>
                     </div>
                   </td>
@@ -423,33 +464,60 @@ const DataLibrary = () => {
         </div>
       )}
 
-      {/* Preview panel */}
-      {previewFile && previewData && (
-        <div className="border rounded-xl p-4 mt-4 bg-card">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="font-semibold text-sm">
-              Preview — {files.find((f) => f.id === previewFile)?.name}
-            </h3>
-            <Button variant="ghost" size="sm" onClick={() => { setPreviewFile(null); setPreviewData(null); }}>
-              Close
-            </Button>
-          </div>
-          <div className="max-h-[400px] overflow-auto border rounded-lg">
-            <Spreadsheet
-              data={previewData.data.map(row =>
-                row.map((cell: any) => ({ value: String(cell ?? '') }))
-              )}
-              columnLabels={previewData.columns}
-              className="w-full"
-            />
-            {previewData.data.length >= 50 && (
-              <div className="text-center text-xs text-muted-foreground py-2 border-t">
-                Showing first 50 rows
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+      {/* Preview Dialog Modal Overlay */}
+      <Dialog
+    
+        open={Boolean(previewFile)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPreviewFile(null);
+            setPreviewData(null);
+          }
+        }}
+      >
+        <DialogContent className="min-w-[90%] w-[90%] max-w-[90%] h-screen flex flex-col p-6 space-y-4">
+          <DialogHeader className="flex flex-row items-center justify-between pb-2 border-b">
+            <div>
+              <DialogTitle className="text-lg font-bold flex items-center gap-2">
+                <FileSpreadsheet className="size-5 text-emerald-600" />
+                {files.find((f) => f.id === previewFile)?.name || 'File Preview'}
+              </DialogTitle>
+              <DialogDescription className="text-xs text-muted-foreground mt-1">
+                {previewData
+                  ? `${previewData.columns.length} columns • ${previewData.data.length} rows preview`
+                  : 'Loading preview...'}
+              </DialogDescription>
+            </div>
+          </DialogHeader>
+
+          {previewLoading ? (
+            <div className="flex flex-col items-center justify-center py-16 space-y-3">
+              <Loader2 className="size-8 animate-spin text-emerald-600" />
+              <p className="text-sm text-muted-foreground">Loading preview data...</p>
+            </div>
+          ) : previewData ? (
+            <div className="flex-1 overflow-auto border rounded-lg w-full">
+              <Spreadsheet
+                data={previewData.data.map((row) =>
+                  row.map((cell: any) => ({ value: String(cell ?? '') }))
+                )}
+                columnLabels={previewData.columns}
+                className="w-full h-full"
+              />
+            </div>
+          ) : (
+            <div className="py-8 text-center text-sm text-muted-foreground">
+              No data available for preview.
+            </div>
+          )}
+
+          {previewData && previewData.data.length >= 50 && (
+            <div className="text-center text-xs text-muted-foreground pt-1 border-t">
+              Showing first 50 rows
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

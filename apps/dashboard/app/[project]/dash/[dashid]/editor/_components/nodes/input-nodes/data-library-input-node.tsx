@@ -48,10 +48,10 @@ export const DataLibraryInputNode = memo(({ id, data }: { id: string; data: any 
 
   // Fetch file list from DB
   const fetchFiles = useCallback(async () => {
-    if (!userId) return;
     setLoading(true);
     try {
-      const result = await getDataLibraryFiles(userId);
+      const dashid = typeof window !== 'undefined' ? window.location.pathname.split('/dash/')[1]?.split('/')[0] : undefined;
+      const result = await getDataLibraryFiles(dashid, userId);
       setFiles(result as any);
     } catch (err) {
       console.error('Failed to fetch data library files:', err);

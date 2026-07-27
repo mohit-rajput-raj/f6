@@ -147,20 +147,26 @@ export default function DeskPage() {
 
 
 
-  // ─── Add new block ────────────────────────────────────────
+  // ─── Add new BigBlock (root block + first child tab) ──────
   const handleAddBlock = useCallback(async () => {
     if (!dashid || !userId) return
     setIsAddingBlock(true)
     try {
-      const newBlock = await createDeskBlock(dashid, userId)
-      addBlock({ ...newBlock, actionButtons: [], isExecuting: false })
-      toast.success("Block added")
+      // Create root BigBlock
+      const rootBlock = await createDeskBlock(dashid, userId, undefined, undefined, `BigBlock ${blocks.filter(b => !b.parentId).length + 1}`)
+      addBlock({ ...rootBlock, actionButtons: [], isExecuting: false })
+
+      // Create first child tab inside the BigBlock
+      const firstTab = await createDeskBlock(dashid, userId, 0, rootBlock.id, "Tab 1")
+      addBlock({ ...firstTab, actionButtons: [], isExecuting: false })
+
+      toast.success("BigBlock added with first tab")
     } catch (err: any) {
       toast.error(err?.message || "Failed to add block")
     } finally {
       setIsAddingBlock(false)
     }
-  }, [dashid, userId, addBlock])
+  }, [dashid, userId, addBlock, blocks])
 
   // ─── Execute a block ──────────────────────────────────────
   const handleExecuteBlock = useCallback(
@@ -201,15 +207,22 @@ export default function DeskPage() {
 
         // Find OutputPreviewNode result and set as block output
         const outputNode = currentNodes.find(
-          (n: any) => n.type === "OutputPreviewNode" && n.data?.result
+          (n: any) => n.type === "OutputPreviewNode" && n.data?.result && n.data?.previewEnabled !== false
         )
         if (outputNode?.data?.result) {
           const outputData = outputNode.data.result
           setBlockOutput(blockId, outputData)
           await updateDeskBlockOutput(blockId, outputData)
+
+          // Also propagate to parent BigBlock's outputPreview
+          // so the next BigBlock can receive it
+          if (block.parentId) {
+            setBlockOutput(block.parentId, outputData)
+            await updateDeskBlockOutput(block.parentId, outputData)
+          }
         }
 
-        toast.success(`Block ${block.blockOrder + 1} executed successfully`)
+        toast.success(`Block executed successfully`)
       } catch (err: any) {
         console.error("Block execution failed:", err)
         toast.error(err?.message || "Execution failed")
@@ -218,6 +231,63 @@ export default function DeskPage() {
       }
     },
     [setBlockExecuting, setBlockOutput]
+  )
+
+  // ─── Add a child tab to a BigBlock ────────────────────────
+  const handleAddTab = useCallback(
+    async (bigBlockId: string) => {
+      if (!dashid || !userId) {
+        toast.error("User session not available")
+        return
+      }
+      try {
+        const childCount = blocks.filter((b) => b.parentId === bigBlockId).length
+        const newChild = await createDeskBlock(
+          dashid,
+          userId,
+          childCount,
+          bigBlockId,
+          `Tab ${childCount + 1}`
+        )
+        addBlock({ ...newChild, actionButtons: [], isExecuting: false })
+        toast.success(`Tab "${newChild.name}" created`)
+        return newChild.id
+      } catch (err: any) {
+        console.error("Failed to add tab:", err)
+        toast.error(err?.message || "Failed to add tab")
+      }
+    },
+    [dashid, userId, blocks, addBlock]
+  )
+
+  // ─── Rename a child tab ───────────────────────────────────
+  const handleRenameTab = useCallback(
+    async (blockId: string, newName: string) => {
+      try {
+        const { renameDeskBlock } = await import("./desk-block-actions")
+        await renameDeskBlock(blockId, newName)
+        useDeskStore.getState().updateBlockName(blockId, newName)
+      } catch (err: any) {
+        console.error("Failed to rename tab:", err)
+        toast.error(err?.message || "Failed to rename")
+      }
+    },
+    []
+  )
+
+  // ─── Delete a child tab ───────────────────────────────────
+  const handleDeleteTab = useCallback(
+    async (blockId: string) => {
+      try {
+        await deleteDeskBlock(blockId)
+        useDeskStore.getState().removeBlock(blockId)
+        toast.success("Tab deleted")
+      } catch (err: any) {
+        console.error("Failed to delete tab:", err)
+        toast.error(err?.message || "Failed to delete")
+      }
+    },
+    []
   )
 
   // Watch for triggered action buttons to auto-execute their block
@@ -282,8 +352,9 @@ export default function DeskPage() {
         permission: "editor",
         projectWorkflowId: dashid,
       })
-      toast.success(`Invited ${shareEmail}`)
+      toast.success(`Invitation notification sent to ${shareEmail}`)
       setShareEmail("")
+      setShareOpen(false) // Close the dialog box automatically
       loadCollaborators()
     } catch (err: any) {
       toast.error(err?.message || "Failed to invite")
@@ -448,30 +519,35 @@ export default function DeskPage() {
 
       {/* ─── Blocks Pipeline ─────────────────────────────── */}
       <div className="flex-1 min-h-full max-h-full overflow-y-auto p-4 space-y-3">
-        {blocks.length === 0 ? (
+        {blocks.filter(b => !b.parentId).length === 0 ? (
           <div className="flex flex-col items-center justify-center h-64 text-muted-foreground gap-3">
             <p className="text-sm">No blocks yet.</p>
             <Button onClick={handleAddBlock} className="gap-1.5 bg-teal-600 hover:bg-teal-700 text-white">
               <Plus className="size-4" />
-              Add First Block
+              Add First BigBlock
             </Button>
           </div>
         ) : (
           <>
-            {blocks.map((block, index) => (
+            {blocks.filter(b => !b.parentId).sort((a, b) => a.blockOrder - b.blockOrder).map((block, index, rootArr) => (
               <React.Fragment key={block.id}>
                 <DeskBlock
                   block={block}
                   blockIndex={index}
-                  totalBlocks={blocks.length}
+                  totalBlocks={rootArr.length}
+                  allBlocks={blocks}
                   isGuest={isGuest}
                   dashid={dashid}
+                  userId={userId}
                   onExecute={handleExecuteBlock}
-                  previousBlockOutput={index > 0 ? blocks[index - 1]?.outputPreview : undefined}
+                  onAddTab={handleAddTab}
+                  onRenameTab={handleRenameTab}
+                  onDeleteTab={handleDeleteTab}
+                  previousBlockOutput={index > 0 ? rootArr[index - 1]?.outputPreview : undefined}
                 />
 
-                {/* Arrow connector between blocks */}
-                {index < blocks.length - 1 && (
+                {/* Arrow connector between BigBlocks */}
+                {index < rootArr.length - 1 && (
                   <div className="flex justify-center py-1">
                     <div className="flex flex-col items-center text-zinc-500">
                       <ArrowDown className="size-5" />
@@ -482,7 +558,7 @@ export default function DeskPage() {
               </React.Fragment>
             ))}
 
-            {/* Add Block Button */}
+            {/* Add BigBlock Button */}
             <div className="flex justify-center py-4">
               <Button
                 variant="outline"
@@ -495,7 +571,7 @@ export default function DeskPage() {
                 ) : (
                   <Plus className="size-4" />
                 )}
-                Add Block
+                Add BigBlock
               </Button>
             </div>
           </>
