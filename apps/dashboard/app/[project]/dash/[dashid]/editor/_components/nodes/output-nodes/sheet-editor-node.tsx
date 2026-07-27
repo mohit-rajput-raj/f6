@@ -137,6 +137,7 @@ export const SheetEditorNode = memo(({ id, data }: { id: string; data: SheetEdit
       // For now, create/update in data library
       if (config.createIfNotExists || !config.targetSheetId) {
         // Create new sheet in data library
+        const dashid = typeof window !== 'undefined' ? window.location.pathname.split('/dash/')[1]?.split('/')[0] : undefined;
         await createDataLibraryFile({
           userId: session.user.id,
           name: config.targetSheetName || `Sheet_${config.blockCode || 'output'}`,
@@ -150,6 +151,7 @@ export const SheetEditorNode = memo(({ id, data }: { id: string; data: SheetEdit
             keyColumn: config.keyColumn,
             sourceNodeId: id,
           },
+          workflowId: dashid,
         });
 
         // Update node with push status  

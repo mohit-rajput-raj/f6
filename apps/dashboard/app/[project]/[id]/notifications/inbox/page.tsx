@@ -1,60 +1,83 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
-import { Search, Mail, Inbox, CheckCircle2, Clock, Trash2, Star, X } from "lucide-react";
+import React, { useState, useMemo, useCallback, useEffect } from "react";
+import { Search, Mail, Inbox, CheckCircle2, Clock, Trash2, Star, X, RefreshCw } from "lucide-react";
 import { Input } from "@repo/ui/components/ui/input";
 import { Button } from "@repo/ui/components/ui/button";
 import { Badge } from "@repo/ui/components/ui/badge";
 import { Card } from "@repo/ui/components/ui/card";
 import { Avatar, AvatarImage, AvatarFallback } from "@repo/ui/components/ui/avatar";
+import { Skeleton } from "@repo/ui/components/ui/skeleton";
+import { useSession } from "@/lib/auth-client";
+import { fetchNotifications, markNotificationAsRead } from "@/lib/notifications-api";
 
-const INBOX_DUMMY_DATA = [
-  {
-    id: "inbox-1",
-    title: "Mentioned in Attendance Sheet",
-    message: "Dr. Alok Verma tagged you in cell F10: 'Please review the short attendance percentages for MST-1.'",
-    sender: { name: "Dr. Alok Verma", email: "alok.verma@computer.dept", avatar: "https://picsum.photos/seed/alok/100/100" },
-    timestamp: "2 hours ago",
-    read: false,
-    starred: true,
-    tag: "Mention"
-  },
-  {
-    id: "inbox-2",
-    title: "Project Invitation Accepted",
-    message: "Priya Sharma accepted your invitation to collaborate on project 'Trivllo Analytics Dashboard'.",
-    sender: { name: "Priya Sharma", email: "priya.sharma@campus.edu", avatar: "https://picsum.photos/seed/priya/100/100" },
-    timestamp: "4 hours ago",
-    read: false,
-    starred: false,
-    tag: "Team"
-  },
-  {
-    id: "inbox-3",
-    title: "Dataset Export Ready",
-    message: "Your requested dataset export 'B.Tech_Attendance_Final_Q3.csv' is ready for download.",
-    sender: { name: "Exporter Engine", email: "exporter@campus.internal", avatar: "https://picsum.photos/seed/exporter/100/100" },
-    timestamp: "Yesterday",
-    read: true,
-    starred: false,
-    tag: "Data"
-  },
-  {
-    id: "inbox-4",
-    title: "Workflow Comment Added",
-    message: "Karan Patel commented on 'Concat Matrix Node #2': 'Updated fallback strategy to default zeros.'",
-    sender: { name: "Karan Patel", email: "karan.patel@student.edu", avatar: "https://picsum.photos/seed/karan/100/100" },
-    timestamp: "2 days ago",
-    read: true,
-    starred: true,
-    tag: "Workflow"
-  }
-];
+interface InboxItem {
+  id: string;
+  title: string;
+  message: string;
+  sender: { name: string; email: string; avatar: string };
+  timestamp: string;
+  read: boolean;
+  starred: boolean;
+  tag: string;
+}
 
 export default function NotificationInboxPage() {
-  const [items, setItems] = useState(INBOX_DUMMY_DATA);
+  const { data: session } = useSession();
+  const [items, setItems] = useState<InboxItem[]>([]);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | "unread">("all");
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const loadInboxItems = useCallback(async () => {
+    const activeUserId = session?.user?.id;
+    if (!activeUserId) {
+      setIsLoading(false);
+      return;
+    }
+
+    setIsRefreshing(true);
+    try {
+      const serverNotifications = await fetchNotifications(activeUserId);
+      if (serverNotifications) {
+        const inboxMapped: InboxItem[] = serverNotifications
+          .filter((n) => n.type === "mention" || n.type === "inbox" || n.type === "desk_invite")
+          .map((n) => ({
+            id: n.id,
+            title: n.title,
+            message: n.message,
+            sender: {
+              name: n.data?.sender?.name || (n.type === "desk_invite" ? "Desk Team Invite" : "System User"),
+              email: n.data?.sender?.email || "",
+              avatar: n.data?.sender?.avatar || n.data?.sender?.image || "",
+            },
+            timestamp: new Date(n.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+            read: n.read,
+            starred: false,
+            tag: n.type === "desk_invite" ? "Invite" : n.type === "mention" ? "Mention" : "Message",
+          }));
+
+        setItems(inboxMapped);
+      }
+    } finally {
+      setIsRefreshing(false);
+      setIsLoading(false);
+    }
+  }, [session]);
+
+  useEffect(() => {
+    loadInboxItems();
+    const interval = setInterval(loadInboxItems, 10000);
+    return () => clearInterval(interval);
+  }, [loadInboxItems]);
+
+  const handleItemClick = useCallback(async (item: InboxItem) => {
+    if (!item.read) {
+      setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, read: true } : i)));
+      await markNotificationAsRead(item.id);
+    }
+  }, []);
 
   const filtered = useMemo(() => {
     return items.filter((item) => {
@@ -88,7 +111,18 @@ export default function NotificationInboxPage() {
           )}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button
+            onClick={loadInboxItems}
+            variant="outline"
+            size="sm"
+            className="h-8 text-xs gap-1.5"
+            disabled={isRefreshing}
+          >
+            <RefreshCw className={`size-3.5 ${isRefreshing ? "animate-spin" : ""}`} />
+            <span>{isRefreshing ? "Syncing..." : "Refresh"}</span>
+          </Button>
+
           <Button
             variant={filter === "all" ? "default" : "outline"}
             size="sm"
@@ -110,7 +144,20 @@ export default function NotificationInboxPage() {
 
       {/* Inbox Item Cards */}
       <div className="space-y-3">
-        {filtered.length === 0 ? (
+        {isLoading ? (
+          Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="p-4 rounded-xl border border-border/50 bg-card/60 flex items-start gap-4">
+              <Skeleton className="size-10 rounded-full shrink-0" />
+              <div className="flex-1 space-y-2">
+                <div className="flex items-center justify-between">
+                  <Skeleton className="h-4 w-40 rounded" />
+                  <Skeleton className="h-3 w-16 rounded" />
+                </div>
+                <Skeleton className="h-3.5 w-3/4 rounded" />
+              </div>
+            </div>
+          ))
+        ) : filtered.length === 0 ? (
           <Card className="p-8 text-center border-dashed">
             <Inbox className="size-8 text-muted-foreground mx-auto mb-2" />
             <p className="text-xs font-medium text-muted-foreground">No inbox messages found</p>
@@ -119,7 +166,7 @@ export default function NotificationInboxPage() {
           filtered.map((item) => (
             <div
               key={item.id}
-              onClick={() => setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, read: true } : i)))}
+              onClick={() => handleItemClick(item)}
               className={`p-4 rounded-xl border transition-all cursor-pointer flex items-start gap-4 ${
                 !item.read ? "bg-card border-primary/30" : "bg-card/40 border-border/40 opacity-90"
               }`}

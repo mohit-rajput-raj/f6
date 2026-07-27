@@ -1,8 +1,10 @@
 {
   "extends": "@repo/typescript-config/base.json",
   "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "bundler",
     "outDir": "dist",
     "noEmit": false
   },
-  "include": ["index.ts", "types/**/*.d.ts"]
+  "include": ["index.ts", "src/**/*.ts", "types/**/*.d.ts"]
 }

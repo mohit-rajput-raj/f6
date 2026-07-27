@@ -1,15 +1,25 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
-import { Search, UserPlus, UserCheck, UserX, Shield, CheckCircle2, Clock, X } from "lucide-react";
+import React, { useState, useMemo, useCallback, useEffect } from "react";
+import { Search, UserPlus, UserCheck, UserX, Shield, CheckCircle2, Clock, X, RefreshCw } from "lucide-react";
 import { Input } from "@repo/ui/components/ui/input";
 import { Button } from "@repo/ui/components/ui/button";
 import { Badge } from "@repo/ui/components/ui/badge";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@repo/ui/components/ui/card";
 import { Avatar, AvatarImage, AvatarFallback } from "@repo/ui/components/ui/avatar";
+import { Skeleton } from "@repo/ui/components/ui/skeleton";
+import { useSession } from "@/lib/auth-client";
+import {
+  fetchPendingInvites,
+  fetchNotifications,
+  acceptDeskInvite,
+  rejectDeskInvite,
+  type ServerDeskShare,
+} from "@/lib/notifications-api";
 
 interface AccessRequest {
   id: string;
+  shareId?: string;
   applicant: {
     name: string;
     email: string;
@@ -23,55 +33,101 @@ interface AccessRequest {
   status: "pending" | "approved" | "rejected";
 }
 
-const DUMMY_REQUESTS: AccessRequest[] = [
-  {
-    id: "req-1",
-    applicant: {
-      name: "Elena Rostova",
-      email: "elena.rostova@campus.edu",
-      avatar: "https://picsum.photos/seed/elena/100/100",
-      currentRole: "Viewer"
-    },
-    roleRequested: "Project Administrator",
-    workspace: "Campus Analytics Dashboard",
-    reason: "Need administrator privileges to publish master attendance templates and manage team roles.",
-    timestamp: "10 mins ago",
-    status: "pending"
-  },
-  {
-    id: "req-2",
-    applicant: {
-      name: "Neha Koul",
-      email: "neha.koul@student.edu",
-      avatar: "https://picsum.photos/seed/neha/100/100",
-      currentRole: "Contributor"
-    },
-    roleRequested: "Workspace Editor",
-    workspace: "Computer Engg II Year Desk",
-    reason: "Require edit permissions to modify block node parameters and update OCR formulas.",
-    timestamp: "3 hours ago",
-    status: "pending"
-  },
-  {
-    id: "req-3",
-    applicant: {
-      name: "Rohit Shakya",
-      email: "rohit.shakya@campus.edu",
-      avatar: "https://picsum.photos/seed/rohit/100/100",
-      currentRole: "Guest"
-    },
-    roleRequested: "Dataset Manager",
-    workspace: "Data Library Files",
-    reason: "Uploading bulk CSV datasets for attendance audit.",
-    timestamp: "1 day ago",
-    status: "approved"
-  }
-];
-
 export default function AccessRequestsPage() {
-  const [requests, setRequests] = useState<AccessRequest[]>(DUMMY_REQUESTS);
+  const { data: session } = useSession();
+  const [requests, setRequests] = useState<AccessRequest[]>([]);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "approved" | "rejected">("pending");
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const loadRequests = useCallback(async () => {
+    const activeEmail = session?.user?.email;
+    const activeUserId = session?.user?.id;
+    if (!activeEmail && !activeUserId) {
+      setIsLoading(false);
+      return;
+    }
+
+    setIsRefreshing(true);
+    try {
+      // 1. Fetch pending invites from team service
+      const pendingShares = await fetchPendingInvites(activeEmail || "", activeUserId || "");
+
+      // 2. Fetch desk_invite notifications from notification service
+      const allNotifications = activeUserId ? await fetchNotifications(activeUserId) : [];
+      const inviteNotifications = allNotifications.filter((n) => n.type === "desk_invite" || n.type === "invite");
+
+      const mappedFromShares: AccessRequest[] = pendingShares.map((s) => {
+        const senderUser = s.masterSheet?.user;
+        const senderName = senderUser?.name || senderUser?.email?.split("@")[0] || s.invitedEmail.split("@")[0] || "Collaborator";
+        const senderEmail = senderUser?.email || s.invitedEmail;
+        const senderAvatar = senderUser?.image || "";
+
+        return {
+          id: s.id,
+          shareId: s.id,
+          applicant: {
+            name: senderName,
+            email: senderEmail,
+            avatar: senderAvatar,
+            currentRole: "Collaborator",
+          },
+          roleRequested: s.permission === "editor" ? "Workspace Editor" : "Workspace Viewer",
+          workspace: s.masterSheet?.name || "Shared Desk",
+          reason: `Workspace access invite for ${s.permission} permissions.`,
+          timestamp: new Date(s.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+          status: s.status === "accepted" ? "approved" : s.status === "rejected" ? "rejected" : "pending",
+        };
+      });
+
+      const mappedFromNotifs: AccessRequest[] = inviteNotifications.map((n) => {
+        const reqStatus = n.data?.requestStatus || n.data?.status;
+        const mappedStatus = reqStatus === "accepted" ? "approved" : reqStatus === "declined" || reqStatus === "rejected" ? "rejected" : "pending";
+
+        return {
+          id: n.id,
+          shareId: n.data?.shareId || n.id,
+          applicant: {
+            name: n.data?.sender?.name || n.title || "Collaborator",
+            email: n.data?.sender?.email || "colleague@campus.edu",
+            avatar: n.data?.sender?.avatar || n.data?.sender?.image || "",
+            currentRole: "Collaborator",
+          },
+          roleRequested: n.data?.roleRequested || "Workspace Editor",
+          workspace: n.data?.workspaceName || "Shared Workspace",
+          reason: n.message,
+          timestamp: new Date(n.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+          status: mappedStatus,
+        };
+      });
+
+      const combined = [...mappedFromShares];
+      mappedFromNotifs.forEach((item) => {
+        if (
+          !combined.some(
+            (c) =>
+              c.id === item.id ||
+              c.shareId === item.shareId ||
+              (c.workspace === item.workspace && c.applicant.email.toLowerCase() === item.applicant.email.toLowerCase())
+          )
+        ) {
+          combined.push(item);
+        }
+      });
+
+      setRequests(combined);
+    } finally {
+      setIsRefreshing(false);
+      setIsLoading(false);
+    }
+  }, [session]);
+
+  useEffect(() => {
+    loadRequests();
+    const interval = setInterval(loadRequests, 10000);
+    return () => clearInterval(interval);
+  }, [loadRequests]);
 
   const filtered = useMemo(() => {
     return requests.filter((req) => {
@@ -87,10 +143,18 @@ export default function AccessRequestsPage() {
     });
   }, [requests, search, statusFilter]);
 
-  const handleAction = (id: string, action: "approved" | "rejected") => {
+  const handleAction = async (item: AccessRequest, action: "approved" | "rejected") => {
+    const targetShareId = item.shareId || item.id;
     setRequests((prev) =>
-      prev.map((r) => (r.id === id ? { ...r, status: action } : r))
+      prev.map((r) => (r.id === item.id ? { ...r, status: action } : r))
     );
+
+    const activeUserId = session?.user?.id;
+    if (action === "approved") {
+      await acceptDeskInvite(targetShareId, activeUserId);
+    } else {
+      await rejectDeskInvite(targetShareId);
+    }
   };
 
   return (
@@ -112,7 +176,18 @@ export default function AccessRequestsPage() {
           )}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button
+            onClick={loadRequests}
+            variant="outline"
+            size="sm"
+            className="h-8 text-xs gap-1.5"
+            disabled={isRefreshing}
+          >
+            <RefreshCw className={`size-3.5 ${isRefreshing ? "animate-spin" : ""}`} />
+            <span>{isRefreshing ? "Syncing..." : "Refresh"}</span>
+          </Button>
+
           <Button
             variant={statusFilter === "pending" ? "default" : "outline"}
             size="sm"
@@ -134,7 +209,24 @@ export default function AccessRequestsPage() {
 
       {/* Requests Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {filtered.length === 0 ? (
+        {isLoading ? (
+          Array.from({ length: 4 }).map((_, i) => (
+            <Card key={i} className="border border-border/50 p-5 space-y-4">
+              <div className="flex items-center gap-3">
+                <Skeleton className="size-11 rounded-full shrink-0" />
+                <div className="space-y-1.5 flex-1">
+                  <Skeleton className="h-4 w-36 rounded" />
+                  <Skeleton className="h-3 w-48 rounded" />
+                </div>
+              </div>
+              <Skeleton className="h-14 w-full rounded-lg" />
+              <div className="flex justify-between items-center pt-2">
+                <Skeleton className="h-3 w-20 rounded" />
+                <Skeleton className="h-8 w-32 rounded" />
+              </div>
+            </Card>
+          ))
+        ) : filtered.length === 0 ? (
           <Card className="col-span-full p-8 text-center border-dashed">
             <UserPlus className="size-8 text-muted-foreground mx-auto mb-2" />
             <p className="text-xs font-medium text-muted-foreground">No access requests match your criteria</p>
@@ -145,8 +237,8 @@ export default function AccessRequestsPage() {
               <CardHeader className="pb-3 flex flex-row items-start justify-between space-y-0">
                 <div className="flex items-center gap-3">
                   <Avatar className="size-11 border">
-                    <AvatarImage src={req.applicant.avatar} />
-                    <AvatarFallback>{req.applicant.name.slice(0, 2)}</AvatarFallback>
+                    {req.applicant.avatar ? <AvatarImage src={req.applicant.avatar} alt={req.applicant.name} /> : null}
+                    <AvatarFallback className="bg-primary/10 text-primary font-semibold">{req.applicant.name.slice(0, 2).toUpperCase()}</AvatarFallback>
                   </Avatar>
                   <div>
                     <h4 className="text-sm font-semibold leading-tight">{req.applicant.name}</h4>
@@ -195,14 +287,14 @@ export default function AccessRequestsPage() {
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => handleAction(req.id, "rejected")}
+                        onClick={() => handleAction(req, "rejected")}
                         className="h-7 px-3 text-xs text-destructive hover:bg-destructive/10 border-destructive/30"
                       >
                         <UserX className="size-3.5 mr-1" /> Decline
                       </Button>
                       <Button
                         size="sm"
-                        onClick={() => handleAction(req.id, "approved")}
+                        onClick={() => handleAction(req, "approved")}
                         className="h-7 px-3 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
                       >
                         <UserCheck className="size-3.5 mr-1" /> Approve

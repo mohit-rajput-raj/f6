@@ -25,10 +25,12 @@ import {
   Layers,
   Inbox,
   UserCheck,
-  UserX
+  UserX,
+  Radio,
 } from "lucide-react";
 
 import { Input } from "@repo/ui/components/ui/input";
+
 import { Button } from "@repo/ui/components/ui/button";
 import { Badge } from "@repo/ui/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@repo/ui/components/ui/card";
@@ -70,194 +72,108 @@ export interface NotificationItem {
   project: string;
   requestStatus?: "pending" | "accepted" | "declined";
   metadata?: {
+    shareId?: string;
     roleRequested?: string;
     workspaceName?: string;
     ipAddress?: string;
     errorCode?: string;
     rowsCount?: number;
     sheetName?: string;
+    [key: string]: any;
   };
 }
 
-const INITIAL_NOTIFICATIONS: NotificationItem[] = [
-  {
-    id: "notif-1",
-    title: "Access Request: Admin Permission",
-    message: "Elena Rostova requested Admin role access for the project 'Campus Analytics Dashboard'.",
-    sender: {
-      name: "Elena Rostova",
-      email: "elena.rostova@campus.edu",
-      avatar: "https://picsum.photos/seed/elena/100/100",
-      role: "Lead Researcher"
-    },
-    category: "request",
-    type: "invite",
-    priority: "high",
-    timestamp: "5 mins ago",
-    read: false,
-    starred: true,
-    project: "Campus Analytics",
-    requestStatus: "pending",
-    metadata: {
-      roleRequested: "Project Administrator",
-      workspaceName: "f6-dashboard"
-    }
-  },
-  {
-    id: "notif-2",
-    title: "Workflow Failure: Attendance Concat",
-    message: "Workflow 'Attendance Batch Sync #48' failed on step 'Concat Matrix' due to column dimension mismatch.",
-    sender: {
-      name: "System Bot",
-      email: "system@campus.internal",
-      avatar: "https://picsum.photos/seed/sysbot/100/100",
-      role: "Automation Service"
-    },
-    category: "workflow",
-    type: "alert",
-    priority: "high",
-    timestamp: "18 mins ago",
-    read: false,
-    starred: false,
-    project: "Desk Editor",
-    metadata: {
-      errorCode: "ERR_COL_MISMATCH_32",
-      sheetName: "Master Sheet Attendance B.Tech"
-    }
-  },
-  {
-    id: "notif-3",
-    title: "New Security Login Detected",
-    message: "A new session was started from Chrome on Windows 11 (IP: 192.168.1.105, Location: New Delhi).",
-    sender: {
-      name: "Security Guard",
-      email: "security@campus.edu",
-      avatar: "https://picsum.photos/seed/security/100/100",
-      role: "Security System"
-    },
-    category: "system",
-    type: "security",
-    priority: "high",
-    timestamp: "42 mins ago",
-    read: false,
-    starred: true,
-    project: "Global Auth",
-    metadata: {
-      ipAddress: "192.168.1.105"
-    }
-  },
-  {
-    id: "notif-4",
-    title: "Mentioned in Sheet Comment",
-    message: "Dr. Alok Verma tagged you in cell F10: 'Please review the short attendance percentages for MST-1.'",
-    sender: {
-      name: "Dr. Alok Verma",
-      email: "alok.verma@computer.dept",
-      avatar: "https://picsum.photos/seed/alok/100/100",
-      role: "Department Head"
-    },
-    category: "inbox",
-    type: "mention",
-    priority: "medium",
-    timestamp: "2 hours ago",
-    read: true,
-    starred: false,
-    project: "Analytics",
-    metadata: {
-      sheetName: "Attendance Sheet B.Tech II Year"
-    }
-  },
-  {
-    id: "notif-5",
-    title: "Sheet Sync Succeeded",
-    message: "Successfully synchronized 120 rows from Master Sheet to Data Library CSV Storage.",
-    sender: {
-      name: "Data Sync Service",
-      email: "sync@campus.internal",
-      avatar: "https://picsum.photos/seed/datasync/100/100",
-      role: "Sync Engine"
-    },
-    category: "workflow",
-    type: "success",
-    priority: "low",
-    timestamp: "3 hours ago",
-    read: true,
-    starred: false,
-    project: "Data Library",
-    metadata: {
-      rowsCount: 120,
-      sheetName: "B.Tech II Year Section B"
-    }
-  },
-  {
-    id: "notif-6",
-    title: "Workspace Join Request: Neha Koul",
-    message: "Neha Koul requested Editor access to team workspace 'Computer Engineering II Year'.",
-    sender: {
-      name: "Neha Koul",
-      email: "neha.koul@student.edu",
-      avatar: "https://picsum.photos/seed/neha/100/100",
-      role: "Student Representative"
-    },
-    category: "request",
-    type: "invite",
-    priority: "medium",
-    timestamp: "5 hours ago",
-    read: false,
-    starred: false,
-    project: "Workspace Desk",
-    requestStatus: "pending",
-    metadata: {
-      roleRequested: "Workspace Editor",
-      workspaceName: "Computer Engg II Year"
-    }
-  },
-  {
-    id: "notif-7",
-    title: "OCR Model Training Completed",
-    message: "Table OCR Deep Learning model v2.4 finished training with 99.4% precision accuracy.",
-    sender: {
-      name: "AI Pipeline Engine",
-      email: "ai@campus.ai",
-      avatar: "https://picsum.photos/seed/aipipe/100/100",
-      role: "AI Subsystem"
-    },
-    category: "system",
-    type: "success",
-    priority: "low",
-    timestamp: "1 day ago",
-    read: true,
-    starred: true,
-    project: "OCR Engine"
-  },
-  {
-    id: "notif-8",
-    title: "System Maintenance Notice",
-    message: "Scheduled infrastructure maintenance planned for Saturday 02:00 AM UTC. Expect 5m downtime.",
-    sender: {
-      name: "DevOps Team",
-      email: "devops@campus.edu",
-      avatar: "https://picsum.photos/seed/devops/100/100",
-      role: "DevOps"
-    },
-    category: "system",
-    type: "update",
-    priority: "medium",
-    timestamp: "2 days ago",
-    read: true,
-    starred: false,
-    project: "Infrastructure"
+import { Skeleton } from "@repo/ui/components/ui/skeleton";
+import {
+  fetchNotifications,
+  markNotificationAsRead,
+  markAllNotificationsAsRead,
+  acceptDeskInvite,
+  rejectDeskInvite,
+  type ServerNotification,
+} from "@/lib/notifications-api";
+
+function mapServerToItem(n: ServerNotification): NotificationItem {
+  let category: NotificationItem["category"] = "system";
+  let type: NotificationItem["type"] = "alert";
+
+  if (n.type === "desk_invite" || n.type === "invite") {
+    category = "request";
+    type = "invite";
+  } else if (n.type === "mention" || n.type === "inbox") {
+    category = "inbox";
+    type = "mention";
+  } else if (n.type === "data_commit" || n.type === "workflow") {
+    category = "workflow";
+    type = "success";
   }
-];
+
+  const senderName = n.data?.sender?.name || (n.type === "desk_invite" ? "Desk Collaboration Invite" : "System Notification");
+  const senderEmail = n.data?.sender?.email || "";
+  const senderAvatar = n.data?.sender?.avatar || n.data?.sender?.image || "";
+
+  return {
+    id: n.id,
+    title: n.title,
+    message: n.message,
+    sender: {
+      name: senderName,
+      email: senderEmail,
+      avatar: senderAvatar,
+      role: n.data?.sender?.role || "Campus System",
+    },
+    category,
+    type,
+    priority: n.data?.priority || "medium",
+    timestamp: new Date(n.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+    read: n.read,
+    starred: false,
+    project: n.data?.workspaceName || n.data?.project || "Shared Desk",
+    requestStatus: n.data?.requestStatus || (n.type === "desk_invite" ? "pending" : undefined),
+    metadata: n.data,
+  };
+}
+
+import { useSession } from "@/lib/auth-client";
+import { RefreshCw } from "lucide-react";
 
 export function NotificationCenter() {
-  const [notifications, setNotifications] = useState<NotificationItem[]>(INITIAL_NOTIFICATIONS);
+  const { data: session } = useSession();
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState<string>("all");
   const [filterReadStatus, setFilterReadStatus] = useState<"all" | "unread" | "read" | "starred">("all");
   const [priorityFilter, setPriorityFilter] = useState<"all" | "high" | "medium" | "low">("all");
   const [sortBy, setSortBy] = useState<"newest" | "oldest" | "priority">("newest");
   const [selectedNotif, setSelectedNotif] = useState<NotificationItem | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const loadServerNotifications = useCallback(async () => {
+    const activeUserId = session?.user?.id;
+    if (!activeUserId) {
+      setIsLoading(false);
+      return;
+    }
+    setIsRefreshing(true);
+    try {
+      const serverData = await fetchNotifications(activeUserId);
+      if (serverData) {
+        setNotifications(serverData.map(mapServerToItem));
+      }
+    } finally {
+      setIsRefreshing(false);
+      setIsLoading(false);
+    }
+  }, [session]);
+
+  // Load real server/database notifications on mount and periodically
+  useEffect(() => {
+    loadServerNotifications();
+    const interval = setInterval(loadServerNotifications, 10000);
+    return () => clearInterval(interval);
+  }, [loadServerNotifications]);
+
 
   // Keyboard shortcut listener (/ or Ctrl+K for search)
   useEffect(() => {
@@ -322,15 +238,17 @@ export function NotificationCenter() {
   }, [notifications]);
 
   // Handlers
-  const handleMarkAllAsRead = useCallback(() => {
+  const handleMarkAllAsRead = useCallback(async () => {
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    await markAllNotificationsAsRead("user-demo-123");
   }, []);
 
-  const handleToggleRead = useCallback((id: string, e?: React.MouseEvent) => {
+  const handleToggleRead = useCallback(async (id: string, e?: React.MouseEvent) => {
     e?.stopPropagation();
     setNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, read: !n.read } : n))
     );
+    await markNotificationAsRead(id);
   }, []);
 
   const handleToggleStar = useCallback((id: string, e?: React.MouseEvent) => {
@@ -348,24 +266,38 @@ export function NotificationCenter() {
     }
   }, [selectedNotif]);
 
-  const handleRequestAction = useCallback((id: string, action: "accepted" | "declined", e?: React.MouseEvent) => {
-    e?.stopPropagation();
-    setNotifications((prev) =>
-      prev.map((n) =>
-        n.id === id
-          ? {
-              ...n,
-              read: true,
-              requestStatus: action,
-              message: `${n.message} [${action.toUpperCase()}]`
-            }
-          : n
-      )
-    );
-    if (selectedNotif?.id === id) {
-      setSelectedNotif((prev) => (prev ? { ...prev, requestStatus: action } : null));
-    }
-  }, [selectedNotif]);
+  const handleRequestAction = useCallback(
+    async (id: string, action: "accepted" | "declined", e?: React.MouseEvent) => {
+      e?.stopPropagation();
+      const target = notifications.find((n) => n.id === id);
+      const shareId = target?.metadata?.shareId;
+
+      setNotifications((prev) =>
+        prev.map((n) =>
+          n.id === id
+            ? {
+                ...n,
+                read: true,
+                requestStatus: action,
+                metadata: { ...n.metadata, requestStatus: action },
+              }
+            : n
+        )
+      );
+      if (selectedNotif?.id === id) {
+        setSelectedNotif((prev) => (prev ? { ...prev, requestStatus: action } : null));
+      }
+
+      if (shareId) {
+        if (action === "accepted") {
+          await acceptDeskInvite(shareId, session?.user?.id);
+        } else {
+          await rejectDeskInvite(shareId);
+        }
+      }
+    },
+    [notifications, selectedNotif, session]
+  );
 
   // Helper for notification type icons
   const getTypeIcon = (type: NotificationItem["type"], priority: NotificationItem["priority"]) => {
@@ -389,11 +321,11 @@ export function NotificationCenter() {
   const getPriorityBadge = (priority: NotificationItem["priority"]) => {
     switch (priority) {
       case "high":
-        return <Badge variant="destructive" className="text-[10px] px-1.5 py-0">High</Badge>;
+        return <Badge variant="destructive" className="text-[10px] px-1.5 py-0 font-medium">High</Badge>;
       case "medium":
-        return <Badge variant="secondary" className="text-[10px] px-1.5 py-0 bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20">Medium</Badge>;
+        return <Badge variant="secondary" className="text-[10px] px-1.5 py-0 bg-amber-500/10 text-amber-500 border-amber-500/20 font-medium">Medium</Badge>;
       case "low":
-        return <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-muted-foreground">Low</Badge>;
+        return <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-muted-foreground font-normal">Low</Badge>;
     }
   };
 
@@ -401,7 +333,7 @@ export function NotificationCenter() {
     <div className="space-y-6">
       {/* Search Header Bar & Quick Actions */}
       <div className="flex flex-col gap-4">
-        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 bg-card p-4 rounded-xl border shadow-xs">
+        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 bg-card p-4 rounded-xl border border-border/50 shadow-xs">
           {/* Real-time Search Input */}
           <div className="relative flex-1 max-w-xl">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
@@ -410,7 +342,7 @@ export function NotificationCenter() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search notifications by title, sender, message, or project... (Ctrl+K)"
-              className="pl-9 pr-10 h-10 bg-muted/40 border-border/60 focus:bg-background transition-colors text-sm"
+              className="pl-9 pr-10 h-10 bg-muted/30 border-border/60 focus:bg-background transition-colors text-sm"
             />
             {searchQuery && (
               <button
@@ -424,10 +356,20 @@ export function NotificationCenter() {
 
           {/* Action Tools */}
           <div className="flex items-center gap-2 flex-wrap">
-            {/* Filter Dropdown */}
+            <Button
+              onClick={loadServerNotifications}
+              variant="outline"
+              size="sm"
+              className="h-9 gap-1.5 text-xs font-medium"
+              disabled={isRefreshing}
+            >
+              <RefreshCw className={`size-3.5 ${isRefreshing ? "animate-spin" : ""}`} />
+              <span>{isRefreshing ? "Syncing..." : "Refresh"}</span>
+            </Button>
+
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="h-9 gap-1.5 text-xs">
+                <Button variant="outline" size="sm" className="h-9 gap-1.5 text-xs font-medium">
                   <SlidersHorizontal className="size-3.5" />
                   <span>Filter: {filterReadStatus}</span>
                 </Button>
@@ -448,10 +390,9 @@ export function NotificationCenter() {
               </DropdownMenuContent>
             </DropdownMenu>
 
-            {/* Sort Dropdown */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="h-9 gap-1.5 text-xs">
+                <Button variant="outline" size="sm" className="h-9 gap-1.5 text-xs font-medium">
                   <ArrowUpDown className="size-3.5" />
                   <span>Sort</span>
                 </Button>
@@ -463,12 +404,11 @@ export function NotificationCenter() {
               </DropdownMenuContent>
             </DropdownMenu>
 
-            {/* Mark All As Read */}
             <Button
               onClick={handleMarkAllAsRead}
               variant="secondary"
               size="sm"
-              className="h-9 gap-1.5 text-xs"
+              className="h-9 gap-1.5 text-xs font-medium"
               disabled={stats.unread === 0}
             >
               <CheckCheck className="size-3.5 text-emerald-500" />
@@ -479,67 +419,81 @@ export function NotificationCenter() {
 
         {/* Stats Summary Widgets */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <Card className="p-4 py-3 flex items-center justify-between border/60">
-            <div>
-              <p className="text-xs text-muted-foreground font-medium">Total Notifications</p>
-              <p className="text-xl font-bold mt-0.5">{stats.total}</p>
-            </div>
-            <div className="p-2.5 rounded-lg bg-primary/10 text-primary">
-              <Bell className="size-4" />
-            </div>
-          </Card>
+          {isLoading ? (
+            Array.from({ length: 4 }).map((_, i) => (
+              <Card key={i} className="p-4 py-3 flex items-center justify-between border-border/50">
+                <div className="space-y-1.5">
+                  <Skeleton className="h-3 w-24 rounded" />
+                  <Skeleton className="h-6 w-12 rounded" />
+                </div>
+                <Skeleton className="size-9 rounded-lg" />
+              </Card>
+            ))
+          ) : (
+            <>
+              <Card className="p-4 py-3 flex items-center justify-between border-border/50 shadow-2xs">
+                <div>
+                  <p className="text-xs text-muted-foreground font-medium">Total Notifications</p>
+                  <p className="text-xl font-bold mt-0.5">{stats.total}</p>
+                </div>
+                <div className="p-2.5 rounded-lg bg-primary/10 text-primary">
+                  <Bell className="size-4" />
+                </div>
+              </Card>
 
-          <Card className="p-4 py-3 flex items-center justify-between border/60">
-            <div>
-              <p className="text-xs text-muted-foreground font-medium">Unread Messages</p>
-              <p className="text-xl font-bold mt-0.5 text-sky-500">{stats.unread}</p>
-            </div>
-            <div className="p-2.5 rounded-lg bg-sky-500/10 text-sky-500">
-              <Mail className="size-4" />
-            </div>
-          </Card>
+              <Card className="p-4 py-3 flex items-center justify-between border-border/50 shadow-2xs">
+                <div>
+                  <p className="text-xs text-muted-foreground font-medium">Unread Messages</p>
+                  <p className="text-xl font-bold mt-0.5 text-sky-500">{stats.unread}</p>
+                </div>
+                <div className="p-2.5 rounded-lg bg-sky-500/10 text-sky-500">
+                  <Mail className="size-4" />
+                </div>
+              </Card>
 
-          <Card className="p-4 py-3 flex items-center justify-between border/60">
-            <div>
-              <p className="text-xs text-muted-foreground font-medium">Pending Requests</p>
-              <p className="text-xl font-bold mt-0.5 text-amber-500">{stats.requests}</p>
-            </div>
-            <div className="p-2.5 rounded-lg bg-amber-500/10 text-amber-500">
-              <UserPlus className="size-4" />
-            </div>
-          </Card>
+              <Card className="p-4 py-3 flex items-center justify-between border-border/50 shadow-2xs">
+                <div>
+                  <p className="text-xs text-muted-foreground font-medium">Pending Requests</p>
+                  <p className="text-xl font-bold mt-0.5 text-amber-500">{stats.requests}</p>
+                </div>
+                <div className="p-2.5 rounded-lg bg-amber-500/10 text-amber-500">
+                  <UserPlus className="size-4" />
+                </div>
+              </Card>
 
-          <Card className="p-4 py-3 flex items-center justify-between border/60">
-            <div>
-              <p className="text-xs text-muted-foreground font-medium">High Priority</p>
-              <p className="text-xl font-bold mt-0.5 text-rose-500">{stats.highPriority}</p>
-            </div>
-            <div className="p-2.5 rounded-lg bg-rose-500/10 text-rose-500">
-              <AlertOctagon className="size-4" />
-            </div>
-          </Card>
+              <Card className="p-4 py-3 flex items-center justify-between border-border/50 shadow-2xs">
+                <div>
+                  <p className="text-xs text-muted-foreground font-medium">High Priority</p>
+                  <p className="text-xl font-bold mt-0.5 text-rose-500">{stats.highPriority}</p>
+                </div>
+                <div className="p-2.5 rounded-lg bg-rose-500/10 text-rose-500">
+                  <AlertOctagon className="size-4" />
+                </div>
+              </Card>
+            </>
+          )}
         </div>
 
         {/* Category Tabs */}
         <Tabs value={activeCategory} onValueChange={setActiveCategory} className="w-full">
-          <TabsList className="w-full justify-start overflow-x-auto bg-muted/60 p-1 rounded-xl">
-            <TabsTrigger value="all" className="gap-1.5 text-xs">
+          <TabsList className="w-full justify-start overflow-x-auto bg-muted/50 p-1 rounded-xl border border-border/40">
+            <TabsTrigger value="all" className="gap-1.5 text-xs font-medium">
               <Bell className="size-3.5" />
               All ({notifications.length})
             </TabsTrigger>
-            <TabsTrigger value="inbox" className="gap-1.5 text-xs">
+            <TabsTrigger value="inbox" className="gap-1.5 text-xs font-medium">
               <Inbox className="size-3.5" />
               Inbox ({notifications.filter((n) => n.category === "inbox").length})
             </TabsTrigger>
-            <TabsTrigger value="request" className="gap-1.5 text-xs">
+            <TabsTrigger value="request" className="gap-1.5 text-xs font-medium">
               <UserPlus className="size-3.5" />
               Access Requests ({notifications.filter((n) => n.category === "request").length})
             </TabsTrigger>
-            <TabsTrigger value="system" className="gap-1.5 text-xs">
+            <TabsTrigger value="system" className="gap-1.5 text-xs font-medium">
               <Cpu className="size-3.5" />
               System ({notifications.filter((n) => n.category === "system").length})
             </TabsTrigger>
-            <TabsTrigger value="workflow" className="gap-1.5 text-xs">
+            <TabsTrigger value="workflow" className="gap-1.5 text-xs font-medium">
               <Layers className="size-3.5" />
               Workflows ({notifications.filter((n) => n.category === "workflow").length})
             </TabsTrigger>
@@ -549,7 +503,21 @@ export function NotificationCenter() {
 
       {/* Notifications List */}
       <div className="space-y-3">
-        {filteredNotifications.length === 0 ? (
+        {isLoading ? (
+          Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="flex items-start gap-4 p-4 rounded-xl border border-border/50 bg-card/60">
+              <Skeleton className="size-10 rounded-full shrink-0" />
+              <div className="flex-1 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <Skeleton className="h-4 w-48 rounded" />
+                  <Skeleton className="h-3 w-16 rounded" />
+                </div>
+                <Skeleton className="h-3.5 w-3/4 rounded" />
+                <Skeleton className="h-3 w-1/2 rounded" />
+              </div>
+            </div>
+          ))
+        ) : filteredNotifications.length === 0 ? (
           <div className="flex flex-col items-center justify-center p-12 rounded-xl border border-dashed text-center bg-card/40">
             <div className="p-3 rounded-full bg-muted text-muted-foreground mb-3">
               <Bell className="size-6" />
@@ -585,10 +553,9 @@ export function NotificationCenter() {
                 <div className="absolute left-0 top-3 bottom-3 w-1 bg-primary rounded-r-full" />
               )}
 
-              {/* Sender Avatar */}
               <Avatar className="size-10 border border-border shrink-0">
-                <AvatarImage src={item.sender.avatar} alt={item.sender.name} />
-                <AvatarFallback>{item.sender.name.slice(0, 2).toUpperCase()}</AvatarFallback>
+                {item.sender.avatar ? <AvatarImage src={item.sender.avatar} alt={item.sender.name} /> : null}
+                <AvatarFallback className="bg-primary/10 text-primary font-semibold">{item.sender.name.slice(0, 2).toUpperCase()}</AvatarFallback>
               </Avatar>
 
               {/* Content Main Area */}
@@ -619,7 +586,7 @@ export function NotificationCenter() {
                     <Button
                       size="sm"
                       onClick={(e) => handleRequestAction(item.id, "accepted", e)}
-                      className="h-7 px-3 text-xs bg-emerald-600 hover:bg-emerald-700 text-white gap-1"
+                      className="h-8 px-3 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-medium gap-1.5 shadow-2xs"
                     >
                       <UserCheck className="size-3.5" /> Accept
                     </Button>
@@ -627,7 +594,7 @@ export function NotificationCenter() {
                       size="sm"
                       variant="outline"
                       onClick={(e) => handleRequestAction(item.id, "declined", e)}
-                      className="h-7 px-3 text-xs text-destructive hover:bg-destructive/10 gap-1 border-destructive/30"
+                      className="h-8 px-3 text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/10 border-border/80 gap-1.5 font-medium"
                     >
                       <UserX className="size-3.5" /> Decline
                     </Button>
@@ -635,13 +602,16 @@ export function NotificationCenter() {
                 )}
 
                 {item.requestStatus && item.requestStatus !== "pending" && (
-                  <div className="pt-1">
-                    <Badge
-                      variant={item.requestStatus === "accepted" ? "default" : "destructive"}
-                      className="text-[10px] capitalize"
-                    >
-                      {item.requestStatus}
-                    </Badge>
+                  <div className="pt-1.5">
+                    {item.requestStatus === "accepted" ? (
+                      <div className="inline-flex items-center gap-1.5 text-xs text-emerald-500 font-medium bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-0.5 rounded-md">
+                        <CheckCircle2 className="size-3.5" /> Accepted &amp; Joined
+                      </div>
+                    ) : (
+                      <div className="inline-flex items-center gap-1.5 text-xs text-muted-foreground bg-muted border border-border/60 px-2.5 py-0.5 rounded-md">
+                        Declined
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

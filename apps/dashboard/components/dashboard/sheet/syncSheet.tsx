@@ -303,12 +303,14 @@ export default function SyncComponent() {
       const data = grid.slice(1);
 
       try {
+        const dashid = typeof window !== 'undefined' ? window.location.pathname.split('/dash/')[1]?.split('/')[0] : undefined;
         await createDataLibraryFile({
           userId: sessionData.user.id,
           name: `Sheet Selection (${columns.length}×${data.length})`,
           fileType: 'csv',
           data: { columns, data },
           metadata: { rowCount: data.length, colCount: columns.length },
+          workflowId: dashid,
         });
         setExportMessage("✓ Saved to Data Library!");
         toast.success("Saved to Data Library");

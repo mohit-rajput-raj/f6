@@ -36,7 +36,8 @@ import api from "@/lib/axios";
 export const executeWorkflow = async (
   nodes: EditorNodeType[],
   edges: Edge[],
-  setNodes: React.Dispatch<React.SetStateAction<EditorNodeType[]>>
+  setNodes: React.Dispatch<React.SetStateAction<EditorNodeType[]>>,
+  userId?: string
 ) => {
   // 1. Clear previous results & propagate input columns
   setNodes((nds) =>
@@ -812,7 +813,8 @@ export const executeWorkflow = async (
           // Push result to desk store for Syncfusion preview (block-scoped)
           const ds: Dataset = inputValue ?? { columns: [], data: [] };
           outputValue = ds;
-          if (ds && ds.columns && ds.columns.length > 0) {
+          const previewEnabled = nodeData?.previewEnabled !== false; // default true
+          if (previewEnabled && ds && ds.columns && ds.columns.length > 0) {
             try {
               const { useDeskStore } = await import("@/stores/desk-store");
               const deskBlockId = nodeData?.deskBlockId;
@@ -858,13 +860,19 @@ export const executeWorkflow = async (
                 // Try to get user info from next-auth if possible, but in this context we might need to rely on the server action picking it up or the store having it.
                 const { upsertMasterSheetByName } = await import("@/app/[project]/dash/[dashid]/(documents)/data-library/master-sheet-actions");
                 
-                // Try to extract userId from clerk global object or fallback to an empty string.
-                // In a true environment, the server action would use auth() internally, but since the signature requires it, we pass it.
-                // It might fail if userId is strictly validated, but since this runs on client-side, we can get it from Clerk.
-                const userId = (window as any).Clerk?.user?.id || nodeData?.userId || "";
-                
-                if (userId) {
-                  await upsertMasterSheetByName({ name: sheetName, data: msDs, userId });
+                const dashid = typeof window !== 'undefined' ? window?.location?.pathname?.split('/dash/')[1]?.split('/')[0] : undefined;
+                let resolvedUserId = userId;
+                if (!resolvedUserId) {
+                  try {
+                    const { authClient } = await import("@/lib/auth-client");
+                    const session = await authClient.getSession();
+                    resolvedUserId = session?.data?.user?.id;
+                  } catch (e) {
+                    console.warn("Could not retrieve user session for master sheet save:", e);
+                  }
+                }
+                if (resolvedUserId) {
+                  await upsertMasterSheetByName({ name: sheetName, data: msDs, userId: resolvedUserId, dashid });
                   saveStatus = 'saved';
                 } else {
                   saveStatus = 'error (no user id)';

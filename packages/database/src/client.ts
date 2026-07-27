@@ -12,8 +12,8 @@ const globalForPrisma = global as {
   prisma?: PrismaClient;
 };
 
+// Force new instance to ensure newly generated Prisma Client models/fields are picked up
 export const prisma =
-  globalForPrisma.prisma ??
   new PrismaClient({
     adapter,
   });

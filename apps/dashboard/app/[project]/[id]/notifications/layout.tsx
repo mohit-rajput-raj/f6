@@ -1,19 +1,40 @@
 "use client";
 
-import React, { Suspense } from "react";
+import React, { Suspense, useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Bell, Inbox, UserPlus, Sparkles } from "lucide-react";
 import { Badge } from "@repo/ui/components/ui/badge";
 import { NotificationErrorBoundary } from "./components/NotificationErrorBoundary";
 import { NotificationSkeleton } from "./components/NotificationSkeleton";
+import { fetchUnreadCount } from "@/lib/notifications-api";
+import { useSession } from "@/lib/auth-client";
+
 
 export default function NotificationsLayout({
     children,
 }: {
     children: React.ReactNode;
 }) {
+    const { data: session } = useSession();
     const pathname = usePathname() || "";
+    const [unreadCount, setUnreadCount] = useState<number>(0);
+
+    const loadUnreadCount = useCallback(async () => {
+        const activeUserId = session?.user?.id;
+        if (!activeUserId) return;
+        const count = await fetchUnreadCount(activeUserId);
+        setUnreadCount(count);
+    }, [session]);
+
+
+    useEffect(() => {
+        loadUnreadCount();
+        const interval = setInterval(loadUnreadCount, 10000);
+        return () => clearInterval(interval);
+    }, [loadUnreadCount]);
+
+
 
     // Compute base notifications path dynamically (e.g., "/projects/[project]/[id]/notifications")
     const basePath = pathname.includes("/notifications")
@@ -40,6 +61,11 @@ export default function NotificationsLayout({
                         <Badge variant="secondary" className="text-xs font-mono">
                             Live Hub
                         </Badge>
+                        {unreadCount > 0 && (
+                            <Badge variant="destructive" className="text-xs px-2 py-0.5 animate-pulse">
+                                {unreadCount} New
+                            </Badge>
+                        )}
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">
                         Manage alerts, system events, project workflow notifications, and workspace access requests.

@@ -277,6 +277,7 @@ model DeskShare {
   invitedEmail      String
   invitedUserId     String?
   permission        String   @default("editor") // "editor" | "viewer"
+  reservedColumns   String[] @default([])       // e.g. ["Math_Score", "Physics_Score"]
   projectWorkflowId String?  @db.Uuid           // link to project for desk-level sharing
   status            String   @default("pending") // "pending" | "accepted" | "rejected"
 
@@ -294,7 +295,11 @@ model DeskBlock {
   id                String   @id @default(uuid()) @db.Uuid
   projectWorkflowId String   @db.Uuid
   editorWorkflowId  String   @unique @db.Uuid
+  name              String   @default("Block")
   blockOrder        Int      @default(0)
+  parentId          String?  @db.Uuid           // Tree parent block ID (null for root blocks)
+  treeDepth         Int      @default(0)        // 0 for root (b1), 1 for children (b2), etc.
+  reservedColumns   String[] @default([])       // Columns this block is allowed to write to in MasterSheet
 
   textInputs        Json?    // [{id, placeholder, value}]
   sheets            Json?    // [{id, name, data: {columns, data}}]
@@ -307,7 +312,26 @@ model DeskBlock {
   projectWorkflow   Workflow @relation("ProjectBlocks", fields: [projectWorkflowId], references: [id], onDelete: Cascade)
   editorWorkflow    Workflow @relation("BlockEditor", fields: [editorWorkflowId], references: [id], onDelete: Cascade)
 
+  parent            DeskBlock?  @relation("TreeHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children          DeskBlock[] @relation("TreeHierarchy")
+
   @@index([projectWorkflowId])
+  @@index([parentId])
   @@index([blockOrder])
   @@map("desk_block")
+}
+
+model Notification {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String
+  type      String   // "desk_invite" | "data_commit" | "system"
+  title     String
+  message   String
+  data      Json?    // payload e.g. { projectWorkflowId, masterSheetId, shareId }
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([read])
+  @@map("notification")
 }

@@ -1,8 +1,8 @@
 'use client';
 
-import { memo } from 'react';
-import { Handle, Position } from '@xyflow/react';
-import { Eye, Table2 } from 'lucide-react';
+import { memo, useCallback } from 'react';
+import { Handle, Position, useReactFlow } from '@xyflow/react';
+import { Eye, EyeOff, Table2 } from 'lucide-react';
 import {
   BaseNode, BaseNodeContent, BaseNodeHeader, BaseNodeHeaderTitle,
 } from "@/components/dashboard/flow/Node/baseNode";
@@ -10,6 +10,7 @@ import { NodeMenu } from "../node-menu";
 import { IconTrash } from "@tabler/icons-react";
 import { useDeleteNode } from "../settings/triggers";
 import { Badge } from "@repo/ui/components/ui/badge";
+import { Input } from "@repo/ui/components/ui/input";
 
 interface Dataset {
   columns: string[];
@@ -21,10 +22,35 @@ interface Dataset {
  * Syncfusion spreadsheet preview.
  *
  * data.result = { columns, data } — set by the execution engine
+ * data.previewEnabled = boolean — toggle preview on/off (default true)
+ * data.previewName = string — label shown in the desk preview tab
  */
 export const OutputPreviewNode = memo(({ id, data }: { id: string; data: any }) => {
+  const { setNodes } = useReactFlow();
   const handleDelete = useDeleteNode();
   const result: Dataset | null = data.result ?? null;
+  const previewEnabled: boolean = data.previewEnabled !== false; // default true
+  const previewName: string = data.previewName || 'Preview';
+
+  const togglePreview = useCallback(() => {
+    setNodes(nds =>
+      nds.map(n =>
+        n.id === id
+          ? { ...n, data: { ...n.data, previewEnabled: !previewEnabled } }
+          : n
+      )
+    );
+  }, [id, setNodes, previewEnabled]);
+
+  const updatePreviewName = useCallback((name: string) => {
+    setNodes(nds =>
+      nds.map(n =>
+        n.id === id
+          ? { ...n, data: { ...n.data, previewName: name } }
+          : n
+      )
+    );
+  }, [id, setNodes]);
 
   return (
     <>
@@ -34,15 +60,45 @@ export const OutputPreviewNode = memo(({ id, data }: { id: string; data: any }) 
       </div>
 
       <BaseNode className="min-w-[300px]">
-        <BaseNodeHeader className="border-b flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-purple-600 to-violet-600 text-white rounded-t-md">
-          <Eye className="size-4" />
-          <BaseNodeHeaderTitle className="text-white">Output Preview</BaseNodeHeaderTitle>
-          <Badge variant="outline" className="text-[10px] border-white/30 text-white/80 ml-auto">
-            → Desk
+        <BaseNodeHeader className={`border-b flex items-center gap-2 px-3 py-2 rounded-t-md ${previewEnabled ? 'bg-gradient-to-r from-purple-600 to-violet-600 text-white' : 'bg-gradient-to-r from-zinc-600 to-zinc-700 text-zinc-300'}`}>
+          {previewEnabled ? <Eye className="size-4" /> : <EyeOff className="size-4" />}
+          <BaseNodeHeaderTitle className={previewEnabled ? 'text-white' : 'text-zinc-300'}>Output Preview</BaseNodeHeaderTitle>
+
+          {/* Preview toggle switch */}
+          <button
+            onClick={togglePreview}
+            className={`ml-auto relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${
+              previewEnabled ? 'bg-purple-400' : 'bg-zinc-500'
+            }`}
+            title={previewEnabled ? 'Preview ON — click to disable' : 'Preview OFF — click to enable'}
+          >
+            <span
+              className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                previewEnabled ? 'translate-x-4.5' : 'translate-x-0.5'
+              }`}
+            />
+          </button>
+
+          <Badge variant="outline" className={`text-[10px] ml-1 ${previewEnabled ? 'border-white/30 text-white/80' : 'border-zinc-500 text-zinc-400'}`}>
+            {previewEnabled ? '→ Desk' : 'OFF'}
           </Badge>
         </BaseNodeHeader>
 
         <BaseNodeContent className="p-3 space-y-2">
+          {/* Editable preview name */}
+          <Input
+            value={previewName}
+            onChange={(e) => updatePreviewName(e.target.value)}
+            className="h-6 text-xs border-dashed nodrag"
+            placeholder="Preview name..."
+          />
+
+          {!previewEnabled && (
+            <div className="text-[10px] text-amber-500 bg-amber-50 dark:bg-amber-950 p-1.5 rounded text-center font-medium">
+              ⚠ Preview disabled — data won't appear in Desk panel
+            </div>
+          )}
+
           {result && result.columns && result.columns.length > 0 ? (
             <>
               <div className="text-xs text-purple-600 font-semibold text-center">
@@ -98,7 +154,7 @@ export const OutputPreviewNode = memo(({ id, data }: { id: string; data: any }) 
               </div>
 
               <div className="text-[10px] text-center text-purple-500 font-medium">
-                ✅ Previewing in Desk panel
+                {previewEnabled ? '✅ Previewing in Desk panel' : '⏸ Preview paused'}
               </div>
             </>
           ) : (

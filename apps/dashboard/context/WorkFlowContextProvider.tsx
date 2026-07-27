@@ -14,6 +14,9 @@ import { saveWorkflow } from "@/app/[project]/dash/[dashid]/editor/_actions/edit
 import { syncBlockFieldsFromWorkflow } from "@/app/[project]/dash/[dashid]/desk/desk-block-actions";
 import { toast } from "sonner";
 
+import { useSession } from "@/lib/auth-client";
+import { getSharedDeskAccess } from "@/app/[project]/dash/[dashid]/desk/desk-share-actions";
+
 // ─── Dataset type used across all nodes ──────────────────────
 export interface Dataset {
   columns: string[];
@@ -43,6 +46,8 @@ type EditorWorkFlowContextType = {
   hasUnsavedChanges: boolean;
   workflowId: string | null;
   deskBlockId: string | null;
+  permission: "editor" | "viewer";
+  isReadOnly: boolean;
 };
 
 const EditorWorkFlowContext = createContext<
@@ -73,6 +78,18 @@ export const EditorWorkFlowContextProvider = ({
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const initializedRef = useRef(false);
+
+  // ── Permission awareness ──
+  const { data: sessionData } = useSession();
+  const [permission, setPermission] = useState<"editor" | "viewer">("editor");
+  const isReadOnly = permission === "viewer";
+
+  useEffect(() => {
+    if (!workflowId || !sessionData?.user?.email) return;
+    getSharedDeskAccess(workflowId, sessionData.user.email).then((access) => {
+      setPermission((access.permission as "editor" | "viewer") || "editor");
+    }).catch(() => { /* default to editor if check fails */ });
+  }, [workflowId, sessionData?.user?.email]);
 
   // Initialize from props when they change (first load from DB)
   useEffect(() => {
@@ -235,6 +252,8 @@ export const EditorWorkFlowContextProvider = ({
         hasUnsavedChanges,
         workflowId: workflowId ?? null,
         deskBlockId: deskBlockId ?? null,
+        permission,
+        isReadOnly,
       }}
     >
       {children}

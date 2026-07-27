@@ -34,9 +34,13 @@ export interface ActionButton {
 
 export interface DeskBlockState {
   id: string;
+  name: string;
   blockOrder: number;
   editorWorkflowId: string;
   projectWorkflowId: string;
+  parentId: string | null;
+  treeDepth: number;
+  reservedColumns: string[];
   textInputs: DeskTextInput[];
   sheets: DeskSheet[];
   outputPreview: Dataset | null;
@@ -66,6 +70,7 @@ interface DeskState {
   addBlock: (block: DeskBlockState) => void;
   removeBlock: (blockId: string) => void;
   updateBlock: (blockId: string, partial: Partial<DeskBlockState>) => void;
+  updateBlockName: (blockId: string, name: string) => void;
 
   // ─── Per-block Text Input Actions ───
   addTextInput: (
@@ -157,6 +162,10 @@ export const useDeskStore = create<DeskState>()((set, get) => ({
   updateBlock: (blockId, partial) =>
     set((s) => ({
       blocks: mapBlock(s.blocks, blockId, (b) => ({ ...b, ...partial })),
+    })),
+  updateBlockName: (blockId, name) =>
+    set((s) => ({
+      blocks: mapBlock(s.blocks, blockId, (b) => ({ ...b, name })),
     })),
 
   // ─── Text Input Actions ────────────────────────────────────

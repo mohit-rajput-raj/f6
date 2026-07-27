@@ -1,6 +1,7 @@
 "use server";
 
 import { prisma } from "@repo/db";
+// Trigger Turbopack reload for updated Prisma Client schema
 
 // ─── Types ──────────────────────────────────────────────────
 export interface DeskTextInput {
@@ -29,9 +30,13 @@ export interface CheckboxField {
 
 export interface DeskBlockData {
   id: string;
+  name: string;
   blockOrder: number;
   editorWorkflowId: string;
   projectWorkflowId: string;
+  parentId: string | null;
+  treeDepth: number;
+  reservedColumns: string[];
   textInputs: DeskTextInput[];
   sheets: DeskSheet[];
   outputPreview: Dataset | null;
@@ -47,9 +52,13 @@ export async function getDeskBlocks(projectWorkflowId: string): Promise<DeskBloc
 
   return blocks.map((b) => ({
     id: b.id,
+    name: b.name,
     blockOrder: b.blockOrder,
     editorWorkflowId: b.editorWorkflowId,
     projectWorkflowId: b.projectWorkflowId,
+    parentId: b.parentId,
+    treeDepth: b.treeDepth,
+    reservedColumns: b.reservedColumns,
     textInputs: (b.textInputs as unknown as DeskTextInput[]) ?? [],
     sheets: (b.sheets as unknown as DeskSheet[]) ?? [],
     outputPreview: (b.outputPreview as unknown as Dataset) ?? null,
@@ -61,7 +70,9 @@ export async function getDeskBlocks(projectWorkflowId: string): Promise<DeskBloc
 export async function createDeskBlock(
   projectWorkflowId: string,
   userId: string,
-  blockOrder?: number
+  blockOrder?: number,
+  parentId?: string,
+  tabName?: string
 ): Promise<DeskBlockData> {
   // Get current max order
   const maxBlock = await prisma.deskBlock.findFirst({
@@ -72,14 +83,32 @@ export async function createDeskBlock(
 
   const order = blockOrder ?? (maxBlock ? maxBlock.blockOrder + 1 : 0);
 
+  // Determine tree depth from parent
+  let treeDepth = 0;
+  if (parentId) {
+    const parent = await prisma.deskBlock.findUnique({
+      where: { id: parentId },
+      select: { treeDepth: true },
+    });
+    treeDepth = (parent?.treeDepth ?? 0) + 1;
+  }
+
   // Pre-generate ID
   const blockId = crypto.randomUUID();
+  const blockName = tabName || `Block ${order + 1}`;
+  const initialSheets = [
+    {
+      id: crypto.randomUUID(),
+      name: "Sheet 1",
+      data: null,
+    },
+  ];
 
   // Create a workflow for this block's editor with empty nodes
   const editorWorkflow = await prisma.workflow.create({
     data: {
       userId,
-      name: `Block ${order + 1} Editor`,
+      name: `${blockName} Editor`,
       definition: {
         meta: { version: "1.0", createdAt: new Date().toISOString() },
         reactFlow: {
@@ -97,20 +126,27 @@ export async function createDeskBlock(
       id: blockId,
       projectWorkflowId,
       editorWorkflowId: editorWorkflow.id,
+      name: blockName,
       blockOrder: order,
+      parentId: parentId ?? null,
+      treeDepth,
       textInputs: [] as any,
-      sheets: [] as any,
+      sheets: initialSheets as any,
       checkboxFields: [] as any,
     },
   });
 
   return {
     id: block.id,
+    name: block.name,
     blockOrder: block.blockOrder,
     editorWorkflowId: block.editorWorkflowId,
     projectWorkflowId: block.projectWorkflowId,
+    parentId: block.parentId,
+    treeDepth: block.treeDepth,
+    reservedColumns: block.reservedColumns,
     textInputs: [],
-    sheets: [],
+    sheets: initialSheets,
     outputPreview: null,
     checkboxFields: [],
   };
@@ -208,9 +244,12 @@ export async function initializeDefaultDesk(
     return getDeskBlocks(projectWorkflowId);
   }
 
-  // Create first block
-  const block = await createDeskBlock(projectWorkflowId, userId, 0);
-  return [block];
+  // Create first root BigBlock
+  const rootBlock = await createDeskBlock(projectWorkflowId, userId, 0, undefined, "BigBlock 1");
+  // Create first child tab
+  const childTab = await createDeskBlock(projectWorkflowId, userId, 0, rootBlock.id, "Tab 1");
+
+  return [rootBlock, childTab];
 }
 
 // ─── Update block inputs ────────────────────────────────────
@@ -264,6 +303,14 @@ export async function deleteDeskBlock(blockId: string) {
   }
 }
 
+// ─── Rename a block ─────────────────────────────────────────
+export async function renameDeskBlock(blockId: string, name: string) {
+  return prisma.deskBlock.update({
+    where: { id: blockId },
+    data: { name },
+  });
+}
+
 // ─── Reorder blocks ─────────────────────────────────────────
 export async function reorderDeskBlocks(
   projectWorkflowId: string,
@@ -285,9 +332,13 @@ export async function getDeskBlock(blockId: string): Promise<DeskBlockData | nul
 
   return {
     id: b.id,
+    name: b.name,
     blockOrder: b.blockOrder,
     editorWorkflowId: b.editorWorkflowId,
     projectWorkflowId: b.projectWorkflowId,
+    parentId: b.parentId,
+    treeDepth: b.treeDepth,
+    reservedColumns: b.reservedColumns,
     textInputs: (b.textInputs as unknown as DeskTextInput[]) ?? [],
     sheets: (b.sheets as unknown as DeskSheet[]) ?? [],
     outputPreview: (b.outputPreview as unknown as Dataset) ?? null,

@@ -165,42 +165,60 @@ const Flow = ({ handleRuns }: { handleRuns: () => void }) => {
 
   const debouncedRun = debounce(handleRuns, 600);
   const { minimapOpen, setSelectedNodeId } = useUIStore();
-  const { edges, nodes, setEdges, setNodes, pushHistory, deskBlockId } =
+  const { edges, nodes, setEdges, setNodes, pushHistory, deskBlockId, isReadOnly } =
     useEditorWorkFlow();
   const [reactFlowInstance, setReactFlowInstance] =
     useState<ReactFlowInstance>();
   const pathname = usePathname();
 
   const onDragOver = useCallback((event: any) => {
+    if (isReadOnly) return;
     event.preventDefault();
     event.dataTransfer.dropEffect = "move";
-  }, []);
+  }, [isReadOnly]);
 
   const onNodesChange = useCallback(
     (changes: any) => {
+      if (isReadOnly) {
+        // Allow only selection changes for viewers, block position/remove/add
+        const allowed = changes.filter((c: any) => c.type === "select" || c.type === "dimensions");
+        if (allowed.length > 0) {
+          setNodes((oldNodes) => applyNodeChanges(allowed, oldNodes));
+        }
+        return;
+      }
       setNodes((oldNodes) => applyNodeChanges(changes, oldNodes));
     },
-    [setNodes]
+    [setNodes, isReadOnly]
   );
 
   const onConnect = useCallback(
     (connection: any) => {
+      if (isReadOnly) return;
       pushHistory();
       setEdges((oldEdges) => addEdge(connection, oldEdges));
       debouncedRun();
     },
-    [setEdges, pushHistory]
+    [setEdges, pushHistory, isReadOnly]
   );
 
   const onEdgesChange = useCallback(
     (changes: any) => {
+      if (isReadOnly) {
+        const allowed = changes.filter((c: any) => c.type === "select");
+        if (allowed.length > 0) {
+          setEdges((oldEdges) => applyEdgeChanges(allowed, oldEdges));
+        }
+        return;
+      }
       setEdges((oldEdges) => applyEdgeChanges(changes, oldEdges));
     },
-    [setEdges]
+    [setEdges, isReadOnly]
   );
 
   const onDrop = useCallback(
     (event: any) => {
+      if (isReadOnly) return;
       event.preventDefault();
 
       const type: EditorCanvasCardType["type"] = event.dataTransfer.getData(
@@ -262,12 +280,13 @@ const Flow = ({ handleRuns }: { handleRuns: () => void }) => {
       //@ts-ignore
       setNodes((nds) => nds.concat(newNode));
     },
-    [reactFlowInstance, pushHistory, deskBlockId]
+    [reactFlowInstance, pushHistory, deskBlockId, isReadOnly]
   );
 
   const onNodeDragStop = useCallback(() => {
+    if (isReadOnly) return;
     pushHistory();
-  }, [pushHistory]);
+  }, [pushHistory, isReadOnly]);
 
   const onNodeClick = useCallback((_event: any, node: any) => {
     setSelectedNodeId(node.id);
@@ -291,6 +310,10 @@ const Flow = ({ handleRuns }: { handleRuns: () => void }) => {
           fitView
           minZoom={0.2}
           maxZoom={3}
+          nodesDraggable={!isReadOnly}
+          nodesConnectable={!isReadOnly}
+          edgesReconnectable={!isReadOnly}
+          deleteKeyCode={isReadOnly ? null : "Delete"}
         >
           <Background />
           <Controls className="dark:text-zinc-800" />

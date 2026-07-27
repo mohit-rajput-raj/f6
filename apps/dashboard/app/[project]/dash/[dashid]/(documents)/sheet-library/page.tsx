@@ -17,9 +17,18 @@ import {
   Download,
   Eye,
   Table,
+  Loader2,
 } from 'lucide-react';
 import { Button } from '@repo/ui/components/ui/button';
 import { Input } from '@repo/ui/components/ui/input';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@repo/ui/components/ui/dialog';
+import Spreadsheet from 'react-spreadsheet';
 import { toast } from 'sonner';
 import { useMasterSheetStore } from '@/stores/master-sheet-store';
 
@@ -32,9 +41,14 @@ interface MasterSheetItem {
   updatedAt: string;
 }
 
+import { useParams } from 'next/navigation';
+
 const SheetLibrary = () => {
+  const params = useParams();
+  const dashid = params?.dashid as string;
   const { data: session } = useSession();
   const userId = session?.user?.id;
+  const userEmail = session?.user?.email;
 
   const [sheets, setSheets] = useState<MasterSheetItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -42,15 +56,16 @@ const SheetLibrary = () => {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [previewSheet, setPreviewSheet] = useState<string | null>(null);
   const [previewData, setPreviewData] = useState<{ columns: string[]; data: any[][] } | null>(null);
+  const [deletingSheetId, setDeletingSheetId] = useState<string | null>(null);
 
   const { loadSheets, setActiveSheet } = useMasterSheetStore();
 
-  // Fetch sheets from DB
+  // Fetch sheets from DB for this desk (dashid)
   const fetchSheets = useCallback(async () => {
-    if (!userId) return;
+    if (!dashid && !userId) return;
     setLoading(true);
     try {
-      const result = await getMasterSheets(userId);
+      const result = await getMasterSheets(dashid, userId, userEmail || undefined);
       setSheets(result as any);
     } catch (err) {
       console.error('Failed to fetch sheets:', err);
@@ -58,17 +73,19 @@ const SheetLibrary = () => {
     } finally {
       setLoading(false);
     }
-  }, [userId]);
+  }, [dashid, userId, userEmail]);
 
   useEffect(() => {
     fetchSheets();
   }, [fetchSheets]);
+
 
   // Delete handler
   const handleDelete = async (sheetId: string, sheetName: string) => {
     if (!userId) return;
     if (!confirm(`Delete "${sheetName}"? This cannot be undone.`)) return;
 
+    setDeletingSheetId(sheetId);
     try {
       await deleteMasterSheet(sheetId, userId);
       toast.success(`Deleted "${sheetName}"`);
@@ -82,6 +99,8 @@ const SheetLibrary = () => {
     } catch (err) {
       console.error('Delete failed:', err);
       toast.error('Delete failed');
+    } finally {
+      setDeletingSheetId(null);
     }
   };
 
@@ -155,7 +174,7 @@ const SheetLibrary = () => {
   }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
+    <div className="p-6 w-full mx-auto space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -294,9 +313,14 @@ const SheetLibrary = () => {
                     variant="ghost"
                     size="sm"
                     className="h-7 text-xs text-red-500 hover:text-red-700"
+                    disabled={deletingSheetId === sheet.id}
                     onClick={() => handleDelete(sheet.id, sheet.name)}
                   >
-                    <Trash2 className="size-3" />
+                    {deletingSheetId === sheet.id ? (
+                      <Loader2 className="size-3 animate-spin" />
+                    ) : (
+                      <Trash2 className="size-3" />
+                    )}
                   </Button>
                 </div>
               </div>
@@ -347,8 +371,18 @@ const SheetLibrary = () => {
                         <Button variant="ghost" size="sm" className="h-7" onClick={() => handleDownload(sheet)}>
                           <Download className="size-3" />
                         </Button>
-                        <Button variant="ghost" size="sm" className="h-7 text-red-500" onClick={() => handleDelete(sheet.id, sheet.name)}>
-                          <Trash2 className="size-3" />
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 text-red-500"
+                          disabled={deletingSheetId === sheet.id}
+                          onClick={() => handleDelete(sheet.id, sheet.name)}
+                        >
+                          {deletingSheetId === sheet.id ? (
+                            <Loader2 className="size-3 animate-spin" />
+                          ) : (
+                            <Trash2 className="size-3" />
+                          )}
                         </Button>
                       </div>
                     </td>
@@ -360,44 +394,54 @@ const SheetLibrary = () => {
         </div>
       )}
 
-      {/* Preview panel */}
-      {previewSheet && previewData && (
-        <div className="border rounded-xl p-4 mt-4 bg-card">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="font-semibold text-sm">
-              Preview — {sheets.find((s) => s.id === previewSheet)?.name}
-            </h3>
-            <Button variant="ghost" size="sm" onClick={() => { setPreviewSheet(null); setPreviewData(null); }}>
-              Close
-            </Button>
-          </div>
-          <div className="max-h-[400px] overflow-auto border rounded-lg">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="bg-muted sticky top-0">
-                  {previewData.columns.map((col, i) => (
-                    <th key={i} className="px-2 py-1.5 text-left font-medium whitespace-nowrap border-b">{col}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {previewData.data.map((row, ri) => (
-                  <tr key={ri} className="border-b hover:bg-muted/30">
-                    {row.map((cell: any, ci: number) => (
-                      <td key={ci} className="px-2 py-1 whitespace-nowrap">{cell ?? ''}</td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {previewData.data.length >= 50 && (
-              <div className="text-center text-xs text-muted-foreground py-2 border-t">
-                Showing first 50 rows
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+      {/* Preview Dialog Modal Overlay */}
+      <Dialog
+        open={Boolean(previewSheet)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPreviewSheet(null);
+            setPreviewData(null);
+          }
+        }}
+      >
+        <DialogContent className="min-w-[90%] max-w-[90%]  min-h-[96%] max-h-[96%]  flex flex-col p-6 space-y-4">
+          <DialogHeader className="flex flex-row items-center justify-between pb-2 border-b">
+            <div>
+              <DialogTitle className="text-lg font-bold flex items-center gap-2">
+                <FileSpreadsheet className="size-5 text-violet-600" />
+                {sheets.find((s) => s.id === previewSheet)?.name || 'Sheet Preview'}
+              </DialogTitle>
+              <DialogDescription className="text-xs text-muted-foreground mt-1">
+                {previewData
+                  ? `${previewData.columns.length} columns • ${previewData.data.length} rows preview`
+                  : 'Loading preview...'}
+              </DialogDescription>
+            </div>
+          </DialogHeader>
+
+          {previewData ? (
+            <div className="flex-1 overflow-auto border rounded-lg w-full">
+              <Spreadsheet
+                data={previewData.data.map((row) =>
+                  row.map((cell: any) => ({ value: String(cell ?? '') }))
+                )}
+                columnLabels={previewData.columns}
+                className="w-full h-full"
+              />
+            </div>
+          ) : (
+            <div className="py-8 text-center text-sm text-muted-foreground">
+              No data available for preview.
+            </div>
+          )}
+
+          {previewData && previewData.data.length >= 50 && (
+            <div className="text-center text-xs text-muted-foreground pt-1 border-t">
+              Showing first 50 rows
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
