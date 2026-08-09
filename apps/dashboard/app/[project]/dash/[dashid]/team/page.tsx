@@ -48,7 +48,7 @@ interface Collaborator {
   permission: "editor" | "viewer" | string;
   reservedColumns: string[];
   status: string;
-  createdAt: string;
+  createdAt: Date | string;
 }
 
 interface PendingInvite {
@@ -94,7 +94,12 @@ export default function TeamPage() {
         getDeskCollaborators(undefined, dashid),
         getWorkflowOwner(dashid)
       ]);
-      setCollaborators(collabs as any);
+      // Filter out the owner's self-share to prevent them appearing as both Owner and collaborator
+      const ownerEmail = ownerData?.email?.toLowerCase();
+      const filteredCollabs = (collabs as Collaborator[]).filter(
+        (c) => c.invitedEmail.toLowerCase() !== ownerEmail
+      );
+      setCollaborators(filteredCollabs);
       setOwner(ownerData);
     } catch (err) {
       console.error("Failed to load collaborators/owner:", err);

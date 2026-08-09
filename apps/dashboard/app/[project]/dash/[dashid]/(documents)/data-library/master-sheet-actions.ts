@@ -13,6 +13,7 @@ export async function getMasterSheets(dashid?: string, userId?: string, userEmai
         masterSheet: {
           select: {
             id: true,
+            userId: true,
             name: true,
             data: true,
             metadata: true,
@@ -25,7 +26,12 @@ export async function getMasterSheets(dashid?: string, userId?: string, userEmai
 
     sharesForDesk.forEach((s) => {
       if (s.masterSheet) {
-        sheetMap.set(s.masterSheet.id, s.masterSheet);
+        const isOwner = userId ? s.masterSheet.userId === userId : false;
+        sheetMap.set(s.masterSheet.id, {
+          ...s.masterSheet,
+          isOwner,
+          sharedBy: isOwner ? "Personal Desk" : (s.invitedEmail || "Shared Collaborator"),
+        });
       }
     });
   }
@@ -36,6 +42,7 @@ export async function getMasterSheets(dashid?: string, userId?: string, userEmai
       where: { userId: userId.trim() },
       select: {
         id: true,
+        userId: true,
         name: true,
         data: true,
         metadata: true,
@@ -45,7 +52,13 @@ export async function getMasterSheets(dashid?: string, userId?: string, userEmai
       orderBy: { updatedAt: "desc" },
     });
 
-    ownSheets.forEach((s) => sheetMap.set(s.id, s));
+    ownSheets.forEach((s) => {
+      sheetMap.set(s.id, {
+        ...s,
+        isOwner: true,
+        sharedBy: "Personal Desk",
+      });
+    });
   }
 
   // 3. Fetch master sheets shared with userEmail
@@ -56,6 +69,7 @@ export async function getMasterSheets(dashid?: string, userId?: string, userEmai
         masterSheet: {
           select: {
             id: true,
+            userId: true,
             name: true,
             data: true,
             metadata: true,
@@ -68,7 +82,14 @@ export async function getMasterSheets(dashid?: string, userId?: string, userEmai
 
     sharedEntries.forEach((s) => {
       if (s.masterSheet) {
-        sheetMap.set(s.masterSheet.id, s.masterSheet);
+        const isOwner = userId ? s.masterSheet.userId === userId : false;
+        if (!sheetMap.has(s.masterSheet.id)) {
+          sheetMap.set(s.masterSheet.id, {
+            ...s.masterSheet,
+            isOwner,
+            sharedBy: isOwner ? "Personal Desk" : "Shared Non-Personal Desk",
+          });
+        }
       }
     });
   }
@@ -242,4 +263,24 @@ export async function getMasterSheetHistory(masterSheetId: string) {
     orderBy: { createdAt: "desc" },
     take: 50,
   });
+}
+
+export async function checkIsDeskOwner(dashid?: string, userId?: string): Promise<boolean> {
+  if (!dashid || !userId) return false;
+  try {
+    const workflow = await prisma.workflow.findUnique({
+      where: { id: dashid.trim() },
+      select: { userId: true },
+    });
+    if (workflow && workflow.userId === userId) return true;
+
+    // Fallback check masterSheet owner linked to desk
+    const share = await prisma.deskShare.findFirst({
+      where: { projectWorkflowId: dashid.trim(), masterSheet: { userId } },
+    });
+    return !!share;
+  } catch (e) {
+    console.warn("Owner check warning:", e);
+    return false;
+  }
 }

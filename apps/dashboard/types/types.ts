@@ -23,19 +23,8 @@ export type Connection = {
   slackSpecial?: boolean
 }
 
-export type EditorCanvasTypes =
-|'FilterNode'
-  | 'Email'
-  | 'Condition'
-  | 'AI'
-  | 'Slack'
-  | 'Google Drive'
-  | 'Notion'
-  | 'Custom Webhook'
-  | 'Google Calendar'
-  | 'Trigger'
-  | 'Action'
-  | 'Wait'
+import type { EditorCanvasTypes } from '@/lib/types'
+export type { EditorCanvasTypes }
 
 export type EditorCanvasCardType = {
   title: string

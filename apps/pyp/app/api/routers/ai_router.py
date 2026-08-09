@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import List, Any, Optional
 from app.services.agent_service import run_agent
+from app.services.alignment_service import align_and_compute_updates, parse_csv_content
 from app.tools.ocr_tool import extract_table_from_image
 from app.tools.formula_tool import evaluate_formula, aggregate_column
 from app.tools.column_matcher import match_columns
@@ -14,6 +15,16 @@ router = APIRouter(prefix="/ai", tags=["AI"])
 
 
 # ─── Schemas ─────────────────────────────────────────────────
+
+class AlignSchemaRequest(BaseModel):
+    master_grid: List[List[Any]]
+    csv_string: str
+    target_subject: str
+    target_component: str
+    provider: Optional[str] = "gemini"
+    api_key: Optional[str] = None
+    model: Optional[str] = None
+
 
 class AgentRequest(BaseModel):
     provider: str  # "gemini" | "openai" | "claude"
@@ -135,3 +146,29 @@ async def match_columns_endpoint(req: ColumnMatchRequest):
         return {"success": True, "data": result}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/align-schema")
+async def align_schema_endpoint(req: AlignSchemaRequest):
+    """Align CSV attendance schema with MasterSheet grid and generate student updates."""
+    try:
+        csv_headers, csv_rows = parse_csv_content(req.csv_string)
+        if not csv_headers or not csv_rows:
+            raise HTTPException(status_code=400, detail="Provided CSV data is empty or invalid")
+
+        result = align_and_compute_updates(
+            master_grid=req.master_grid,
+            csv_headers=csv_headers,
+            csv_rows=csv_rows,
+            target_subject=req.target_subject,
+            target_component=req.target_component,
+            provider=req.provider or "gemini",
+            api_key=req.api_key,
+            model=req.model
+        )
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+

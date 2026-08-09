@@ -27,11 +27,10 @@ import {
   Users,
   Workflow,
 } from "lucide-react";
-import { getPublishedWorkflows, installWorkflow } from "@/app/[project]/dash/[dashid]/editor/_actions/publish.service";
 import { useSession } from "@/lib/auth-client";
 import { toast } from "sonner";
 
-// Sample extension data (fallback when no published workflows)
+// Sample extension data
 const sampleExtensions: Extension[] = [
   {
     id: 1,
@@ -106,11 +105,6 @@ interface Extension {
   reviews: string;
   category: string;
   image: string;
-  // Extra fields for published workflows
-  publishedWorkflowId?: string;
-  publishedDefinition?: any;
-  inputSchema?: any;
-  outputSchema?: any;
 }
 
 export function ExtensionSheetDemo({ children }: { children: React.ReactNode }) {
@@ -119,78 +113,17 @@ export function ExtensionSheetDemo({ children }: { children: React.ReactNode }) 
   const [installedIds, setInstalledIds] = useState<(number | string)[]>([]);
   const [detailOpen, setDetailOpen] = useState(false);
   const [value, setValue] = useState("");
-  const [publishedExtensions, setPublishedExtensions] = useState<Extension[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const { data: session } = useSession();
 
-  // Fetch published workflows on mount
-  useEffect(() => {
-    const fetchPublished = async () => {
-      setIsLoading(true);
-      try {
-        const workflows = await getPublishedWorkflows();
-        const mapped: Extension[] = workflows.map((w: any) => ({
-          id: w.id,
-          name: w.name,
-          publisher: w.publisher?.name ?? "Unknown",
-          icon: <span className="text-2xl">{w.icon || "⚡"}</span>,
-          description: w.description ?? "A published workflow",
-          downloads: `${w.downloads}`,
-          rating: 4.5,
-          reviews: `${w.downloads}`,
-          category: w.categories?.[0] ?? "Workflow",
-          image: "https://picsum.photos/id/1015/600/400",
-          publishedWorkflowId: w.id,
-          publishedDefinition: w.definition,
-          inputSchema: w.inputSchema,
-          outputSchema: w.outputSchema,
-        }));
-        setPublishedExtensions(mapped);
-      } catch (err) {
-        console.error("Failed to fetch published workflows:", err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchPublished();
-  }, []);
-
-  // Combine sample + published
-  const allExtensions = [...publishedExtensions, ...sampleExtensions];
-
-  const filteredExtensions = allExtensions.filter((ext) =>
+  const filteredExtensions = sampleExtensions.filter((ext) =>
     ext.name.toLowerCase().includes(value.toLowerCase())
   );
 
   const handleInstall = async (ext: Extension) => {
-    if (!ext.publishedWorkflowId || !session?.user?.id) {
-      // Fake install for sample extensions
-      setIsInstalling(true);
-      await new Promise((resolve) => setTimeout(resolve, 1200));
-      setInstalledIds((prev) => [...prev, ext.id]);
-      setIsInstalling(false);
-      return;
-    }
-
     setIsInstalling(true);
-    try {
-      const result = await installWorkflow({
-        publishedWorkflowId: ext.publishedWorkflowId,
-        userId: session.user.id,
-      });
-
-      if (result.alreadyInstalled) {
-        toast.info("Workflow already installed");
-      } else {
-        toast.success(`Installed "${ext.name}"!`);
-      }
-      setInstalledIds((prev) => [...prev, ext.id]);
-    } catch (err) {
-      console.error("Install failed:", err);
-      toast.error("Failed to install workflow");
-    } finally {
-      setIsInstalling(false);
-    }
+    await new Promise((resolve) => setTimeout(resolve, 800));
+    setInstalledIds((prev) => [...prev, ext.id]);
+    setIsInstalling(false);
+    toast.success(`Installed "${ext.name}"`);
   };
 
   return (
@@ -216,22 +149,8 @@ export function ExtensionSheetDemo({ children }: { children: React.ReactNode }) 
             }} className="w-full" />
           </div>
 
-          {/* Published workflows section */}
-          {publishedExtensions.length > 0 && (
-            <div className="px-4 pt-2">
-              <Badge variant="outline" className="text-xs text-indigo-400 border-indigo-800">
-                <Workflow className="w-3 h-3 mr-1" />
-                {publishedExtensions.length} Published Workflow{publishedExtensions.length !== 1 ? 's' : ''}
-              </Badge>
-            </div>
-          )}
-
           <div className="space-y-4 py-6 overflow-y-scroll">
-            {isLoading ? (
-              <div className="w-full text-text flex items-center justify-center py-8">
-                <p className="text-zinc-400 animate-pulse">Loading marketplace...</p>
-              </div>
-            ) : filteredExtensions.length == 0 ? (
+            {filteredExtensions.length == 0 ? (
               <div className="w-full text-text flex items-center justify-center">
                 <p>No extensions Available in Market</p>
               </div>
@@ -255,9 +174,6 @@ export function ExtensionSheetDemo({ children }: { children: React.ReactNode }) 
                     </p>
                     {installedIds.includes(ext.id) && (
                       <Badge variant="secondary" className="text-[10px] bg-emerald-950 text-emerald-400">Installed</Badge>
-                    )}
-                    {ext.publishedWorkflowId && !installedIds.includes(ext.id) && (
-                      <Badge variant="outline" className="text-[10px] border-indigo-700 text-indigo-400">Workflow</Badge>
                     )}
                   </div>
                   <p className="text-sm text-zinc-400 truncate">{ext.publisher}</p>
@@ -288,7 +204,7 @@ export function ExtensionSheetDemo({ children }: { children: React.ReactNode }) 
             lastUpdated: "recently",
             size: "—",
             published: "recently",
-            identifier: selectedExtension.publishedWorkflowId || `ext.${selectedExtension.id}`,
+            identifier: `ext.${selectedExtension.id}`,
             requirements: [],
             categories: [selectedExtension.category],
           } as any}

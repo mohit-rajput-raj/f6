@@ -902,6 +902,61 @@ export const executeWorkflow = async (
           break;
         }
 
+        case "AISchemaAlignNode": {
+          const masterGridEdge = incomingEdges.find((e: any) => e.targetHandle === "master-grid");
+          const csvFileEdge = incomingEdges.find((e: any) => e.targetHandle === "csv-file");
+
+          const masterGridData = masterGridEdge
+            ? (runtimeData.get(`${masterGridEdge.source}__${masterGridEdge.sourceHandle}`) ?? runtimeData.get(masterGridEdge.source))
+            : null;
+          const csvFileData = csvFileEdge
+            ? (runtimeData.get(`${csvFileEdge.source}__${csvFileEdge.sourceHandle}`) ?? runtimeData.get(csvFileEdge.source))
+            : null;
+
+          setNodes((nds) =>
+            nds.map((n) =>
+              n.id === currentId
+                ? {
+                    ...n,
+                    data: {
+                      ...n.data,
+                      masterGrid: masterGridData,
+                      csvContent: csvFileData,
+                      fileData: csvFileData,
+                    },
+                  }
+                : n
+            )
+          );
+          outputValue = nodeData?.result || { updates: [], alignment: null };
+          break;
+        }
+
+        case "MasterSheetUpdateNode": {
+          const updatesEdge = incomingEdges.find((e: any) => e.targetHandle === "updates");
+          const incomingResult = updatesEdge
+            ? (runtimeData.get(`${updatesEdge.source}__${updatesEdge.sourceHandle}`) ?? runtimeData.get(updatesEdge.source))
+            : null;
+
+          const updatesList = incomingResult?.updates || nodeData?.updates || [];
+          setNodes((nds) =>
+            nds.map((n) =>
+              n.id === currentId
+                ? {
+                    ...n,
+                    data: {
+                      ...n.data,
+                      updates: updatesList,
+                      alignment: incomingResult?.alignment || n.data.alignment,
+                    },
+                  }
+                : n
+            )
+          );
+          outputValue = updatesList;
+          break;
+        }
+
         case "OutputNode2":
         case "baseOutput":
         case "FileOutputNode":
