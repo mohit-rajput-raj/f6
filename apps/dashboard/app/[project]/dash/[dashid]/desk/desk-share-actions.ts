@@ -47,6 +47,23 @@ export async function inviteToDesk({
     targetMasterSheetId = sheet.id;
   }
 
+  // Prevent the owner from inviting themselves
+  if (projectWorkflowId) {
+    const workflow = await prisma.workflow.findUnique({
+      where: { id: projectWorkflowId },
+      select: { userId: true },
+    });
+    if (workflow?.userId) {
+      const ownerUser = await prisma.user.findUnique({
+        where: { id: workflow.userId },
+        select: { email: true },
+      });
+      if (ownerUser?.email?.toLowerCase() === invitedEmail.toLowerCase()) {
+        throw new Error("You cannot invite yourself — you are already the owner of this desk.");
+      }
+    }
+  }
+
   // Check if already shared
   const existing = await prisma.deskShare.findUnique({
     where: {
@@ -55,9 +72,14 @@ export async function inviteToDesk({
   });
 
   if (existing) {
+    // If already accepted, don't re-invite
+    if (existing.status === "accepted") {
+      throw new Error("This person is already an active member of this desk.");
+    }
+    // Re-send invite: reset to pending with updated permission
     const updatedShare = await prisma.deskShare.update({
       where: { id: existing.id },
-      data: { permission, projectWorkflowId: projectWorkflowId ?? existing.projectWorkflowId },
+      data: { permission, status: "pending", projectWorkflowId: projectWorkflowId ?? existing.projectWorkflowId },
     });
     return updatedShare;
   }

@@ -76,4 +76,8 @@ export const EditorCanvasDefaultCardTypes: Record<string, { description: string;
   DynamicBlockConcatNode: { description: 'Code-driven block merge into MasterSheet using Subject Block codes', type: 'Combine' },
   BlockExtractorNode: { description: 'Extract block from MasterSheet by code', type: 'Combine' },
   ActionButtonNode: { description: 'Button for Desk MasterSheet panel', type: 'Input' },
+
+  // AI & MasterSheet updates
+  AISchemaAlignNode: { description: 'AI-assisted schema alignment and student row matching for CSV attendance', type: 'Action' },
+  MasterSheetUpdateNode: { description: 'Update MasterSheet with calculated totals, attended counts, and formulas', type: 'Output' },
 }

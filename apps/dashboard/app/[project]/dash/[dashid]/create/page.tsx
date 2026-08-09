@@ -85,7 +85,21 @@ export default function CreateWorkflowPage() {
 
     setIsCreating(true);
     try {
-      const newWorkflow = await createWorkFlow({ id: userId, name: workflowName.trim() });
+      let columns: string[] = [];
+      if (selectedTemplate === "blank") {
+        columns = customColumns.split(",").map(s => s.trim()).filter(Boolean);
+        if (columns.length === 0) columns = ["ID", "Name", "Category", "Status", "Date"];
+      } else if (selectedTpl && selectedTpl.columns.length > 0) {
+        columns = selectedTpl.columns;
+      } else {
+        columns = ["ID", "Name", "Category", "Status", "Date"];
+      }
+
+      const newWorkflow = await createWorkFlow({
+        id: userId,
+        name: workflowName.trim(),
+        templateData: { columns, data: [] },
+      });
 
       // Redirect to the new workflow's desk page
       const dashPath = `/dashboard/dash/${newWorkflow.id}/desk`;
@@ -161,12 +175,12 @@ export default function CreateWorkflowPage() {
             </div>
           )}
 
-          {/* Step 2: Template Selection */}
+          {/* Step 2: Template Selection & Live Interactive Sheet Preview */}
           {step === 2 && (
             <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
               <div className="space-y-2">
-                <h2 className="text-2xl font-bold">Choose a template</h2>
-                <p className="text-muted-foreground">Select a pre-built template or start blank. You can always customize columns later.</p>
+                <h2 className="text-2xl font-bold">Choose & Customize Sheet Template</h2>
+                <p className="text-muted-foreground">Select a template or edit headers directly on the live sheet grid below.</p>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -193,34 +207,77 @@ export default function CreateWorkflowPage() {
                       </div>
                       <h3 className="font-semibold text-sm">{tpl.name}</h3>
                       <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{tpl.description}</p>
-                      {tpl.columns.length > 0 && (
-                        <div className="mt-3 flex flex-wrap gap-1">
-                          {tpl.columns.slice(0, 4).map((col) => (
-                            <span key={col} className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-mono">
-                              {col}
-                            </span>
-                          ))}
-                          {tpl.columns.length > 4 && (
-                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
-                              +{tpl.columns.length - 4} more
-                            </span>
-                          )}
-                        </div>
-                      )}
                     </button>
                   );
                 })}
               </div>
 
-              {/* Custom columns input for blank template */}
-              {selectedTemplate === "blank" && (
-                <div className="mt-4 space-y-2 max-w-lg">
-                  <Label className="text-sm font-medium">Custom Columns (optional, comma-separated)</Label>
-                  <Input
-                    placeholder="e.g. Name, Email, Score, Grade"
-                    value={customColumns}
-                    onChange={(e) => setCustomColumns(e.target.value)}
-                  />
+              {/* Live Interactive Table Preview */}
+              {selectedTpl && (
+                <div className="p-4 rounded-xl border bg-card space-y-3 mt-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-semibold flex items-center gap-2">
+                      <IconTable className="size-4 text-primary" /> Live MasterSheet Preview ({selectedTpl.name})
+                    </span>
+                    {selectedTemplate === "blank" && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const cols = customColumns ? customColumns.split(",").map(s=>s.trim()).filter(Boolean) : ["ID", "Col1"];
+                          setCustomColumns([...cols, `Col_${cols.length + 1}`].join(", "));
+                        }}
+                        className="h-7 text-xs"
+                      >
+                        + Add Custom Column
+                      </Button>
+                    )}
+                  </div>
+
+                  <div className="overflow-x-auto rounded-lg border bg-background">
+                    <table className="w-full text-xs text-left border-collapse font-mono">
+                      <thead>
+                        <tr className="bg-muted border-b text-muted-foreground">
+                          <th className="p-2.5 w-10 text-center border-r">#</th>
+                          {(selectedTemplate === "blank"
+                            ? (customColumns ? customColumns.split(",").map(s=>s.trim()).filter(Boolean) : ["ID", "Name", "Category", "Status", "Date"])
+                            : selectedTpl.columns
+                          ).map((col, idx) => (
+                            <th key={idx} className="p-2 border-r min-w-[120px]">
+                              {selectedTemplate === "blank" ? (
+                                <input
+                                  type="text"
+                                  value={col}
+                                  onChange={(e) => {
+                                    const currentCols = customColumns ? customColumns.split(",").map(s=>s.trim()) : ["ID", "Name", "Category", "Status", "Date"];
+                                    currentCols[idx] = e.target.value;
+                                    setCustomColumns(currentCols.join(", "));
+                                  }}
+                                  className="bg-muted/50 border rounded px-1.5 py-0.5 text-xs text-foreground font-semibold w-full"
+                                />
+                              ) : (
+                                col
+                              )}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr className="border-b">
+                          <td className="p-2 text-center text-muted-foreground border-r">1</td>
+                          {(selectedTemplate === "blank"
+                            ? (customColumns ? customColumns.split(",").map(s=>s.trim()).filter(Boolean) : ["ID", "Name", "Category", "Status", "Date"])
+                            : selectedTpl.columns
+                          ).map((_, idx) => (
+                            <td key={idx} className="p-2 border-r text-muted-foreground italic">
+                              [Sample Cell {idx + 1}]
+                            </td>
+                          ))}
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               )}
             </div>

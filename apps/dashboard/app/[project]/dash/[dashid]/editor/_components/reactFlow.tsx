@@ -80,6 +80,8 @@ import { MasterSheetLibraryNode } from "./nodes/input-nodes/mastersheet-library-
 import { DynamicBlockConcatNode } from "./nodes/calcy-nodes/dynamic-block-concat-node";
 import { BlockExtractorNode } from "./nodes/calcy-nodes/block-extractor-node";
 import { ActionButtonNode } from "./nodes/input-nodes/action-button-node";
+import { AISchemaAlignNode } from "./nodes/calcy-nodes/ai-schema-align-node";
+import { MasterSheetUpdateNode } from "./nodes/output-nodes/mastersheet-update-node";
 
 const Flow = ({ handleRuns }: { handleRuns: () => void }) => {
   const nodeTypess = useMemo(
@@ -159,6 +161,10 @@ const Flow = ({ handleRuns }: { handleRuns: () => void }) => {
       DynamicBlockConcatNode: DynamicBlockConcatNode,
       BlockExtractorNode: BlockExtractorNode,
       ActionButtonNode: ActionButtonNode,
+
+      // AI & MasterSheet updates
+      AISchemaAlignNode: AISchemaAlignNode,
+      MasterSheetUpdateNode: MasterSheetUpdateNode,
     }),
     []
   );
@@ -237,24 +243,7 @@ const Flow = ({ handleRuns }: { handleRuns: () => void }) => {
 
       pushHistory();
 
-      // Check for subflow metadata (when dragging installed workflows)
       let extraData: any = {};
-      if (type === "SubflowNode") {
-        try {
-          const subflowRaw = event.dataTransfer.getData("application/subflow-data");
-          if (subflowRaw) {
-            const subflowData = JSON.parse(subflowRaw);
-            extraData = {
-              publishedName: subflowData.publishedName,
-              publishedIcon: subflowData.publishedIcon,
-              publishedDefinition: subflowData.publishedDefinition,
-              inputSchema: subflowData.inputSchema,
-              outputSchema: subflowData.outputSchema,
-              config: { publishedWorkflowId: subflowData.publishedWorkflowId },
-            };
-          }
-        } catch {}
-      }
 
       // Auto-inject deskBlockId for desk-type nodes
       const deskNodeTypes = ["DeskTextInputNode", "DeskSheetNode", "OutputPreviewNode", "TrueFalseNode", "BlockOutputSenderNode", "MasterSheetPreviewNode"];

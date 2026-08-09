@@ -308,13 +308,14 @@ import { signOut, useSession } from "@/lib/auth-client"
 import { Button } from "@repo/ui/components/ui/button"
 import { usePathname, useRouter } from "next/navigation"
 import { useEditorStore } from "@/stores/user.store"
-
+import Image from "next/image";
 export const AppSidebar = ({ val, ...props }: AppSidebarProps) => {
   const pathname = usePathname(); // ← Call ONCE at top level
   const navigate = useRouter()
   const { data: session } = useSession();
   const userEmail = session?.user?.email;
   const userName = session?.user?.name;
+  const userImage = session?.user?.image;
 
   const dashid = React.useMemo(() => {
     const segments = pathname.split("/");
@@ -366,7 +367,10 @@ export const AppSidebar = ({ val, ...props }: AppSidebarProps) => {
         {userEmail && (
           <div className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg bg-sidebar-accent/50 text-sidebar-accent-foreground min-w-0 border border-sidebar-border/50">
             <div className="w-7 h-7 rounded-full bg-teal-600/20 text-teal-400 border border-teal-500/30 flex items-center justify-center text-xs font-semibold shrink-0">
-              {(userName || userEmail).charAt(0).toUpperCase()}
+              {userImage ? <Image width={28} height={28} src={userImage} alt="" className="w-full h-full rounded-full" /> : (userName || userEmail).charAt(0).toUpperCase()
+
+              } 
+
             </div>
             <div className="flex flex-col min-w-0 flex-1">
               {userName && (

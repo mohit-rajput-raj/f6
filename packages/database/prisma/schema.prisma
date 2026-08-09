@@ -16,13 +16,14 @@ model User {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
+  geminiApiKey String?
+  openaiApiKey String?
+  claudeApiKey String?
+
   sessions         Session[]
   accounts         Account[]
   workflows        Workflow[]
   dataLibraryFiles DataLibraryFile[]
-  sharedNodes      SharedNode[]     @relation("CreatedSharedNodes")
-  publishedWorkflows PublishedWorkflow[] @relation("PublishedWorkflows")
-  installedWorkflows WorkflowInstallation[] @relation("InstalledWorkflows")
   masterSheets     MasterSheet[]
 
   @@unique([email])
@@ -97,10 +98,7 @@ model Workflow {
 
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  versions         WorkflowVersion[]
-  shares           WorkflowShare[]
   dataLibraryFiles DataLibraryFile[]
-  publishedVersions PublishedWorkflow[]
   deskBlocks        DeskBlock[] @relation("ProjectBlocks")
   blockEditor       DeskBlock?  @relation("BlockEditor")
 
@@ -108,35 +106,6 @@ model Workflow {
   @@index([isPublic])
   @@index([isTemplate])
   @@map("workflow")
-}
-
-model WorkflowVersion {
-  id         String   @id @default(uuid()) @db.Uuid
-  workflowId String   @db.Uuid
-  version    Int
-  definition Json
-  changeNote String?
-  createdAt  DateTime @default(now())
-
-  workflow   Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
-
-  @@index([workflowId, version])
-  @@unique([workflowId, version])
-  @@map("workflow_version")
-}
-
-model WorkflowShare {
-  id         String   @id @default(uuid()) @db.Uuid
-  workflowId String   @db.Uuid
-  sharedWith String?  @db.Uuid
-  permission String  
-  createdAt  DateTime @default(now())
-
-  workflow   Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
-
-  @@index([workflowId])
-  @@index([sharedWith])
-  @@map("workflow_share")
 }
 
 model DataLibraryFile {
@@ -158,81 +127,6 @@ model DataLibraryFile {
   @@index([userId])
   @@index([workflowId])
   @@map("data_library_file")
-}
-
-model SharedNode {
-  id              String   @id @default(uuid()) @db.Uuid
-  shareKey        String   @unique
-  creatorId       String
-
-  expectedColumns Json     
-  data            Json?    
-
-  name            String
-  description     String?
-  status          String   @default("pending") 
-
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  creator         User     @relation("CreatedSharedNodes", fields: [creatorId], references: [id], onDelete: Cascade)
-
-  @@index([creatorId])
-  @@index([shareKey])
-  @@map("shared_node")
-}
-
-model PublishedWorkflow {
-  id              String   @id @default(uuid()) @db.Uuid
-  workflowId      String   @db.Uuid
-  publisherId     String
-
-  name            String
-  description     String?
-  icon            String?          // emoji or icon name
-  version         String   @default("1.0.0")
-
-  // The serialized workflow definition (nodes + edges, minus runtime data)
-  definition      Json
-
-  // Schema: what inputs/outputs does this workflow expect?
-  inputSchema     Json?    // [{ name, type, description }]
-  outputSchema    Json?    // [{ name, type, description }]
-
-  downloads       Int      @default(0)
-  isPublic        Boolean  @default(true)
-  tags            String[] @default([])
-  categories      String[] @default([])
-
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  publisher       User     @relation("PublishedWorkflows", fields: [publisherId], references: [id], onDelete: Cascade)
-  workflow        Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
-  installations   WorkflowInstallation[]
-
-  @@index([publisherId])
-  @@index([workflowId])
-  @@index([isPublic])
-  @@map("published_workflow")
-}
-
-model WorkflowInstallation {
-  id                  String   @id @default(uuid()) @db.Uuid
-  userId              String
-  publishedWorkflowId String   @db.Uuid
-
-  // User-specific config (e.g., block code mappings)
-  config              Json?
-
-  createdAt           DateTime @default(now())
-
-  user                User     @relation("InstalledWorkflows", fields: [userId], references: [id], onDelete: Cascade)
-  publishedWorkflow   PublishedWorkflow @relation(fields: [publishedWorkflowId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, publishedWorkflowId])
-  @@index([userId])
-  @@map("workflow_installation")
 }
 
 model MasterSheet {

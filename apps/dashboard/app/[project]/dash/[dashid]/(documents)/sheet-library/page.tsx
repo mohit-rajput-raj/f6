@@ -160,10 +160,20 @@ const SheetLibrary = () => {
     toast.success(`Loaded "${sheet.name}" — switch to Editor > Master Sheet tab to view`);
   };
 
-  // Filtered sheets
-  const filteredSheets = sheets.filter((s) =>
-    s.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const [filterTab, setFilterTab] = useState<'all' | 'personal' | 'shared'>('all');
+
+  // Filtered sheets by tab + search
+  const filteredSheets = sheets.filter((s: any) => {
+    const matchesSearch = s.name.toLowerCase().includes(searchTerm.toLowerCase());
+    if (!matchesSearch) return false;
+
+    if (filterTab === 'personal') return s.isOwner !== false;
+    if (filterTab === 'shared') return s.isOwner === false;
+    return true;
+  });
+
+  const personalCount = sheets.filter((s: any) => s.isOwner !== false).length;
+  const sharedCount = sheets.filter((s: any) => s.isOwner === false).length;
 
   if (!userId) {
     return (
@@ -184,7 +194,7 @@ const SheetLibrary = () => {
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Sheet Library</h1>
             <p className="text-sm text-muted-foreground">
-              {sheets.length} master sheet{sheets.length !== 1 ? 's' : ''} stored
+              {sheets.length} master sheet{sheets.length !== 1 ? 's' : ''} across personal & shared desks
             </p>
           </div>
         </div>
@@ -208,15 +218,40 @@ const SheetLibrary = () => {
         </div>
       </div>
 
-      {/* Search */}
-      <div className="relative max-w-md">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-        <Input
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          placeholder="Search sheets..."
-          className="pl-10"
-        />
+      {/* Tabs & Search Filter Bar */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        {/* Category Tabs */}
+        <div className="flex items-center gap-1 p-1 bg-muted rounded-lg text-xs font-medium">
+          <button
+            onClick={() => setFilterTab('all')}
+            className={`px-3 py-1.5 rounded-md transition ${filterTab === 'all' ? 'bg-background text-foreground shadow-sm font-semibold' : 'text-muted-foreground hover:text-foreground'}`}
+          >
+            All Sheets ({sheets.length})
+          </button>
+          <button
+            onClick={() => setFilterTab('personal')}
+            className={`px-3 py-1.5 rounded-md transition ${filterTab === 'personal' ? 'bg-background text-foreground shadow-sm font-semibold' : 'text-muted-foreground hover:text-foreground'}`}
+          >
+            Personal Desk Sheets ({personalCount})
+          </button>
+          <button
+            onClick={() => setFilterTab('shared')}
+            className={`px-3 py-1.5 rounded-md transition ${filterTab === 'shared' ? 'bg-background text-foreground shadow-sm font-semibold' : 'text-muted-foreground hover:text-foreground'}`}
+          >
+            Shared Desk Sheets ({sharedCount})
+          </button>
+        </div>
+
+        {/* Search */}
+        <div className="relative w-full sm:w-[260px]">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+          <Input
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Search sheets..."
+            className="pl-10 h-9 text-xs"
+          />
+        </div>
       </div>
 
       {/* Sheet list */}
@@ -232,18 +267,19 @@ const SheetLibrary = () => {
           <FolderOpen className="size-12 opacity-40" />
           <div className="text-center">
             <p className="text-lg font-medium mb-1">
-              {searchTerm ? 'No sheets match your search' : 'Your Sheet Library is empty'}
+              {searchTerm ? 'No sheets match your search' : 'No sheets found in this category'}
             </p>
             <p className="text-sm">
-              {searchTerm ? 'Try a different search term' : 'Run a workflow with Block Concat and merge data to create master sheets'}
+              {searchTerm ? 'Try a different search term' : 'Create a project or get invited to a desk to see master sheets here.'}
             </p>
           </div>
         </div>
       ) : viewMode === 'grid' ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {filteredSheets.map((sheet) => {
+          {filteredSheets.map((sheet: any) => {
             const meta = sheet.metadata as any;
             const blockCount = meta?.blocks ? Object.keys(meta.blocks).length : 0;
+            const isOwner = sheet.isOwner !== false;
 
             return (
               <div
@@ -254,11 +290,9 @@ const SheetLibrary = () => {
                   <div className="p-2 rounded-lg bg-violet-50 dark:bg-violet-950">
                     <FileSpreadsheet className="size-5 text-violet-600" />
                   </div>
-                  {blockCount > 0 && (
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-violet-100 dark:bg-violet-900 text-violet-700 dark:text-violet-300 font-medium">
-                      {blockCount} blocks
-                    </span>
-                  )}
+                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${isOwner ? 'bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800' : 'bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'}`}>
+                    {isOwner ? 'Personal Desk' : 'Shared Desk'}
+                  </span>
                 </div>
 
                 <h3 className="font-semibold text-sm truncate mb-1">{sheet.name}</h3>

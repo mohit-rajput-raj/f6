@@ -1,13 +1,16 @@
 "use server";
 
 import { prisma } from "@repo/db";
+import { createMasterSheet } from "@/app/[project]/dash/[dashid]/(documents)/data-library/master-sheet-actions";
 
 export const createWorkFlow = async ({
   id,
   name,
+  templateData,
 }: {
   id: string;
   name: string;
+  templateData?: { columns: string[]; data?: any[][] };
 }) => {
   try {
     if (!id) {
@@ -28,6 +31,25 @@ export const createWorkFlow = async ({
         },
         tags: [],
       },
+    });
+
+    // Default template columns if templateData was not provided at all
+    const columns = templateData?.columns !== undefined
+      ? templateData.columns
+      : ["ID", "Name", "Category", "Status", "Date"];
+
+    const sheetData = {
+      columns,
+      data: templateData?.data ?? [],
+    };
+
+    // Create MasterSheet linked to this desk/workflow
+    await createMasterSheet({
+      userId: id,
+      name: `${name} MasterSheet`,
+      data: sheetData,
+      metadata: { createdWithTemplate: true },
+      dashid: newWorkflow.id,
     });
 
     return newWorkflow;
@@ -100,8 +122,21 @@ export async function getAllWorkFlow(id: string) {
         select: { invitedEmail: true, invitedUserId: true },
       });
 
-      // Fetch user avatars for accepted collaborators
-      const userIds = shares
+      // Get owner info first so we can filter by both userId and email
+      const owner = await prisma.user.findUnique({
+        where: { id: wf.userId },
+        select: { name: true, image: true, email: true },
+      });
+      const ownerEmail = owner?.email?.toLowerCase();
+
+      // Filter out owner's self-share to prevent counting them twice
+      // Match by both userId and email to cover all cases
+      const collaboratorShares = shares.filter(
+        (s) => s.invitedUserId !== wf.userId && s.invitedEmail.toLowerCase() !== ownerEmail
+      );
+
+      // Fetch user avatars for accepted collaborators (excluding owner)
+      const userIds = collaboratorShares
         .map((s) => s.invitedUserId)
         .filter((uid): uid is string => !!uid);
 
@@ -111,12 +146,6 @@ export async function getAllWorkFlow(id: string) {
             select: { name: true, image: true },
           })
         : [];
-
-      // Also include the owner
-      const owner = await prisma.user.findUnique({
-        where: { id: wf.userId },
-        select: { name: true, image: true },
-      });
 
       const memberAvatars = [
         ...(owner
@@ -128,7 +157,8 @@ export async function getAllWorkFlow(id: string) {
         })),
       ];
 
-      const totalMembers = 1 + shares.length; // owner + collaborators
+      // Only count non-owner collaborators
+      const totalMembers = 1 + collaboratorShares.length; // owner + collaborators (excluding owner's self-share)
       const displayedCount = Math.min(memberAvatars.length, 4);
       const remaining = totalMembers - displayedCount;
 
@@ -175,6 +205,30 @@ export const deleteWorkFlow = async ({
     return deleted;
   } catch (error) {
     console.error("Delete workflow error:", error);
+    throw error;
+  }
+};
+
+export const deleteMultipleWorkflows = async ({
+  id,
+  flowIds,
+}: {
+  id: string;
+  flowIds: string[];
+}) => {
+  try {
+    if (!id || !flowIds || flowIds.length === 0) return { count: 0 };
+
+    const deleted = await prisma.workflow.deleteMany({
+      where: {
+        id: { in: flowIds },
+        userId: id,
+      },
+    });
+
+    return deleted;
+  } catch (error) {
+    console.error("Delete multiple workflows error:", error);
     throw error;
   }
 };

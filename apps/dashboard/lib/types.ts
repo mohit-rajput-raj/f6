@@ -159,6 +159,8 @@ export type EditorCanvasTypes =
   | 'DynamicBlockConcatNode'
   | 'BlockExtractorNode'
   | 'ActionButtonNode'
+  | 'AISchemaAlignNode'
+  | 'MasterSheetUpdateNode'
   | 'Email'
   | 'Condition'
   | 'AI'

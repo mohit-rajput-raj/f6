@@ -1,15 +1,17 @@
 "use client";
 
-import React, { useState, Suspense } from "react";
+import React, { useState, useEffect, Suspense } from "react";
 import { ErrorBoundary } from "react-error-boundary";
 import { SettingsErrorFallback } from "../../_components/settings-error-boundary";
 import { SettingsPageSkeleton } from "../../_components/settings-skeletons";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@repo/ui/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@repo/ui/components/ui/card";
 import { Button } from "@repo/ui/components/ui/button";
 import { Badge } from "@repo/ui/components/ui/badge";
 import { Input } from "@repo/ui/components/ui/input";
 import { toast } from "sonner";
-import { IconKey, IconPlus, IconTrash, IconCopy, IconCheck, IconEye, IconEyeOff } from "@tabler/icons-react";
+import { IconKey, IconPlus, IconTrash, IconCopy, IconCheck, IconEye, IconEyeOff, IconLoader2 } from "@tabler/icons-react";
+import { useSession } from "@/lib/auth-client";
+import { saveUserLLMKeys, getUserLLMKeys } from "@/app/[project]/dash/[dashid]/(documents)/data-library/api-key-actions";
 
 type ApiKey = {
   id: string;
@@ -20,34 +22,77 @@ type ApiKey = {
   lastUsed: string;
 };
 
+const LOCAL_APP_KEYS_STORAGE_KEY = "APP_ACCESS_KEYS";
+
 function ApiKeysForm() {
-  const [keys, setKeys] = useState<ApiKey[]>([
-    {
-      id: "key-1",
-      name: "Production Model Server",
-      keyPrefix: "ux_live_89a7",
-      secret: "ux_live_89a7f290c411b9a2e389d701",
-      created: "2026-06-12",
-      lastUsed: "2 mins ago",
-    },
-    {
-      id: "key-2",
-      name: "Staging Pipeline",
-      keyPrefix: "ux_test_31b4",
-      secret: "ux_test_31b4097e281cc410a552f902",
-      created: "2026-07-01",
-      lastUsed: "Yesterday",
-    },
-  ]);
+  const { data: sessionData } = useSession();
+
+  // Custom App Access Keys State (starts empty, persisted in localStorage)
+  const [keys, setKeys] = useState<ApiKey[]>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const stored = localStorage.getItem(LOCAL_APP_KEYS_STORAGE_KEY);
+        if (stored) return JSON.parse(stored);
+      } catch (e) {
+        console.error("Failed to parse stored app keys", e);
+      }
+    }
+    return [];
+  });
 
   const [newKeyName, setNewKeyName] = useState("");
   const [showSecret, setShowSecret] = useState<Record<string, boolean>>({});
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
+  // LLM Provider Keys State
+  const [geminiKey, setGeminiKey] = useState(() => (typeof window !== "undefined" ? localStorage.getItem("GEMINI_API_KEY") || "" : ""));
+  const [openaiKey, setOpenaiKey] = useState(() => (typeof window !== "undefined" ? localStorage.getItem("OPENAI_API_KEY") || "" : ""));
+  const [claudeKey, setClaudeKey] = useState(() => (typeof window !== "undefined" ? localStorage.getItem("CLAUDE_API_KEY") || "" : ""));
+  const [isSavingLLMKeys, setIsSavingLLMKeys] = useState(false);
+  const [isLoadingLLMKeys, setIsLoadingLLMKeys] = useState(false);
+
+  // Load LLM Keys from DB when session is available
+  useEffect(() => {
+    if (!sessionData?.user?.id) return;
+    setIsLoadingLLMKeys(true);
+    getUserLLMKeys(sessionData.user.id)
+      .then((keysData) => {
+        if (keysData.geminiApiKey !== undefined) {
+          const val = keysData.geminiApiKey || "";
+          setGeminiKey(val);
+          if (typeof window !== "undefined") localStorage.setItem("GEMINI_API_KEY", val);
+        }
+        if (keysData.openaiApiKey !== undefined) {
+          const val = keysData.openaiApiKey || "";
+          setOpenaiKey(val);
+          if (typeof window !== "undefined") localStorage.setItem("OPENAI_API_KEY", val);
+        }
+        if (keysData.claudeApiKey !== undefined) {
+          const val = keysData.claudeApiKey || "";
+          setClaudeKey(val);
+          if (typeof window !== "undefined") localStorage.setItem("CLAUDE_API_KEY", val);
+        }
+      })
+      .catch((err) => {
+        console.warn("Failed to load user LLM keys from DB:", err);
+      })
+      .finally(() => {
+        setIsLoadingLLMKeys(false);
+      });
+  }, [sessionData?.user?.id]);
+
+  // Sync custom app keys to localStorage
+  const updateAppKeys = (updatedKeys: ApiKey[]) => {
+    setKeys(updatedKeys);
+    if (typeof window !== "undefined") {
+      localStorage.setItem(LOCAL_APP_KEYS_STORAGE_KEY, JSON.stringify(updatedKeys));
+    }
+  };
+
   const handleCreateKey = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newKeyName.trim()) {
-      toast.error("Please provide a name for the API key."); 
+      toast.error("Please provide a name for the API key.");
       return;
     }
 
@@ -61,13 +106,15 @@ function ApiKeysForm() {
       lastUsed: "Never",
     };
 
-    setKeys([createdKey, ...keys]);
+    const nextKeys = [createdKey, ...keys];
+    updateAppKeys(nextKeys);
     setNewKeyName("");
     toast.success(`API Key "${createdKey.name}" generated successfully!`);
   };
 
   const handleRevokeKey = (id: string, name: string) => {
-    setKeys(keys.filter((k) => k.id !== id));
+    const nextKeys = keys.filter((k) => k.id !== id);
+    updateAppKeys(nextKeys);
     toast.info(`API Key "${name}" revoked.`);
   };
 
@@ -82,18 +129,34 @@ function ApiKeysForm() {
     setShowSecret((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
-  const [geminiKey, setGeminiKey] = useState(() => (typeof window !== "undefined" ? localStorage.getItem("GEMINI_API_KEY") || "" : ""));
-  const [openaiKey, setOpenaiKey] = useState(() => (typeof window !== "undefined" ? localStorage.getItem("OPENAI_API_KEY") || "" : ""));
-  const [claudeKey, setClaudeKey] = useState(() => (typeof window !== "undefined" ? localStorage.getItem("CLAUDE_API_KEY") || "" : ""));
-
-  const handleSaveProviderKeys = (e: React.FormEvent) => {
+  const handleSaveProviderKeys = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsSavingLLMKeys(true);
+
     if (typeof window !== "undefined") {
       localStorage.setItem("GEMINI_API_KEY", geminiKey);
       localStorage.setItem("OPENAI_API_KEY", openaiKey);
       localStorage.setItem("CLAUDE_API_KEY", claudeKey);
     }
-    toast.success("AI Model provider keys saved successfully!");
+
+    if (sessionData?.user?.id) {
+      try {
+        await saveUserLLMKeys(sessionData.user.id, {
+          geminiApiKey: geminiKey,
+          openaiApiKey: openaiKey,
+          claudeApiKey: claudeKey,
+        });
+        toast.success("AI Model provider keys updated successfully in database!");
+      } catch (err) {
+        console.error("DB save failed:", err);
+        toast.error("Failed to save keys to database, saved locally.");
+      } finally {
+        setIsSavingLLMKeys(false);
+      }
+    } else {
+      toast.success("AI Model provider keys saved locally!");
+      setIsSavingLLMKeys(false);
+    }
   };
 
   return (
@@ -111,7 +174,15 @@ function ApiKeysForm() {
       <CardContent className="space-y-6">
         {/* Model Provider Keys */}
         <form onSubmit={handleSaveProviderKeys} className="p-4 rounded-xl bg-card border space-y-4">
-          <h4 className="text-sm font-semibold">AI Model Provider API Keys</h4>
+          <div className="flex items-center justify-between">
+            <h4 className="text-sm font-semibold">AI Model Provider API Keys</h4>
+            {isLoadingLLMKeys && (
+              <span className="text-xs text-muted-foreground flex items-center gap-1.5">
+                <IconLoader2 className="size-3.5 animate-spin text-primary" /> Loading keys...
+              </span>
+            )}
+          </div>
+
           <div className="space-y-3">
             <div>
               <label className="text-xs font-medium text-muted-foreground block mb-1">Google Gemini API Key</label>
@@ -120,6 +191,7 @@ function ApiKeysForm() {
                 placeholder="AIzaSy..."
                 value={geminiKey}
                 onChange={(e) => setGeminiKey(e.target.value)}
+                disabled={isLoadingLLMKeys || isSavingLLMKeys}
               />
             </div>
             <div>
@@ -129,6 +201,7 @@ function ApiKeysForm() {
                 placeholder="sk-proj-..."
                 value={openaiKey}
                 onChange={(e) => setOpenaiKey(e.target.value)}
+                disabled={isLoadingLLMKeys || isSavingLLMKeys}
               />
             </div>
             <div>
@@ -138,11 +211,19 @@ function ApiKeysForm() {
                 placeholder="sk-ant-..."
                 value={claudeKey}
                 onChange={(e) => setClaudeKey(e.target.value)}
+                disabled={isLoadingLLMKeys || isSavingLLMKeys}
               />
             </div>
           </div>
-          <Button type="submit" className="gap-2 font-medium shrink-0 text-xs">
-            Save Provider Keys
+          <Button type="submit" disabled={isSavingLLMKeys || isLoadingLLMKeys} className="gap-2 font-medium shrink-0 text-xs">
+            {isSavingLLMKeys ? (
+              <>
+                <IconLoader2 className="size-3.5 animate-spin" />
+                Saving Keys...
+              </>
+            ) : (
+              "Save Provider Keys"
+            )}
           </Button>
         </form>
 
@@ -232,7 +313,7 @@ function ApiKeysForm() {
                       <IconTrash className="size-3.5" />
                       Revoke
                     </Button>
-                  </div>
+                    </div>
                 </div>
               ))}
             </div>
