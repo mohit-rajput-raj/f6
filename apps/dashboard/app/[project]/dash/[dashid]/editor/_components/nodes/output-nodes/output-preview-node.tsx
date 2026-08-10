@@ -42,11 +42,14 @@ export const OutputPreviewNode = memo(({ id, data }: { id: string; data: any }) 
     );
   }, [id, setNodes, previewEnabled]);
 
-  const updatePreviewName = useCallback((name: string) => {
+  const targetTabName: string = data.targetTabName || '';
+  const targetSheetName: string = data.targetSheetName || '';
+
+  const updateField = useCallback((field: string, value: string) => {
     setNodes(nds =>
       nds.map(n =>
         n.id === id
-          ? { ...n, data: { ...n.data, previewName: name } }
+          ? { ...n, data: { ...n.data, [field]: value } }
           : n
       )
     );
@@ -86,12 +89,37 @@ export const OutputPreviewNode = memo(({ id, data }: { id: string; data: any }) 
 
         <BaseNodeContent className="p-3 space-y-2">
           {/* Editable preview name */}
-          <Input
-            value={previewName}
-            onChange={(e) => updatePreviewName(e.target.value)}
-            className="h-6 text-xs border-dashed nodrag"
-            placeholder="Preview name..."
-          />
+          <div className="space-y-1">
+            <label className="text-[10px] text-muted-foreground font-medium">Output Name</label>
+            <Input
+              value={previewName}
+              onChange={(e) => updateField('previewName', e.target.value)}
+              className="h-6 text-xs border-dashed nodrag"
+              placeholder="Preview name..."
+            />
+          </div>
+
+          {/* Target Next Tab & Target Sub-Sheet Name */}
+          <div className="grid grid-cols-2 gap-1.5 pt-1 border-t">
+            <div>
+              <label className="text-[9px] text-muted-foreground font-medium">Target Next Tab</label>
+              <Input
+                value={targetTabName}
+                onChange={(e) => updateField('targetTabName', e.target.value)}
+                className="h-5 text-[10px] nodrag bg-zinc-900 border-zinc-800"
+                placeholder="e.g. Tab 2 (Auto)"
+              />
+            </div>
+            <div>
+              <label className="text-[9px] text-muted-foreground font-medium">Target Sheet Tab</label>
+              <Input
+                value={targetSheetName}
+                onChange={(e) => updateField('targetSheetName', e.target.value)}
+                className="h-5 text-[10px] nodrag bg-zinc-900 border-zinc-800"
+                placeholder="e.g. Sheet1, Sheet2"
+              />
+            </div>
+          </div>
 
           {!previewEnabled && (
             <div className="text-[10px] text-amber-500 bg-amber-50 dark:bg-amber-950 p-1.5 rounded text-center font-medium">

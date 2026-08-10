@@ -1,39 +1,31 @@
-import { prisma } from "@repo/db";
+import { supabase } from "@repo/db";
 
 export class WorkflowService {
   /**
    * List all top-level workflows for a user (excluding desk-block-editor internals).
    */
   async listWorkflows(userId: string) {
-    const workflows = await prisma.workflow.findMany({
-      where: {
-        userId,
-        NOT: {
-          tags: { has: "desk-block-editor" },
-        },
-      },
-      select: {
-        id: true,
-        name: true,
-        description: true,
-        isPublic: true,
-        isTemplate: true,
-        tags: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-      orderBy: { createdAt: "desc" },
-    });
-    return workflows;
+    const { data: workflows } = await supabase
+      .from("workflow")
+      .select("id, name, description, isPublic, isTemplate, tags, createdAt, updatedAt")
+      .eq("userId", userId)
+      .order("createdAt", { ascending: false });
+
+    return (workflows || []).filter(
+      (wf: any) => !wf.tags || !wf.tags.includes("desk-block-editor")
+    );
   }
 
   /**
    * Get a single workflow by ID.
    */
   async getWorkflow(workflowId: string) {
-    const workflow = await prisma.workflow.findUnique({
-      where: { id: workflowId },
-    });
+    const { data: workflow } = await supabase
+      .from("workflow")
+      .select("*")
+      .eq("id", workflowId)
+      .maybeSingle();
+
     if (!workflow) throw Object.assign(new Error("Workflow not found"), { statusCode: 404 });
     return workflow;
   }
@@ -51,26 +43,31 @@ export class WorkflowService {
       reactFlow: { nodes: [], edges: [], viewport: { x: 0, y: 0, zoom: 1 } },
     };
 
-    // If a template ID is provided, clone its definition
     if (data.templateId) {
-      const template = await prisma.workflow.findUnique({
-        where: { id: data.templateId },
-        select: { definition: true },
-      });
+      const { data: template } = await supabase
+        .from("workflow")
+        .select("definition")
+        .eq("id", data.templateId)
+        .maybeSingle();
+
       if (template?.definition) {
         definition = template.definition;
       }
     }
 
-    const workflow = await prisma.workflow.create({
-      data: {
+    const { data: workflow, error } = await supabase
+      .from("workflow")
+      .insert({
         userId,
         name: data.name,
         description: data.description,
         definition,
         tags: [],
-      },
-    });
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
     return workflow;
   }
 
@@ -87,35 +84,56 @@ export class WorkflowService {
       isTemplate?: boolean;
     }
   ) {
-    const workflow = await prisma.workflow.findUnique({
-      where: { id: workflowId },
-    });
+    const { data: workflow } = await supabase
+      .from("workflow")
+      .select("id")
+      .eq("id", workflowId)
+      .maybeSingle();
+
     if (!workflow) throw Object.assign(new Error("Workflow not found"), { statusCode: 404 });
 
-    return prisma.workflow.update({
-      where: { id: workflowId },
-      data: {
-        ...(data.name !== undefined && { name: data.name }),
-        ...(data.description !== undefined && { description: data.description }),
-        ...(data.definition !== undefined && { definition: data.definition }),
-        ...(data.isPublic !== undefined && { isPublic: data.isPublic }),
-        ...(data.isTemplate !== undefined && { isTemplate: data.isTemplate }),
-      },
-    });
+    const updateData: any = { updatedAt: new Date().toISOString() };
+    if (data.name !== undefined) updateData.name = data.name;
+    if (data.description !== undefined) updateData.description = data.description;
+    if (data.definition !== undefined) updateData.definition = data.definition;
+    if (data.isPublic !== undefined) updateData.isPublic = data.isPublic;
+    if (data.isTemplate !== undefined) updateData.isTemplate = data.isTemplate;
+
+    const { data: updated, error } = await supabase
+      .from("workflow")
+      .update(updateData)
+      .eq("id", workflowId)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return updated;
   }
 
   /**
    * Delete a workflow owned by the user.
    */
   async deleteWorkflow(userId: string, workflowId: string) {
-    const workflow = await prisma.workflow.findFirst({
-      where: { id: workflowId, userId },
-    });
+    const { data: workflow } = await supabase
+      .from("workflow")
+      .select("id")
+      .eq("id", workflowId)
+      .eq("userId", userId)
+      .maybeSingle();
+
     if (!workflow) throw Object.assign(new Error("Workflow not found or unauthorized"), { statusCode: 404 });
 
-    await prisma.workflow.delete({ where: { id: workflowId } });
+    const { data: deleted, error } = await supabase
+      .from("workflow")
+      .delete()
+      .eq("id", workflowId)
+      .select()
+      .single();
+
+    if (error) throw error;
     return { deleted: true };
   }
 }
 
 export const workflowService = new WorkflowService();
+

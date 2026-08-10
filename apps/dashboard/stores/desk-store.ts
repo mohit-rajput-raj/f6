@@ -44,6 +44,7 @@ export interface DeskBlockState {
   textInputs: DeskTextInput[];
   sheets: DeskSheet[];
   outputPreview: Dataset | null;
+  outputsByTab?: Record<string, Dataset>;
   checkboxFields: CheckboxField[];
   actionButtons: ActionButton[];
   isExecuting: boolean;
@@ -104,6 +105,7 @@ interface DeskState {
 
   // ─── Per-block Output Preview ───
   setBlockOutput: (blockId: string, data: Dataset | null) => void;
+  setTabOutput: (blockId: string, tabIdOrName: string, data: Dataset | null) => void;
 
   // ─── Per-block Checkbox Actions ───
   addCheckboxField: (blockId: string, field: CheckboxField) => void;
@@ -289,6 +291,24 @@ export const useDeskStore = create<DeskState>()((set, get) => ({
         ...b,
         outputPreview: data,
       })),
+    })),
+
+  setTabOutput: (blockId, tabIdOrName, data) =>
+    set((s) => ({
+      blocks: mapBlock(s.blocks, blockId, (b) => {
+        const currentOutputs = b.outputsByTab || {};
+        if (data === null) {
+          const { [tabIdOrName]: _, ...rest } = currentOutputs;
+          return { ...b, outputsByTab: rest };
+        }
+        return {
+          ...b,
+          outputsByTab: {
+            ...currentOutputs,
+            [tabIdOrName]: data,
+          },
+        };
+      }),
     })),
 
   // ─── Checkbox Actions ──────────────────────────────────────

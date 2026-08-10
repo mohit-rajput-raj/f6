@@ -1,6 +1,6 @@
 "use server";
 
-import { prisma } from "@repo/db";
+import { supabase } from "@repo/db";
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -9,25 +9,22 @@ function isValidUuid(id?: string): boolean {
 }
 
 export async function getDataLibraryFiles(dashid?: string, userId?: string) {
-  const whereConditions: any[] = [];
   const userIds = new Set<string>();
 
   if (userId && userId.trim() !== "") {
     userIds.add(userId.trim());
   }
 
-  if (dashid && dashid.trim() !== "") {
-    const trimmedDashid = dashid.trim();
-    if (isValidUuid(trimmedDashid)) {
-      whereConditions.push({ workflowId: trimmedDashid });
-    }
+  const validWorkflowId = dashid && isValidUuid(dashid.trim()) ? dashid.trim() : null;
 
+  if (validWorkflowId) {
     try {
-      const shares = await prisma.deskShare.findMany({
-        where: { projectWorkflowId: trimmedDashid },
-        select: { invitedUserId: true },
-      });
-      shares.forEach((s) => {
+      const { data: shares } = await supabase
+        .from("desk_share")
+        .select("invitedUserId")
+        .eq("projectWorkflowId", validWorkflowId);
+
+      (shares || []).forEach((s: any) => {
         if (s.invitedUserId) userIds.add(s.invitedUserId);
       });
     } catch (e) {
@@ -35,35 +32,36 @@ export async function getDataLibraryFiles(dashid?: string, userId?: string) {
     }
   }
 
+  let query = supabase
+    .from("data_library_file")
+    .select("id, name, description, fileType, metadata, createdAt, updatedAt, workflowId")
+    .order("updatedAt", { ascending: false });
+
+  const conditions: string[] = [];
+  if (validWorkflowId) {
+    conditions.push(`workflowId.eq.${validWorkflowId}`);
+  }
   if (userIds.size > 0) {
-    whereConditions.push({ userId: { in: Array.from(userIds) } });
+    conditions.push(`userId.in.(${Array.from(userIds).join(",")})`);
   }
 
-  if (whereConditions.length === 0) return [];
+  if (conditions.length === 0) return [];
 
-  return prisma.dataLibraryFile.findMany({
-    where: {
-      OR: whereConditions,
-    },
-    select: {
-      id: true,
-      name: true,
-      description: true,
-      fileType: true,
-      metadata: true,
-      createdAt: true,
-      updatedAt: true,
-      workflowId: true,
-    },
-    orderBy: { updatedAt: "desc" },
-  });
+  query = query.or(conditions.join(","));
+
+  const { data } = await query;
+  return data || [];
 }
 
 export async function getDataLibraryFile(id: string, userId?: string) {
   if (!isValidUuid(id)) return null;
-  return prisma.dataLibraryFile.findFirst({
-    where: { id },
-  });
+  const { data } = await supabase
+    .from("data_library_file")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+
+  return data;
 }
 
 export async function createDataLibraryFile({
@@ -83,8 +81,9 @@ export async function createDataLibraryFile({
   metadata?: any;
   workflowId?: string;
 }) {
-  return prisma.dataLibraryFile.create({
-    data: {
+  const { data: newFile, error } = await supabase
+    .from("data_library_file")
+    .insert({
       userId,
       name,
       description,
@@ -92,8 +91,12 @@ export async function createDataLibraryFile({
       data,
       metadata,
       workflowId: isValidUuid(workflowId) ? workflowId : null,
-    },
-  });
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return newFile;
 }
 
 export async function updateDataLibraryFile(
@@ -107,20 +110,34 @@ export async function updateDataLibraryFile(
   }
 ) {
   if (!isValidUuid(id)) throw new Error("File not found");
-  const file = await prisma.dataLibraryFile.findFirst({ where: { id } });
+  const { data: file } = await supabase.from("data_library_file").select("*").eq("id", id).maybeSingle();
   if (!file) throw new Error("File not found");
 
-  return prisma.dataLibraryFile.update({
-    where: { id },
-    data: updates,
-  });
+  const { data: updated, error } = await supabase
+    .from("data_library_file")
+    .update({ ...updates, updatedAt: new Date().toISOString() })
+    .eq("id", id)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return updated;
 }
 
 export async function deleteDataLibraryFile(id: string, userId?: string) {
   if (!isValidUuid(id)) throw new Error("File not found");
-  const file = await prisma.dataLibraryFile.findFirst({ where: { id } });
+  const { data: file } = await supabase.from("data_library_file").select("*").eq("id", id).maybeSingle();
   if (!file) throw new Error("File not found");
 
-  return prisma.dataLibraryFile.delete({ where: { id } });
+  const { data: deleted, error } = await supabase
+    .from("data_library_file")
+    .delete()
+    .eq("id", id)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return deleted;
 }
+
 

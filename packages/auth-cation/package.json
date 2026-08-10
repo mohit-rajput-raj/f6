@@ -14,8 +14,10 @@
     "@better-auth/prisma-adapter": "^1.5.4",
     "@repo/db": "workspace:*",
     "@repo/typescript-config": "workspace:*",
+    "@types/pg": "^8.20.0",
     "better-auth": "1.4.17",
     "dotenv": "^17.2.3",
+    "pg": "^8.23.0",
     "server-only": "0.0.1"
   },
   "devDependencies": {

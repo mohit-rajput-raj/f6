@@ -1,23 +1,23 @@
-import { PrismaClient } from "./generated/prisma/client";
-import { PrismaPg } from "@prisma/adapter-pg";
-import { Pool } from "pg";
+import { createClient } from "@supabase/supabase-js";
+import "dotenv/config";
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
+const supabaseUrl =
+  process.env.NEXT_PUBLIC_SUPABASE_URL ||
+  process.env.SUPABASE_URL ||
+  "https://tmrqimcwrgyqaanrlvos.supabase.co";
+
+const supabaseKey =
+  process.env.SUPABASE_SERVICE_ROLE_KEY ||
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+  "sb_publishable_LO9lJb89J7WKuQmG4gVJrQ_u5OFsbo2";
+
+export const supabase = createClient(supabaseUrl, supabaseKey, {
+  auth: {
+    persistSession: false,
+    autoRefreshToken: false,
+  },
 });
 
-const adapter = new PrismaPg(pool);
+export const prisma = supabase as any;
 
-const globalForPrisma = global as {
-  prisma?: PrismaClient;
-};
-
-// Force new instance to ensure newly generated Prisma Client models/fields are picked up
-export const prisma =
-  new PrismaClient({
-    adapter,
-  });
-
-if (process.env.NODE_ENV !== "production") {
-  globalForPrisma.prisma = prisma;
-}

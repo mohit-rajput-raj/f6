@@ -1,26 +1,29 @@
-import { prisma } from "@repo/db";
+import { supabase } from "@repo/db";
 
 export class DeskService {
   /**
    * Get all blocks for a project workflow, organized as a tree.
    */
   async getBlocks(projectWorkflowId: string) {
-    const blocks = await prisma.deskBlock.findMany({
-      where: { projectWorkflowId },
-      orderBy: { blockOrder: "asc" },
-      include: { children: { orderBy: { blockOrder: "asc" } } },
-    });
-    return blocks;
+    const { data: blocks } = await supabase
+      .from("desk_block")
+      .select("*")
+      .eq("projectWorkflowId", projectWorkflowId)
+      .order("blockOrder", { ascending: true });
+
+    return blocks || [];
   }
 
   /**
    * Get a single desk block by ID.
    */
   async getBlock(blockId: string) {
-    const block = await prisma.deskBlock.findUnique({
-      where: { id: blockId },
-      include: { children: { orderBy: { blockOrder: "asc" } } },
-    });
+    const { data: block } = await supabase
+      .from("desk_block")
+      .select("*")
+      .eq("id", blockId)
+      .maybeSingle();
+
     if (!block) throw Object.assign(new Error("Block not found"), { statusCode: 404 });
     return block;
   }
@@ -29,13 +32,14 @@ export class DeskService {
    * Reorder desk blocks within a project workflow.
    */
   async reorderBlocks(projectWorkflowId: string, orderedIds: string[]) {
-    const updates = orderedIds.map((id, index) =>
-      prisma.deskBlock.update({
-        where: { id },
-        data: { blockOrder: index },
-      })
+    await Promise.all(
+      orderedIds.map((id, index) =>
+        supabase
+          .from("desk_block")
+          .update({ blockOrder: index, updatedAt: new Date().toISOString() })
+          .eq("id", id)
+      )
     );
-    await prisma.$transaction(updates);
     return { success: true, count: orderedIds.length };
   }
 
@@ -47,26 +51,32 @@ export class DeskService {
     userId: string,
     opts?: { parentId?: string; blockOrder?: number }
   ) {
-    const maxBlock = await prisma.deskBlock.findFirst({
-      where: { projectWorkflowId },
-      orderBy: { blockOrder: "desc" },
-      select: { blockOrder: true },
-    });
+    const { data: maxBlocks } = await supabase
+      .from("desk_block")
+      .select("blockOrder")
+      .eq("projectWorkflowId", projectWorkflowId)
+      .order("blockOrder", { ascending: false })
+      .limit(1);
+
+    const maxBlock = maxBlocks && maxBlocks.length > 0 ? maxBlocks[0] : null;
     const order = opts?.blockOrder ?? (maxBlock ? maxBlock.blockOrder + 1 : 0);
 
     // Determine tree depth from parent
     let treeDepth = 0;
     if (opts?.parentId) {
-      const parent = await prisma.deskBlock.findUnique({
-        where: { id: opts.parentId },
-        select: { treeDepth: true },
-      });
+      const { data: parent } = await supabase
+        .from("desk_block")
+        .select("treeDepth")
+        .eq("id", opts.parentId)
+        .maybeSingle();
+
       treeDepth = (parent?.treeDepth ?? 0) + 1;
     }
 
     // Create a workflow for this block's editor
-    const editorWorkflow = await prisma.workflow.create({
-      data: {
+    const { data: editorWorkflow, error: wfErr } = await supabase
+      .from("workflow")
+      .insert({
         userId,
         name: `Block ${order + 1} Editor`,
         definition: {
@@ -74,11 +84,15 @@ export class DeskService {
           reactFlow: { nodes: [], edges: [], viewport: { x: 0, y: 0, zoom: 1 } },
         },
         tags: ["desk-block-editor"],
-      },
-    });
+      })
+      .select()
+      .single();
 
-    const block = await prisma.deskBlock.create({
-      data: {
+    if (wfErr) throw wfErr;
+
+    const { data: block, error: blockErr } = await supabase
+      .from("desk_block")
+      .insert({
         projectWorkflowId,
         editorWorkflowId: editorWorkflow.id,
         blockOrder: order,
@@ -87,9 +101,11 @@ export class DeskService {
         textInputs: [],
         sheets: [],
         checkboxFields: [],
-      },
-    });
+      })
+      .select()
+      .single();
 
+    if (blockErr) throw blockErr;
     return block;
   }
 
@@ -100,24 +116,35 @@ export class DeskService {
     blockId: string,
     data: { textInputs?: any; sheets?: any; checkboxFields?: any }
   ) {
-    return prisma.deskBlock.update({
-      where: { id: blockId },
-      data: {
-        ...(data.textInputs !== undefined && { textInputs: data.textInputs }),
-        ...(data.sheets !== undefined && { sheets: data.sheets }),
-        ...(data.checkboxFields !== undefined && { checkboxFields: data.checkboxFields }),
-      },
-    });
+    const updateData: any = { updatedAt: new Date().toISOString() };
+    if (data.textInputs !== undefined) updateData.textInputs = data.textInputs;
+    if (data.sheets !== undefined) updateData.sheets = data.sheets;
+    if (data.checkboxFields !== undefined) updateData.checkboxFields = data.checkboxFields;
+
+    const { data: updated, error } = await supabase
+      .from("desk_block")
+      .update(updateData)
+      .eq("id", blockId)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return updated;
   }
 
   /**
    * Update block output preview after execution.
    */
   async updateBlockOutput(blockId: string, outputPreview: any) {
-    return prisma.deskBlock.update({
-      where: { id: blockId },
-      data: { outputPreview },
-    });
+    const { data, error } = await supabase
+      .from("desk_block")
+      .update({ outputPreview, updatedAt: new Date().toISOString() })
+      .eq("id", blockId)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
   }
 
   /**
@@ -130,24 +157,28 @@ export class DeskService {
     outputData: { columns: string[]; data: any[][] },
     userEmail?: string
   ) {
-    const block = await prisma.deskBlock.findUnique({
-      where: { id: blockId },
-      select: { reservedColumns: true },
-    });
+    const { data: block } = await supabase
+      .from("desk_block")
+      .select("reservedColumns")
+      .eq("id", blockId)
+      .maybeSingle();
+
     if (!block) throw Object.assign(new Error("Block not found"), { statusCode: 404 });
 
-    // If userEmail provided, check if user is a collaborator with restricted columns
-    let allowedColumns = block.reservedColumns;
+    let allowedColumns = block.reservedColumns || [];
     if (userEmail) {
-      const share = await prisma.deskShare.findFirst({
-        where: { masterSheetId, invitedEmail: userEmail },
-      });
-      if (share && share.reservedColumns.length > 0) {
+      const { data: share } = await supabase
+        .from("desk_share")
+        .select("reservedColumns")
+        .eq("masterSheetId", masterSheetId)
+        .ilike("invitedEmail", userEmail)
+        .maybeSingle();
+
+      if (share && share.reservedColumns && share.reservedColumns.length > 0) {
         allowedColumns = share.reservedColumns;
       }
     }
 
-    // Validate that the output columns are within the authorized columns
     if (allowedColumns.length > 0) {
       const unauthorized = outputData.columns.filter(
         (col) => !allowedColumns.includes(col)
@@ -160,19 +191,19 @@ export class DeskService {
       }
     }
 
-    // Read existing master sheet data
-    const masterSheet = await prisma.masterSheet.findUnique({
-      where: { id: masterSheetId },
-    });
+    const { data: masterSheet } = await supabase
+      .from("master_sheet")
+      .select("*")
+      .eq("id", masterSheetId)
+      .maybeSingle();
+
     if (!masterSheet) throw Object.assign(new Error("MasterSheet not found"), { statusCode: 404 });
 
     const existing = (masterSheet.data as any) || { columns: [], data: [] };
     const mergedColumns = [...new Set([...existing.columns, ...outputData.columns])];
 
-    // Merge data by adding/updating the reserved columns
     const mergedData = existing.data.map((row: any[], rowIdx: number) => {
       const newRow = [...row];
-      // Pad row to match new column count
       while (newRow.length < mergedColumns.length) newRow.push(null);
 
       outputData.columns.forEach((col) => {
@@ -185,7 +216,6 @@ export class DeskService {
       return newRow;
     });
 
-    // If output has more rows than existing, append them
     for (let i = existing.data.length; i < outputData.data.length; i++) {
       const newRow = new Array(mergedColumns.length).fill(null);
       const row = outputData.data[i];
@@ -200,28 +230,25 @@ export class DeskService {
       mergedData.push(newRow);
     }
 
-    // Save merged data back
-    await prisma.masterSheet.update({
-      where: { id: masterSheetId },
-      data: {
+    await supabase
+      .from("master_sheet")
+      .update({
         data: { columns: mergedColumns, data: mergedData },
         metadata: {
           rowCount: mergedData.length,
           colCount: mergedColumns.length,
           lastMergedAt: new Date().toISOString(),
         },
-      },
-    });
+        updatedAt: new Date().toISOString(),
+      })
+      .eq("id", masterSheetId);
 
-    // Record history
-    await prisma.masterSheetHistory.create({
-      data: {
-        masterSheetId,
-        userId: "system",
-        userName: "Block Commit",
-        action: "merge",
-        changeSummary: `Committed ${outputData.columns.length} columns from block ${blockId}`,
-      },
+    await supabase.from("master_sheet_history").insert({
+      masterSheetId,
+      userId: "system",
+      userName: "Block Commit",
+      action: "merge",
+      changeSummary: `Committed ${outputData.columns.length} columns from block ${blockId}`,
     });
 
     return { success: true, columns: mergedColumns.length, rows: mergedData.length };
@@ -231,16 +258,19 @@ export class DeskService {
    * Delete a desk block and its associated editor workflow.
    */
   async deleteBlock(blockId: string) {
-    const block = await prisma.deskBlock.findUnique({
-      where: { id: blockId },
-      select: { editorWorkflowId: true },
-    });
+    const { data: block } = await supabase
+      .from("desk_block")
+      .select("editorWorkflowId")
+      .eq("id", blockId)
+      .maybeSingle();
+
     if (!block) throw Object.assign(new Error("Block not found"), { statusCode: 404 });
 
-    await prisma.deskBlock.delete({ where: { id: blockId } });
-    await prisma.workflow.delete({ where: { id: block.editorWorkflowId } }).catch(() => {});
+    await supabase.from("desk_block").delete().eq("id", blockId);
+    await supabase.from("workflow").delete().eq("id", block.editorWorkflowId);
     return { deleted: true };
   }
 }
 
 export const deskService = new DeskService();
+

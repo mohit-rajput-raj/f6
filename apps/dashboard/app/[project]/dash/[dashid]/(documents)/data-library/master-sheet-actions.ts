@@ -1,30 +1,18 @@
 "use server";
 
-import { prisma } from "@repo/db";
+import { supabase } from "@repo/db";
 
 export async function getMasterSheets(dashid?: string, userId?: string, userEmail?: string) {
   const sheetMap = new Map<string, any>();
 
   // 1. Fetch master sheets explicitly linked to this desk (projectWorkflowId) via DeskShare
   if (dashid && dashid.trim() !== "") {
-    const sharesForDesk = await prisma.deskShare.findMany({
-      where: { projectWorkflowId: dashid.trim() },
-      include: {
-        masterSheet: {
-          select: {
-            id: true,
-            userId: true,
-            name: true,
-            data: true,
-            metadata: true,
-            createdAt: true,
-            updatedAt: true,
-          },
-        },
-      },
-    });
+    const { data: sharesForDesk } = await supabase
+      .from("desk_share")
+      .select("*, masterSheet:master_sheet(*)")
+      .eq("projectWorkflowId", dashid.trim());
 
-    sharesForDesk.forEach((s) => {
+    (sharesForDesk || []).forEach((s: any) => {
       if (s.masterSheet) {
         const isOwner = userId ? s.masterSheet.userId === userId : false;
         sheetMap.set(s.masterSheet.id, {
@@ -38,21 +26,13 @@ export async function getMasterSheets(dashid?: string, userId?: string, userEmai
 
   // 2. Fetch master sheets owned by userId
   if (userId && userId.trim() !== "") {
-    const ownSheets = await prisma.masterSheet.findMany({
-      where: { userId: userId.trim() },
-      select: {
-        id: true,
-        userId: true,
-        name: true,
-        data: true,
-        metadata: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-      orderBy: { updatedAt: "desc" },
-    });
+    const { data: ownSheets } = await supabase
+      .from("master_sheet")
+      .select("*")
+      .eq("userId", userId.trim())
+      .order("updatedAt", { ascending: false });
 
-    ownSheets.forEach((s) => {
+    (ownSheets || []).forEach((s: any) => {
       sheetMap.set(s.id, {
         ...s,
         isOwner: true,
@@ -63,24 +43,12 @@ export async function getMasterSheets(dashid?: string, userId?: string, userEmai
 
   // 3. Fetch master sheets shared with userEmail
   if (userEmail && userEmail.trim() !== "") {
-    const sharedEntries = await prisma.deskShare.findMany({
-      where: { invitedEmail: { equals: userEmail.trim(), mode: "insensitive" } },
-      include: {
-        masterSheet: {
-          select: {
-            id: true,
-            userId: true,
-            name: true,
-            data: true,
-            metadata: true,
-            createdAt: true,
-            updatedAt: true,
-          },
-        },
-      },
-    });
+    const { data: sharedEntries } = await supabase
+      .from("desk_share")
+      .select("*, masterSheet:master_sheet(*)")
+      .ilike("invitedEmail", userEmail.trim());
 
-    sharedEntries.forEach((s) => {
+    (sharedEntries || []).forEach((s: any) => {
       if (s.masterSheet) {
         const isOwner = userId ? s.masterSheet.userId === userId : false;
         if (!sheetMap.has(s.masterSheet.id)) {
@@ -98,25 +66,38 @@ export async function getMasterSheets(dashid?: string, userId?: string, userEmai
 }
 
 export async function getMasterSheet(id: string, userId?: string) {
-  return prisma.masterSheet.findFirst({
-    where: { id },
-  });
+  const { data, error } = await supabase
+    .from("master_sheet")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (error) {
+    console.error("Error fetching master sheet:", error);
+    return null;
+  }
+  return data;
 }
 
 export async function getMasterSheetByName(name: string, userId?: string, dashid?: string) {
   if (dashid) {
-    const deskShare = await prisma.deskShare.findFirst({
-      where: { projectWorkflowId: dashid, masterSheet: { name } },
-      include: { masterSheet: true },
-    });
-    if (deskShare?.masterSheet) {
-      return deskShare.masterSheet;
+    const { data: shares } = await supabase
+      .from("desk_share")
+      .select("*, masterSheet:master_sheet(*)")
+      .eq("projectWorkflowId", dashid);
+
+    const match = (shares || []).find((s: any) => s.masterSheet?.name === name);
+    if (match?.masterSheet) {
+      return match.masterSheet;
     }
   }
 
-  return prisma.masterSheet.findFirst({
-    where: userId ? { name, userId } : { name },
-  });
+  let query = supabase.from("master_sheet").select("*").eq("name", name);
+  if (userId) {
+    query = query.eq("userId", userId);
+  }
+  const { data } = await query.maybeSingle();
+  return data;
 }
 
 export async function createMasterSheet({
@@ -132,22 +113,27 @@ export async function createMasterSheet({
   metadata?: any;
   dashid?: string;
 }) {
-  const sheet = await prisma.masterSheet.create({
-    data: { userId, name, data, metadata },
-  });
+  const { data: sheet, error } = await supabase
+    .from("master_sheet")
+    .insert({ userId, name, data, metadata })
+    .select()
+    .single();
 
-  if (dashid) {
+  if (error) {
+    console.error("Failed to create master sheet:", error);
+    throw error;
+  }
+
+  if (dashid && sheet) {
     try {
-      const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
-      await prisma.deskShare.create({
-        data: {
-          masterSheetId: sheet.id,
-          projectWorkflowId: dashid,
-          invitedEmail: user?.email || "owner@desk.com",
-          invitedUserId: userId,
-          permission: "editor",
-          status: "accepted",
-        },
+      const { data: user } = await supabase.from("user").select("email").eq("id", userId).maybeSingle();
+      await supabase.from("desk_share").insert({
+        masterSheetId: sheet.id,
+        projectWorkflowId: dashid,
+        invitedEmail: user?.email || "owner@desk.com",
+        invitedUserId: userId,
+        permission: "editor",
+        status: "accepted",
       });
     } catch (e) {
       console.warn("Could not create desk share link for master sheet:", e);
@@ -162,9 +148,18 @@ export async function updateMasterSheet(
   userId: string,
   updates: { name?: string; data?: any; metadata?: any }
 ) {
-  const sheet = await prisma.masterSheet.findFirst({ where: { id } });
+  const { data: sheet } = await supabase.from("master_sheet").select("*").eq("id", id).maybeSingle();
   if (!sheet) throw new Error("Master sheet not found");
-  return prisma.masterSheet.update({ where: { id }, data: updates });
+
+  const { data: updated, error } = await supabase
+    .from("master_sheet")
+    .update({ ...updates, updatedAt: new Date().toISOString() })
+    .eq("id", id)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return updated;
 }
 
 /** Upsert by name: if a master sheet with this name exists for the user or desk, update it; otherwise create it. */
@@ -185,32 +180,37 @@ export async function upsertMasterSheetByName({
 
   let sheet;
   if (existing) {
-    sheet = await prisma.masterSheet.update({
-      where: { id: existing.id },
-      data: { data, metadata, updatedAt: new Date() },
-    });
+    const { data: updated, error } = await supabase
+      .from("master_sheet")
+      .update({ data, metadata, updatedAt: new Date().toISOString() })
+      .eq("id", existing.id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    sheet = updated;
   } else {
-    sheet = await prisma.masterSheet.create({
-      data: { userId, name, data, metadata },
-    });
+    sheet = await createMasterSheet({ userId, name, data, metadata, dashid });
   }
 
   if (dashid && sheet) {
     try {
-      const existingShare = await prisma.deskShare.findFirst({
-        where: { masterSheetId: sheet.id, projectWorkflowId: dashid },
-      });
+      const { data: existingShare } = await supabase
+        .from("desk_share")
+        .select("*")
+        .eq("masterSheetId", sheet.id)
+        .eq("projectWorkflowId", dashid)
+        .maybeSingle();
+
       if (!existingShare) {
-        const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
-        await prisma.deskShare.create({
-          data: {
-            masterSheetId: sheet.id,
-            projectWorkflowId: dashid,
-            invitedEmail: user?.email || "owner@desk.com",
-            invitedUserId: userId,
-            permission: "editor",
-            status: "accepted",
-          },
+        const { data: user } = await supabase.from("user").select("email").eq("id", userId).maybeSingle();
+        await supabase.from("desk_share").insert({
+          masterSheetId: sheet.id,
+          projectWorkflowId: dashid,
+          invitedEmail: user?.email || "owner@desk.com",
+          invitedUserId: userId,
+          permission: "editor",
+          status: "accepted",
         });
       }
     } catch (e) {
@@ -222,9 +222,12 @@ export async function upsertMasterSheetByName({
 }
 
 export async function deleteMasterSheet(id: string, userId?: string) {
-  const sheet = await prisma.masterSheet.findFirst({ where: { id } });
+  const { data: sheet } = await supabase.from("master_sheet").select("*").eq("id", id).maybeSingle();
   if (!sheet) throw new Error("Master sheet not found");
-  return prisma.masterSheet.delete({ where: { id } });
+
+  const { data, error } = await supabase.from("master_sheet").delete().eq("id", id).select().single();
+  if (error) throw error;
+  return data;
 }
 
 export async function addMasterSheetHistory({
@@ -244,8 +247,9 @@ export async function addMasterSheetHistory({
   dataAfter?: any;
   changeSummary?: string;
 }) {
-  return prisma.masterSheetHistory.create({
-    data: {
+  const { data, error } = await supabase
+    .from("master_sheet_history")
+    .insert({
       masterSheetId,
       userId,
       userName,
@@ -253,34 +257,47 @@ export async function addMasterSheetHistory({
       dataBefore,
       dataAfter,
       changeSummary,
-    },
-  });
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
 }
 
 export async function getMasterSheetHistory(masterSheetId: string) {
-  return prisma.masterSheetHistory.findMany({
-    where: { masterSheetId },
-    orderBy: { createdAt: "desc" },
-    take: 50,
-  });
+  const { data } = await supabase
+    .from("master_sheet_history")
+    .select("*")
+    .eq("masterSheetId", masterSheetId)
+    .order("createdAt", { ascending: false })
+    .limit(50);
+
+  return data || [];
 }
 
 export async function checkIsDeskOwner(dashid?: string, userId?: string): Promise<boolean> {
   if (!dashid || !userId) return false;
   try {
-    const workflow = await prisma.workflow.findUnique({
-      where: { id: dashid.trim() },
-      select: { userId: true },
-    });
+    const { data: workflow } = await supabase
+      .from("workflow")
+      .select("userId")
+      .eq("id", dashid.trim())
+      .maybeSingle();
+
     if (workflow && workflow.userId === userId) return true;
 
     // Fallback check masterSheet owner linked to desk
-    const share = await prisma.deskShare.findFirst({
-      where: { projectWorkflowId: dashid.trim(), masterSheet: { userId } },
-    });
-    return !!share;
+    const { data: shares } = await supabase
+      .from("desk_share")
+      .select("*, masterSheet:master_sheet(userId)")
+      .eq("projectWorkflowId", dashid.trim());
+
+    const isOwner = (shares || []).some((s: any) => s.masterSheet?.userId === userId);
+    return isOwner;
   } catch (e) {
     console.warn("Owner check warning:", e);
     return false;
   }
 }
+
