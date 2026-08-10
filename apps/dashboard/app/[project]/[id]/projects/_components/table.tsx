@@ -22,6 +22,8 @@ import {
   X,
 } from "lucide-react";
 
+import MasterSheetPanelCustom from "./MasterSheetPanelCustom";
+
 const SpreadsheetComponent = dynamic(
   () => import("@syncfusion/ej2-react-spreadsheet").then((m) => m.SpreadsheetComponent),
   { ssr: false }
@@ -330,66 +332,19 @@ export const ProjectList = () => {
 };
 const TEMPLATE_OPTIONS = [
   {
-    id: "academic",
-    name: "Academic Grade Sheet",
-    description: "For marks, subjects, and student GPA tracking.",
-    icon: GraduationCap,
-    columns: ["Roll_No", "Student_Name", "Subject", "Marks_Obtained", "Max_Marks", "Grade"],
-    sampleRows: [
-      ["101", "Alice Smith", "Mathematics", "92", "100", "A+"],
-      ["102", "Bob Johnson", "Mathematics", "78", "100", "B"],
-      ["103", "Charlie Brown", "Physics", "85", "100", "A"],
-    ],
-  },
-  {
-    id: "attendance",
-    name: "Attendance Tracker",
-    description: "Daily attendance with presence summary.",
-    icon: Calendar,
-    columns: ["Roll_No", "Student_Name", "Date", "Status", "Total_Present", "Total_Absent"],
-    sampleRows: [
-      ["101", "Alice Smith", "2026-08-10", "Present", "18", "2"],
-      ["102", "Bob Johnson", "2026-08-10", "Absent", "15", "5"],
-    ],
-  },
-  {
-    id: "inventory",
-    name: "Inventory Manager",
-    description: "Track items, stock, unit prices, and total value.",
-    icon: Package,
-    columns: ["Item_Code", "Item_Name", "Category", "Quantity", "Unit_Price", "Total_Value"],
-    sampleRows: [
-      ["INV-001", "Laptop Pro 15", "Electronics", "25", "1200", "30000"],
-      ["INV-002", "Wireless Mouse", "Accessories", "150", "25", "3750"],
-    ],
-  },
-  {
-    id: "default",
-    name: "Default Sheet",
-    description: "Standard multi-purpose sheet structure.",
-    icon: TableIcon,
-    columns: ["ID", "Name", "Category", "Status", "Date"],
-    sampleRows: [
-      ["1", "Sample Record 1", "General", "Active", "2026-08-10"],
-      ["2", "Sample Record 2", "General", "Pending", "2026-08-10"],
-    ],
-  },
-  {
     id: "custom",
-    name: "Custom Sheet",
-    description: "Customize columns and data directly on live sheet.",
+    name: "Custom Blank Sheet",
+    description: "Start with a clean blank sheet and customize headers and data freely.",
     icon: FileSpreadsheet,
     columns: [],
-    sampleRows: [[]],
+    sampleRows: [],
   },
 ];
 
 export const CreateWorkFlow = () => {
-  const [selectedTemplateId, setSelectedTemplateId] = useState("academic");
-  const [customColumns, setCustomColumns] = useState<string[]>([]);
-  const [customRows, setCustomRows] = useState<string[][]>([[]]);
   const [open, setOpen] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>("custom");
   const spreadsheetRef = useRef<any>(null);
 
   useEffect(() => {
@@ -408,38 +363,6 @@ export const CreateWorkFlow = () => {
       name: "",
     },
   });
-
-  const selectedTpl = TEMPLATE_OPTIONS.find((t) => t.id === selectedTemplateId) || TEMPLATE_OPTIONS[0];
-
-  // Auto-populate Syncfusion Spreadsheet preview
-  useEffect(() => {
-    if (!open || !spreadsheetRef.current || !selectedTpl) return;
-    const timer = setTimeout(() => {
-      const ss = spreadsheetRef.current;
-      if (!ss || !ss.updateCell) return;
-      try {
-        const cols = selectedTemplateId === "custom" ? customColumns : selectedTpl.columns;
-        const rows = selectedTemplateId === "custom" ? customRows : selectedTpl.sampleRows;
-
-        cols.forEach((col, colIdx) => {
-          const cellAddr = `${colLetter(colIdx)}1`;
-          ss.updateCell(
-            { value: col, style: { fontWeight: "bold", backgroundColor: "#e2e8f0" } },
-            cellAddr
-          );
-        });
-        rows.forEach((row, rowIdx) => {
-          row.forEach((cell: any, colIdx: number) => {
-            const cellAddr = `${colLetter(colIdx)}${rowIdx + 2}`;
-            ss.updateCell({ value: String(cell ?? "") }, cellAddr);
-          });
-        });
-      } catch (err) {
-        console.warn("Syncfusion preview update warning:", err);
-      }
-    }, 400);
-    return () => clearTimeout(timer);
-  }, [open, selectedTemplateId, selectedTpl, customColumns, customRows]);
 
   const mutation = useMutation({
     mutationFn: async ({
@@ -461,116 +384,96 @@ export const CreateWorkFlow = () => {
     },
   });
 
+  // On submit: read sheet data from ref and pass columns + data
   const handleCreateSubmit = (data: CreateWorkFlowFormProps) => {
     if (!userId) return;
 
     let columns: string[] = [];
-    let sampleData: any[][] = [];
-
-    if (selectedTemplateId === "custom") {
-      const ss = spreadsheetRef.current;
-      if (ss && ss.getActiveSheet) {
-        try {
-          const sheet = ss.getActiveSheet();
-          const sheetRows = sheet?.rows || [];
-          if (sheetRows[0]?.cells) {
-            columns = sheetRows[0].cells
-              .map((c: any) => c?.value ?? "")
-              .filter((v: string) => String(v).trim() !== "");
-          }
-          for (let r = 1; r < sheetRows.length; r++) {
-            const row = sheetRows[r];
-            if (!row?.cells) continue;
-            const rowData = row.cells
-              .slice(0, columns.length)
-              .map((c: any) => c?.value ?? "");
-            if (rowData.some((v: string) => String(v).trim() !== "")) {
-              sampleData.push(rowData);
-            }
-          }
-        } catch (err) {
-          console.warn("Custom spreadsheet submit extraction warning:", err);
-        }
-      }
-
-      if (columns.length === 0) {
-        columns = customColumns.filter((c) => c.trim() !== "");
-        sampleData = customRows;
-      }
-    } else {
-      columns = selectedTpl.columns;
-      sampleData = selectedTpl.sampleRows;
-    }
-
-    mutation.mutate({
-      id: userId,
-      name: data.name,
-      templateData: { columns, data: sampleData },
-    });
-  };
-
-  // Export custom template as JSON file — reads live data from Syncfusion spreadsheet
-  const handleExportTemplate = () => {
-    let columns: string[] = [];
-    let rows: string[][] = [];
+    let rows: any[][] = [];
 
     const ss = spreadsheetRef.current;
-    if (ss && ss.getActiveSheet) {
+    if (ss?.getActiveSheet) {
       try {
         const sheet = ss.getActiveSheet();
         const sheetRows = sheet?.rows || [];
-
-        // Row 0 = headers
-        const headerRow = sheetRows[0];
-        if (headerRow?.cells) {
-          columns = headerRow.cells
+        if (sheetRows[0]?.cells) {
+          columns = sheetRows[0].cells
             .map((c: any) => c?.value ?? "")
-            .filter((v: string) => v.trim() !== "");
+            .filter((v: string) => String(v).trim() !== "");
         }
-
-        // Row 1+ = data rows
         for (let r = 1; r < sheetRows.length; r++) {
           const row = sheetRows[r];
           if (!row?.cells) continue;
           const rowData = row.cells
             .slice(0, columns.length)
             .map((c: any) => c?.value ?? "");
-          if (rowData.some((v: string) => v.trim() !== "")) {
+          if (rowData.some((v: string) => String(v).trim() !== "")) {
             rows.push(rowData);
           }
         }
       } catch (err) {
-        console.warn("Failed to read spreadsheet data for export:", err);
+        console.warn("Sheet read error:", err);
       }
     }
 
-    // Fallback to React state if spreadsheet extraction failed
-    if (columns.length === 0) {
-      columns = customColumns;
-      rows = customRows;
-    }
-
-    if (columns.length === 0) {
-      alert("No columns to export. Add some headers in the spreadsheet first.");
-      return;
-    }
-
-    const templateData = {
-      name: "Custom Template",
-      columns,
-      sampleRows: rows,
-      exportedAt: new Date().toISOString(),
-    };
-    const blob = new Blob([JSON.stringify(templateData, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `template-${Date.now()}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
+    mutation.mutate({
+      id: userId,
+      name: data.name,
+      templateData: { columns, data: rows },
+    });
   };
 
-  // Import custom template from JSON file — clears sheet then maps all data
+  // Export: use Syncfusion's native saveAsJson — dumps entire spreadsheet state
+  const handleExportTemplate = async () => {
+    const ss = spreadsheetRef.current;
+    if (!ss) {
+      alert("Spreadsheet not ready. Please try again.");
+      return;
+    }
+    try {
+      let result: any = null;
+      if (ss.saveAsJson) {
+        const jsonRes = await ss.saveAsJson();
+        result = (jsonRes as any)?.jsonObject || jsonRes;
+      }
+      if (!result && ss.getActiveSheet) {
+        const sheet = ss.getActiveSheet();
+        const sheetRows = sheet?.rows || [];
+        let columns: string[] = [];
+        let rows: any[][] = [];
+        if (sheetRows[0]?.cells) {
+          columns = sheetRows[0].cells.map((c: any) => c?.value ?? "").filter((v: string) => String(v).trim() !== "");
+        }
+        for (let r = 1; r < sheetRows.length; r++) {
+          const row = sheetRows[r];
+          if (!row?.cells) continue;
+          const rowData = row.cells.slice(0, columns.length).map((c: any) => c?.value ?? "");
+          if (rowData.some((v: string) => String(v).trim() !== "")) {
+            rows.push(rowData);
+          }
+        }
+        result = { columns, sampleRows: rows };
+      }
+
+      if (!result) {
+        alert("Could not export spreadsheet data.");
+        return;
+      }
+
+      const blob = new Blob([JSON.stringify(result, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `spreadsheet-template-${Date.now()}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Export failed:", err);
+      alert("Failed to export spreadsheet.");
+    }
+  };
+
+  // Import: use Syncfusion's native openFromJson — restores entire spreadsheet state
   const handleImportTemplate = () => {
     const input = document.createElement("input");
     input.type = "file";
@@ -579,74 +482,42 @@ export const CreateWorkFlow = () => {
       const file = e.target.files?.[0];
       if (!file) return;
       const reader = new FileReader();
-      reader.onload = (ev) => {
+      reader.onload = async (ev) => {
         try {
-          const data = JSON.parse(ev.target?.result as string);
-          if (data.columns && Array.isArray(data.columns)) {
-            // Update React state
-            setCustomColumns(data.columns);
-            setCustomRows(data.sampleRows || [[]]);
-            setSelectedTemplateId("custom");
-
-            // Clear the Syncfusion spreadsheet and populate with imported data
-            setTimeout(() => {
-              const ss = spreadsheetRef.current;
-              if (!ss) return;
-              try {
-                // Clear all used cells in the active sheet
-                const sheet = ss.getActiveSheet?.();
-                if (sheet?.usedRange) {
-                  const lastRow = sheet.usedRange.rowIndex || 50;
-                  const lastCol = sheet.usedRange.colIndex || 20;
-                  const clearRange = `A1:${colLetter(lastCol)}${lastRow + 1}`;
-                  ss.clear?.({ range: clearRange, type: "Clear All" });
-                }
-
-                // Write header row (Row 1)
-                data.columns.forEach((col: string, colIdx: number) => {
-                  const cellAddr = `${colLetter(colIdx)}1`;
-                  ss.updateCell(
-                    { value: col, style: { fontWeight: "bold", backgroundColor: "#e2e8f0" } },
-                    cellAddr
-                  );
-                });
-
-                // Write data rows (Row 2+)
-                const rows = data.sampleRows || [];
-                rows.forEach((row: any[], rowIdx: number) => {
-                  row.forEach((cell: any, colIdx: number) => {
-                    const cellAddr = `${colLetter(colIdx)}${rowIdx + 2}`;
-                    ss.updateCell({ value: String(cell ?? "") }, cellAddr);
-                  });
-                });
-              } catch (err) {
-                console.warn("Syncfusion import populate warning:", err);
-              }
-            }, 500);
-          } else {
-            alert("Invalid template file. Must contain a 'columns' array.");
+          const json = JSON.parse(ev.target?.result as string);
+          const ss = spreadsheetRef.current;
+          if (!ss) {
+            alert("Spreadsheet not ready. Please try again.");
+            return;
           }
-        } catch {
-          alert("Failed to parse template file. Please use a valid JSON file.");
+
+          if (ss.openFromJson) {
+            const fileToOpen = json.Workbook ? json : (json.jsonObject || json);
+            await ss.openFromJson({ file: fileToOpen });
+          } else if (json.columns && Array.isArray(json.columns) && ss.updateCell) {
+            json.columns.forEach((col: string, colIdx: number) => {
+              const cellAddr = `${colLetter(colIdx)}1`;
+              ss.updateCell(
+                { value: col, style: { fontWeight: "bold", backgroundColor: "#e2e8f0" } },
+                cellAddr
+              );
+            });
+            const rows = json.data || json.sampleRows || [];
+            rows.forEach((row: any[], rowIdx: number) => {
+              row.forEach((cell: any, colIdx: number) => {
+                const cellAddr = `${colLetter(colIdx)}${rowIdx + 2}`;
+                ss.updateCell({ value: String(cell ?? "") }, cellAddr);
+              });
+            });
+          }
+        } catch (err) {
+          console.error("Import failed:", err);
+          alert("Failed to import template. Make sure it's a valid JSON file.");
         }
       };
       reader.readAsText(file);
     };
     input.click();
-  };
-
-  const handleCellFormat = (style: Record<string, any>) => {
-    const ss = spreadsheetRef.current;
-    if (!ss) return;
-    try {
-      if (ss.cellFormat) {
-        const activeSheet = ss.getActiveSheet?.();
-        const selectRange = activeSheet?.selectedRange || activeSheet?.activeCell || "A1:Z50";
-        ss.cellFormat(style, selectRange);
-      }
-    } catch (err) {
-      console.warn("Cell format error:", err);
-    }
   };
 
   return (
@@ -738,32 +609,22 @@ export const CreateWorkFlow = () => {
                         <div
                           key={tpl.id}
                           onClick={() => setSelectedTemplateId(tpl.id)}
-                          className={`cursor-pointer p-3 rounded-lg border transition-all duration-150 flex items-center justify-between ${
+                          className={`p-3 rounded-lg border text-zinc-100 flex items-center justify-between cursor-pointer transition-colors ${
                             isSelected
-                              ? "border-zinc-700 bg-zinc-800/80 text-zinc-100 shadow-none"
-                              : "border-zinc-800/80 bg-zinc-900/40 hover:bg-zinc-900 text-zinc-400"
+                              ? "border-zinc-700 bg-zinc-800/80"
+                              : "border-zinc-800/50 bg-zinc-900/50 hover:bg-zinc-800/40"
                           }`}
                         >
                           <div className="flex items-center gap-3">
-                            <div
-                              className={`size-7 rounded-md flex items-center justify-center transition-colors ${
-                                isSelected
-                                  ? "bg-zinc-700 text-zinc-100"
-                                  : "bg-zinc-900 text-zinc-400 border border-zinc-800"
-                              }`}
-                            >
+                            <div className="size-7 rounded-md flex items-center justify-center bg-zinc-700 text-zinc-100">
                               <Icon className="size-3.5" />
                             </div>
                             <div>
-                              <h4
-                                className={`text-xs font-medium transition-colors ${
-                                  isSelected ? "text-zinc-100" : "text-zinc-300"
-                                }`}
-                              >
+                              <h4 className="text-xs font-medium text-zinc-100">
                                 {tpl.name}
                               </h4>
-                              <p className="text-[10px] text-zinc-500 font-mono">
-                                {tpl.columns.length} columns
+                              <p className="text-[10px] text-zinc-400 font-mono">
+                                Blank Canvas (Syncfusion)
                               </p>
                             </div>
                           </div>
@@ -775,38 +636,36 @@ export const CreateWorkFlow = () => {
                 </div>
 
                 {/* 3. Template Import / Export Section */}
-                {selectedTemplateId === "custom" && (
-                  <div className="space-y-3 pt-1 border-t border-zinc-800/60">
-                    <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400 block">
-                      3. Custom Template Actions
-                    </span>
-                    <p className="text-[11px] text-zinc-500 leading-relaxed">
-                      Export your configured sheet layout as JSON to reuse across projects, or import a pre-saved template.
-                    </p>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={handleImportTemplate}
-                        className="flex-1 gap-1.5 h-8 text-xs border-zinc-800 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-zinc-100 transition-colors"
-                      >
-                        <Upload className="size-3.5 text-zinc-400" />
-                        Import Template
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={handleExportTemplate}
-                        className="flex-1 gap-1.5 h-8 text-xs border-zinc-800 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-zinc-100 transition-colors"
-                      >
-                        <Download className="size-3.5 text-zinc-400" />
-                        Export Template
-                      </Button>
-                    </div>
+                <div className="space-y-3 pt-1 border-t border-zinc-800/60">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400 block">
+                    3. Custom Template Actions
+                  </span>
+                  <p className="text-[11px] text-zinc-500 leading-relaxed">
+                    Export your configured sheet layout as JSON to reuse across projects, or import a pre-saved template.
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleImportTemplate}
+                      className="flex-1 gap-1.5 h-8 text-xs border-zinc-800 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-zinc-100 transition-colors"
+                    >
+                      <Upload className="size-3.5 text-zinc-400" />
+                      Import Template
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleExportTemplate}
+                      className="flex-1 gap-1.5 h-8 text-xs border-zinc-800 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-zinc-100 transition-colors"
+                    >
+                      <Download className="size-3.5 text-zinc-400" />
+                      Export Template
+                    </Button>
                   </div>
-                )}
+                </div>
               </div>
 
               {/* Action Buttons Footer */}
@@ -830,80 +689,9 @@ export const CreateWorkFlow = () => {
               </div>
             </div>
 
-            {/* RIGHT SIDE (2/3 Width) - Full-Height Syncfusion Spreadsheet Preview */}
-            <div className="flex-1 bg-zinc-950 flex flex-col min-h-0 h-full overflow-hidden">
-              <div className="px-4 py-2.5 bg-zinc-950 border-b border-zinc-800/80 flex items-center justify-between flex-shrink-0">
-                <div className="flex items-center gap-2">
-                  <FileSpreadsheet className="size-3.5 text-zinc-400" />
-                  <span className="text-xs font-medium text-zinc-300">
-                    MasterSheet Preview — {selectedTpl.name}
-                  </span>
-                </div>
-
-                {/* Formatting Quick Tools */}
-                <div className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    onClick={() => handleCellFormat({ textAlign: "Center" })}
-                    className="px-2 py-0.5 text-[11px] rounded bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 transition-colors font-mono"
-                    title="Align Center"
-                  >
-                    Center
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleCellFormat({ textAlign: "Left" })}
-                    className="px-2 py-0.5 text-[11px] rounded bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 transition-colors font-mono"
-                    title="Align Left"
-                  >
-                    Left
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleCellFormat({ textAlign: "Right" })}
-                    className="px-2 py-0.5 text-[11px] rounded bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 transition-colors font-mono"
-                    title="Align Right"
-                  >
-                    Right
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleCellFormat({ fontWeight: "Bold" })}
-                    className="px-2 py-0.5 text-[11px] rounded bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 transition-colors font-bold"
-                    title="Bold"
-                  >
-                    B
-                  </button>
-                  <span className="text-[10px] text-zinc-500 font-mono ml-2">
-                    {selectedTemplateId === "custom"
-                      ? "Custom Mode: Ribbon Tools Enabled"
-                      : "Read-only Preview Mode"}
-                  </span>
-                </div>
-              </div>
-
-              {/* Syncfusion Spreadsheet Full Height Instance */}
-              <div className="flex-1 w-full h-full min-h-0 bg-white">
-                {isMounted && open ? (
-                  <SpreadsheetComponent
-                    key={`${selectedTemplateId}-${open}`}
-                    ref={spreadsheetRef}
-                    className="w-full h-full"
-                    height="100%"
-                    width="100%"
-                    sheets={[{ name: "Sheet1", showGridLines: true }]}
-                    showRibbon={selectedTemplateId === "custom"}
-                    showFormulaBar={selectedTemplateId === "custom"}
-                    allowEditing={true}
-                    allowOpen={false}
-                    allowSave={false}
-                  />
-                ) : (
-                  <div className="flex items-center justify-center h-full text-zinc-500 text-xs font-mono">
-                    Loading spreadsheet...
-                  </div>
-                )}
-              </div>
+            {/* RIGHT SIDE (2/3 Width) - MasterSheetPanelCustom */}
+            <div className="flex-1 bg-zinc-950 flex flex-col min-h-0 h-full overflow-hidden p-2">
+              <MasterSheetPanelCustom spreadsheetRef={spreadsheetRef} />
             </div>
           </form>
         </Form>
