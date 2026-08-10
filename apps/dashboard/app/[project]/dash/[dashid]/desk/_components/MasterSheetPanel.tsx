@@ -34,6 +34,7 @@ export function MasterSheetPanel() {
   const setMasterSheetPreview = useDeskStore((s) => s.setMasterSheetPreview)
   const blocks = useDeskStore((s) => s.blocks)
   const spreadsheetRef = useRef<any>(null)
+  const ssInstanceRef = useRef<any>(null)
   const [mastersheetId, setMastersheetId] = useState("")
   const [isMounted, setIsMounted] = useState(false)
   const [sheetName, setSheetName] = useState("Master Sheet")
@@ -87,12 +88,40 @@ export function MasterSheetPanel() {
     fetchDeskSheet()
   }, [dashid, userId, userEmail, setMasterSheetPreview])
 
+  // Callback when Syncfusion spreadsheet is fully created and ready
+  const onSpreadsheetCreated = () => {
+    const ss = spreadsheetRef.current
+    if (ss) {
+      ssInstanceRef.current = ss
+    }
+    // Load initial data if available
+    if (masterSheetPreview && ss) {
+      try {
+        masterSheetPreview.columns.forEach((col, colIdx) => {
+          const cellAddr = `${colLetter(colIdx)}1`
+          ss.updateCell(
+            { value: col, style: { fontWeight: "bold", backgroundColor: "#e2e8f0" } },
+            cellAddr
+          )
+        })
+        masterSheetPreview.data.forEach((row, rowIdx) => {
+          row.forEach((cell: any, colIdx: number) => {
+            const cellAddr = `${colLetter(colIdx)}${rowIdx + 2}`
+            ss.updateCell({ value: String(cell ?? "") }, cellAddr)
+          })
+        })
+      } catch (err) {
+        console.warn("Master sheet initial load failed:", err)
+      }
+    }
+  }
+
   // Load data into Syncfusion when masterSheetPreview changes
   useEffect(() => {
-    if (!spreadsheetRef.current || !masterSheetPreview) return
+    const ss = ssInstanceRef.current
+    if (!ss || !masterSheetPreview) return
     const timer = setTimeout(() => {
-      const ss = spreadsheetRef.current
-      if (!ss || !ss.element || !ss.updateCell) return
+      if (!ss.updateCell) return
       try {
         masterSheetPreview.columns.forEach((col, colIdx) => {
           const cellAddr = `${colLetter(colIdx)}1`
@@ -117,11 +146,11 @@ export function MasterSheetPanel() {
   // Save current spreadsheet data back to DB
   const handleSaveSheet = async () => {
     if (!userId) return
-    const ss = spreadsheetRef.current
+    const ss = ssInstanceRef.current || spreadsheetRef.current
     let columns: string[] = []
     let rows: string[][] = []
 
-    if (ss && ss.element && ss.getActiveSheet) {
+    if (ss && typeof ss.getActiveSheet === "function") {
       try {
         const sheet = ss.getActiveSheet()
         const sheetRows = sheet?.rows || []
@@ -168,39 +197,133 @@ export function MasterSheetPanel() {
     }
   }
 
-  // Export full spreadsheet state as JSON file (preserving merged cells, styles, formatting)
-  const handleExportSheet = async () => {
-    const ss = spreadsheetRef.current
-    if (!ss || !ss.element) return
-
-    try {
-      let exportData: any = null
-      if (ss.saveAsJson) {
-        const result = await ss.saveAsJson()
-        exportData = (result as any)?.jsonObject || result
-      }
-
-      if (!exportData) {
-        alert("Spreadsheet not ready or could not capture spreadsheet JSON state.")
-        return
-      }
-
-      const blob = new Blob([JSON.stringify(exportData, null, 2)], {
-        type: "application/json",
-      })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement("a")
-      a.href = url
-      a.download = `${(sheetName || "master-sheet").toLowerCase().replace(/\s+/g, "-")}-${Date.now()}.json`
-      a.click()
-      URL.revokeObjectURL(url)
-
-      setExportSuccess(true)
-      setTimeout(() => setExportSuccess(false), 2000)
-    } catch (err) {
-      console.error("Export failed:", err)
-      alert("Failed to export spreadsheet template.")
+  // Helper to safely get the real Syncfusion instance
+  const getSsInstance = () => {
+    // Prefer the instance captured via created callback
+    if (ssInstanceRef.current) return ssInstanceRef.current
+    // Fallback: try unwrapping from React ref
+    if (!spreadsheetRef.current) return null
+    const curr = spreadsheetRef.current
+    if (curr.ej2Instances) {
+      return Array.isArray(curr.ej2Instances) ? curr.ej2Instances[0] : curr.ej2Instances
     }
+    return curr
+  }
+
+  // Download helper — guaranteed to trigger a file download
+  const downloadJson = (data: any, filename: string) => {
+    const json = JSON.stringify(data, null, 2)
+    const blob = new Blob([json], { type: "application/json" })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.href = url
+    link.download = filename
+    link.style.display = "none"
+    document.body.appendChild(link)
+    link.click()
+    // Cleanup after a tick
+    setTimeout(() => {
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+    }, 100)
+  }
+
+  // Export spreadsheet data as JSON
+  const handleExportSheet = () => {
+    console.log("[MasterSheetPanel] Export clicked")
+
+    const filename = `${(sheetName || "master-sheet").toLowerCase().replace(/\s+/g, "-")}-${Date.now()}.json`
+
+    // Try reading from the Syncfusion spreadsheet instance
+    const ss = ssInstanceRef.current || spreadsheetRef.current
+    console.log("[MasterSheetPanel] ss instance:", !!ss, "saveAsJson:", typeof ss?.saveAsJson, "getActiveSheet:", typeof ss?.getActiveSheet)
+
+    if (ss && typeof ss.saveAsJson === "function") {
+      // Use saveAsJson with a timeout to prevent hanging
+      const timeout = setTimeout(() => {
+        console.warn("[MasterSheetPanel] saveAsJson timed out, using fallback")
+        exportFallback(filename)
+      }, 3000)
+
+      ss.saveAsJson()
+        .then((result: any) => {
+          clearTimeout(timeout)
+          const exportData = result?.jsonObject || result
+          console.log("[MasterSheetPanel] saveAsJson success, keys:", Object.keys(exportData || {}))
+          if (exportData && Object.keys(exportData).length > 0) {
+            downloadJson(exportData, filename)
+            setExportSuccess(true)
+            setTimeout(() => setExportSuccess(false), 2000)
+          } else {
+            exportFallback(filename)
+          }
+        })
+        .catch((err: any) => {
+          clearTimeout(timeout)
+          console.warn("[MasterSheetPanel] saveAsJson error:", err)
+          exportFallback(filename)
+        })
+    } else {
+      // No saveAsJson available, go straight to fallback
+      exportFallback(filename)
+    }
+  }
+
+  // Fallback export: read cells directly or use masterSheetPreview
+  const exportFallback = (filename: string) => {
+    console.log("[MasterSheetPanel] Using fallback export")
+    let exportData: any = null
+
+    // Try getActiveSheet
+    const ss = ssInstanceRef.current || spreadsheetRef.current
+    if (ss && typeof ss.getActiveSheet === "function") {
+      try {
+        const sheet = ss.getActiveSheet()
+        const sheetRows = sheet?.rows || []
+        let columns: string[] = []
+        let rows: string[][] = []
+
+        if (sheetRows[0]?.cells) {
+          columns = sheetRows[0].cells
+            .map((c: any) => c?.value ?? "")
+            .filter((v: string) => String(v).trim() !== "")
+        }
+        for (let r = 1; r < sheetRows.length; r++) {
+          const row = sheetRows[r]
+          if (!row?.cells) continue
+          const rowData = row.cells
+            .slice(0, columns.length)
+            .map((c: any) => c?.value ?? "")
+          if (rowData.some((v: string) => String(v).trim() !== "")) {
+            rows.push(rowData)
+          }
+        }
+        if (columns.length > 0) {
+          exportData = { name: sheetName, columns, sampleRows: rows }
+        }
+      } catch (err) {
+        console.warn("[MasterSheetPanel] getActiveSheet fallback failed:", err)
+      }
+    }
+
+    // Try masterSheetPreview store data
+    if (!exportData && masterSheetPreview?.columns && masterSheetPreview.columns.length > 0) {
+      exportData = {
+        name: sheetName,
+        columns: masterSheetPreview.columns,
+        sampleRows: masterSheetPreview.data || [],
+      }
+    }
+
+    // Last resort
+    if (!exportData) {
+      alert("No spreadsheet data available to export. Please add data first.")
+      return
+    }
+
+    downloadJson(exportData, filename)
+    setExportSuccess(true)
+    setTimeout(() => setExportSuccess(false), 2000)
   }
 
   // Import custom template JSON — OWNER ONLY
@@ -381,6 +504,7 @@ export function MasterSheetPanel() {
         {isMounted ? (
           <SpreadsheetComponent
             ref={spreadsheetRef}
+            created={onSpreadsheetCreated}
             className="w-full h-full"
             height="100%"
             width="100%"

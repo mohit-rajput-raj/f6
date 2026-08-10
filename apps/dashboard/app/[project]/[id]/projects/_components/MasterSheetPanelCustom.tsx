@@ -18,6 +18,7 @@ interface MasterSheetPanelCustomProps {
 export function MasterSheetPanelCustom({ spreadsheetRef: externalRef }: MasterSheetPanelCustomProps) {
   const internalRef = useRef<any>(null)
   const spreadsheetRef = externalRef || internalRef
+  const ssInstanceRef = useRef<any>(null)
 
   const [isMounted, setIsMounted] = useState(false)
   const [sheetName] = useState("Master Sheet Custom")
@@ -27,40 +28,122 @@ export function MasterSheetPanelCustom({ spreadsheetRef: externalRef }: MasterSh
     setIsMounted(true)
   }, [])
 
-  // Export handler: Saves 100% full Syncfusion spreadsheet JSON object (preserving all merged cells, styles, headers, colors, images)
-  const handleExportSheet = async () => {
+  // Callback when Syncfusion spreadsheet is fully created and ready
+  const onSpreadsheetCreated = () => {
     const ss = spreadsheetRef.current
-    if (!ss || !ss.element) return
-
-    try {
-      let exportData: any = null
-
-      if (ss.saveAsJson) {
-        const result = await ss.saveAsJson()
-        exportData = (result as any)?.jsonObject || result
-      }
-
-      if (!exportData) {
-        alert("Spreadsheet not ready or could not capture spreadsheet JSON state.")
-        return
-      }
-
-      const blob = new Blob([JSON.stringify(exportData, null, 2)], {
-        type: "application/json",
-      })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement("a")
-      a.href = url
-      a.download = `${sheetName.toLowerCase().replace(/\s+/g, "-")}-${Date.now()}.json`
-      a.click()
-      URL.revokeObjectURL(url)
-
-      setExportSuccess(true)
-      setTimeout(() => setExportSuccess(false), 2000)
-    } catch (err) {
-      console.error("Export failed:", err)
-      alert("Failed to export complete spreadsheet template.")
+    if (ss) {
+      ssInstanceRef.current = ss
     }
+  }
+
+  // Helper to safely get the real Syncfusion instance
+  const getSsInstance = () => {
+    // Prefer the instance captured via created callback
+    if (ssInstanceRef.current) return ssInstanceRef.current
+    // Fallback: try unwrapping from React ref
+    if (!spreadsheetRef.current) return null
+    const curr = spreadsheetRef.current
+    if (curr.ej2Instances) {
+      return Array.isArray(curr.ej2Instances) ? curr.ej2Instances[0] : curr.ej2Instances
+    }
+    return curr
+  }
+
+  // Download helper — guaranteed to trigger a file download
+  const downloadJson = (data: any, filename: string) => {
+    const json = JSON.stringify(data, null, 2)
+    const blob = new Blob([json], { type: "application/json" })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.href = url
+    link.download = filename
+    link.style.display = "none"
+    document.body.appendChild(link)
+    link.click()
+    setTimeout(() => {
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+    }, 100)
+  }
+
+  // Export spreadsheet data as JSON
+  const handleExportSheet = () => {
+    console.log("[MasterSheetPanelCustom] Export clicked")
+
+    const filename = `${sheetName.toLowerCase().replace(/\s+/g, "-")}-${Date.now()}.json`
+
+    const ss = ssInstanceRef.current || spreadsheetRef.current
+    console.log("[MasterSheetPanelCustom] ss instance:", !!ss, "saveAsJson:", typeof ss?.saveAsJson)
+
+    if (ss && typeof ss.saveAsJson === "function") {
+      const timeout = setTimeout(() => {
+        console.warn("[MasterSheetPanelCustom] saveAsJson timed out, using fallback")
+        exportFallbackCustom(filename, ss)
+      }, 3000)
+
+      ss.saveAsJson()
+        .then((result: any) => {
+          clearTimeout(timeout)
+          const exportData = result?.jsonObject || result
+          if (exportData && Object.keys(exportData).length > 0) {
+            downloadJson(exportData, filename)
+            setExportSuccess(true)
+            setTimeout(() => setExportSuccess(false), 2000)
+          } else {
+            exportFallbackCustom(filename, ss)
+          }
+        })
+        .catch((err: any) => {
+          clearTimeout(timeout)
+          console.warn("[MasterSheetPanelCustom] saveAsJson error:", err)
+          exportFallbackCustom(filename, ss)
+        })
+    } else {
+      exportFallbackCustom(filename, ss)
+    }
+  }
+
+  const exportFallbackCustom = (filename: string, ss: any) => {
+    let exportData: any = null
+
+    if (ss && typeof ss.getActiveSheet === "function") {
+      try {
+        const sheet = ss.getActiveSheet()
+        const sheetRows = sheet?.rows || []
+        let columns: string[] = []
+        let rows: string[][] = []
+
+        if (sheetRows[0]?.cells) {
+          columns = sheetRows[0].cells
+            .map((c: any) => c?.value ?? "")
+            .filter((v: string) => String(v).trim() !== "")
+        }
+        for (let r = 1; r < sheetRows.length; r++) {
+          const row = sheetRows[r]
+          if (!row?.cells) continue
+          const rowData = row.cells
+            .slice(0, columns.length)
+            .map((c: any) => c?.value ?? "")
+          if (rowData.some((v: string) => String(v).trim() !== "")) {
+            rows.push(rowData)
+          }
+        }
+        if (columns.length > 0) {
+          exportData = { name: sheetName, columns, sampleRows: rows }
+        }
+      } catch (err) {
+        console.warn("[MasterSheetPanelCustom] getActiveSheet fallback failed:", err)
+      }
+    }
+
+    if (!exportData) {
+      alert("No spreadsheet data available to export. Please add data first.")
+      return
+    }
+
+    downloadJson(exportData, filename)
+    setExportSuccess(true)
+    setTimeout(() => setExportSuccess(false), 2000)
   }
 
   // Import handler: Loads complete Syncfusion JSON state (matching microSheetAgent loadJson pattern)
@@ -75,8 +158,8 @@ export function MasterSheetPanelCustom({ spreadsheetRef: externalRef }: MasterSh
       reader.onload = async (ev) => {
         try {
           const parsed = JSON.parse(ev.target?.result as string)
-          const ss = spreadsheetRef.current
-          if (!ss || !ss.element) return
+          const ss = getSsInstance()
+          if (!ss) return
 
           const fileToOpen = parsed.Workbook ? parsed : (parsed.jsonObject || parsed)
 
@@ -147,6 +230,7 @@ export function MasterSheetPanelCustom({ spreadsheetRef: externalRef }: MasterSh
         {isMounted ? (
           <SpreadsheetComponent
             ref={spreadsheetRef}
+            created={onSpreadsheetCreated}
             className="w-full h-full"
             height="100%"
             width="100%"
