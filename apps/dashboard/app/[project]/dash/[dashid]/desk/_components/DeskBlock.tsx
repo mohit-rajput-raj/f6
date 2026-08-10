@@ -333,7 +333,7 @@ export function DeskBlock({
               <Button
                 variant="default"
                 size="sm"
-                className="h-7 gap-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs"
+                className="h-7 gap-1 bg-zinc-100 hover:bg-white text-zinc-950 text-xs font-semibold shadow-sm"
                 onClick={() => onExecute(activeChild.id)}
                 disabled={activeChild.isExecuting}
               >
@@ -382,7 +382,7 @@ export function DeskBlock({
               onDoubleClick={() => !isGuest && startRename(child.id, child.name)}
               className={`text-xs px-3 py-1.5 rounded-md font-medium transition-all whitespace-nowrap ${
                 activeChildId === child.id
-                  ? "bg-teal-900/60 text-teal-200 border border-teal-700"
+                  ? "bg-zinc-800 text-zinc-100 border border-zinc-700 shadow-sm"
                   : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60 border border-transparent"
               }`}
             >
@@ -397,7 +397,7 @@ export function DeskBlock({
                     if (e.key === "Escape") setRenamingTabId(null)
                   }}
                   onClick={(e) => e.stopPropagation()}
-                  className="bg-transparent border-none outline-none text-xs w-20 text-teal-200"
+                  className="bg-transparent border-none outline-none text-xs w-20 text-zinc-100"
                 />
               ) : (
                 child.name
@@ -411,7 +411,7 @@ export function DeskBlock({
             size="sm"
             onClick={handleAddTab}
             disabled={isAddingTab}
-            className="h-7 text-xs px-2.5 gap-1 text-teal-400 hover:text-teal-300 hover:bg-teal-950/50 font-medium cursor-pointer shrink-0"
+            className="h-7 text-xs px-2.5 gap-1 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 font-medium cursor-pointer shrink-0"
           >
             {isAddingTab ? <Loader2 className="size-3 animate-spin" /> : <Plus className="size-3.5" />}
             Add Tab
@@ -434,15 +434,15 @@ export function DeskBlock({
                       <ChevronDown className="size-3" />
                       Input from BigBlock {blockIndex}
                     </h4>
-                    <div className="text-xs bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded px-2 py-1.5 flex items-center justify-between">
-                      <span className="text-blue-600 dark:text-blue-400 font-medium">
+                    <div className="text-xs bg-zinc-900 border border-zinc-800 rounded-md px-2.5 py-1.5 flex items-center justify-between">
+                      <span className="text-zinc-300 font-medium">
                         {previousBlockOutput.data.length} rows × {previousBlockOutput.columns.length} cols
                       </span>
                       {/* Load into sheet dropdown */}
                       {activeChild.sheets.length > 0 && !isGuest && (
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm" className="h-5 text-[10px] px-1.5 gap-1 text-blue-600 hover:text-blue-700">
+                            <Button variant="ghost" size="sm" className="h-5 text-[10px] px-1.5 gap-1 text-zinc-400 hover:text-zinc-100">
                               <Download className="size-3" />
                               Load into sheet
                             </Button>
@@ -517,25 +517,25 @@ export function DeskBlock({
                       activeChild.sheets.map((sheet) => (
                         <div
                           key={sheet.id}
-                          className={`rounded-lg border p-2 bg-background space-y-1.5 cursor-pointer transition-all ${
+                          className={`rounded-lg border p-2 bg-zinc-900 space-y-1.5 cursor-pointer transition-all ${
                             activePreviewTab === sheet.id
-                              ? "ring-2 ring-orange-500 border-orange-500"
-                              : "hover:border-zinc-600"
+                              ? "ring-1 ring-zinc-700 border-zinc-700"
+                              : "border-zinc-800/80 hover:border-zinc-700"
                           }`}
                           onClick={() => setActivePreviewTab(sheet.id)}
                         >
                           <input
                             value={sheet.name}
                             onChange={(e) => updateSheetName(activeChild.id, sheet.id, e.target.value)}
-                            className="text-xs font-medium bg-transparent border-none focus:outline-none w-full"
+                            className="text-xs font-medium bg-transparent border-none focus:outline-none w-full text-zinc-200"
                             placeholder="Sheet name..."
                             onClick={(e) => e.stopPropagation()}
                           />
                           {sheet.data ? (
                             <div className="text-[10px] space-y-1 relative group">
                               <div className="flex items-center justify-between">
-                                <span className="text-orange-600 font-medium">
-                                  ✅ {sheet.data.data.length} rows × {sheet.data.columns.length} cols
+                                <span className="text-zinc-400 font-medium">
+                                  ✓ {sheet.data.data.length} rows × {sheet.data.columns.length} cols
                                 </span>
                                 {!isGuest && (
                                   <button
@@ -543,7 +543,7 @@ export function DeskBlock({
                                       e.stopPropagation()
                                       useDeskStore.getState().clearSheetData(activeChild.id, sheet.id)
                                     }}
-                                    className="text-zinc-500 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                                    className="text-zinc-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
                                     title="Clear data"
                                   >
                                     <Trash2 className="size-3" />
@@ -552,7 +552,7 @@ export function DeskBlock({
                               </div>
                               <div className="flex flex-wrap gap-0.5">
                                 {sheet.data.columns.slice(0, 5).map((col, i) => (
-                                  <span key={i} className="text-[8px] px-1 py-0.5 rounded bg-orange-100 dark:bg-orange-900 text-orange-700 dark:text-orange-300">
+                                  <span key={i} className="text-[8px] px-1 py-0.5 rounded bg-zinc-800 text-zinc-300 border border-zinc-700/60 font-mono">
                                     {col}
                                   </span>
                                 ))}
@@ -603,7 +603,7 @@ export function DeskBlock({
                             checked={field.checked}
                             onChange={() => toggleCheckbox(activeChild.id, field.id)}
                             disabled={isGuest}
-                            className="rounded border-zinc-600 accent-teal-500"
+                            className="rounded border-zinc-700 accent-zinc-400"
                           />
                           <span className="text-xs">{field.label}</span>
                         </label>
@@ -620,18 +620,18 @@ export function DeskBlock({
             <ResizablePanel defaultSize={65}>
               <div className="h-full flex flex-col">
                 {/* Sheet / Output preview tabs header */}
-                <div className="flex items-center gap-2 px-3 py-2 border-b shrink-0 overflow-x-auto">
-                  <Eye className="size-3.5 text-purple-400 shrink-0" />
-                  <span className="text-xs font-medium shrink-0">Preview</span>
+                <div className="flex items-center gap-2 px-3 py-2 border-b shrink-0 overflow-x-auto bg-zinc-950">
+                  <Eye className="size-3.5 text-zinc-400 shrink-0" />
+                  <span className="text-xs font-medium shrink-0 text-zinc-200">Preview</span>
 
                   <div className="flex items-center gap-1.5 ml-2 overflow-x-auto">
                     {/* Output Preview Tab */}
                     <button
                       onClick={() => setActivePreviewTab("output_preview")}
-                      className={`text-[10px] px-2.5 py-0.5 rounded-full transition-all flex items-center gap-1 font-medium whitespace-nowrap ${
+                      className={`text-[10px] px-2.5 py-1 rounded-md transition-all flex items-center gap-1 font-medium whitespace-nowrap ${
                         activePreviewTab === "output_preview"
-                          ? "bg-purple-600 text-white shadow-sm"
-                          : "bg-purple-950/40 text-purple-300 hover:bg-purple-900/50 border border-purple-800/40"
+                          ? "bg-zinc-100 text-zinc-950 font-semibold shadow-sm"
+                          : "bg-zinc-900 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 border border-zinc-800"
                       }`}
                     >
                       <Eye className="size-3" />
@@ -646,10 +646,10 @@ export function DeskBlock({
                       <button
                         key={sheet.id}
                         onClick={() => setActivePreviewTab(sheet.id)}
-                        className={`text-[10px] px-2.5 py-0.5 rounded-full transition-all whitespace-nowrap ${
+                        className={`text-[10px] px-2.5 py-1 rounded-md transition-all whitespace-nowrap font-medium ${
                           activePreviewTab === sheet.id
-                            ? "bg-orange-500 text-white font-medium"
-                            : "bg-muted text-muted-foreground hover:bg-muted/80"
+                            ? "bg-zinc-800 text-zinc-100 border border-zinc-700 shadow-sm"
+                            : "bg-zinc-900 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 border border-zinc-800"
                         }`}
                       >
                         {sheet.name}
@@ -661,14 +661,14 @@ export function DeskBlock({
                   </div>
 
                   {previewData && previewData.columns && (
-                    <Badge variant="secondary" className="text-[9px] ml-auto shrink-0 bg-purple-900/40 text-purple-200 border-purple-700/50">
+                    <Badge variant="outline" className="text-[9px] ml-auto shrink-0 bg-zinc-900 text-zinc-400 border-zinc-800 font-mono">
                       {previewData.data.length} rows × {previewData.columns.length} cols
                     </Badge>
                   )}
                 </div>
 
                 <div className="flex-1 min-h-0 overflow-hidden relative">
-                  <ErrorBoundary fallback={<div className="flex items-center justify-center h-full text-xs text-muted-foreground">Loading spreadsheet view...</div>}>
+                  <ErrorBoundary fallback={<div className="flex items-center justify-center h-full text-xs text-zinc-500">Loading spreadsheet view...</div>}>
                     <div className={`w-full h-full ${previewData && previewData.columns && previewData.columns.length > 0 ? "block" : "hidden"}`}>
                       <SpreadsheetComponent
                         ref={spreadsheetRef}
@@ -682,15 +682,15 @@ export function DeskBlock({
                   </ErrorBoundary>
 
                   {(!previewData || !previewData.columns || previewData.columns.length === 0) && (
-                    <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-3 p-6 text-center">
-                      <div className="p-3.5 rounded-2xl bg-purple-950/30 border border-purple-900/40 text-purple-400">
+                    <div className="flex flex-col items-center justify-center h-full text-zinc-500 gap-3 p-6 text-center">
+                      <div className="p-3.5 rounded-2xl bg-zinc-900 border border-zinc-800 text-zinc-400">
                         <Table2 className="size-7 opacity-70" />
                       </div>
                       <div className="max-w-xs space-y-1">
-                        <p className="text-xs font-semibold text-foreground">
+                        <p className="text-xs font-semibold text-zinc-200">
                           {activePreviewTab === "output_preview" ? "No Output Preview Data Yet" : "No Sheet Data to Preview"}
                         </p>
-                        <p className="text-[10px] text-muted-foreground leading-relaxed">
+                        <p className="text-[10px] text-zinc-400 leading-relaxed">
                           {activePreviewTab === "output_preview"
                             ? "Run the block workflow to generate and view preview data from your Output Preview nodes."
                             : "Upload a CSV file to a sheet on the left panel, or load data from the previous BigBlock."}
@@ -701,7 +701,7 @@ export function DeskBlock({
                           size="sm"
                           onClick={() => onExecute(activeChild.id)}
                           disabled={activeChild.isExecuting}
-                          className="h-7 text-xs gap-1.5 bg-purple-600 hover:bg-purple-700 text-white font-medium shadow-sm"
+                          className="h-7 text-xs gap-1.5 bg-zinc-100 hover:bg-white text-zinc-950 font-semibold shadow-sm"
                         >
                           {activeChild.isExecuting ? (
                             <Loader2 className="size-3 animate-spin" />

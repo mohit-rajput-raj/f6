@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useRef, useEffect, useState } from "react"
-import { Table2, Search, RefreshCw, Save, Upload, Lock } from "lucide-react"
+import { Table2, Search, RefreshCw, Save, Upload, Lock, Download, Check } from "lucide-react"
 import { useDeskStore, type Dataset } from "@/stores/desk-store"
 import { Badge } from "@repo/ui/components/ui/badge"
 import { Input } from "@repo/ui/components/ui/input"
@@ -41,6 +41,7 @@ export function MasterSheetPanel() {
   const [isOwner, setIsOwner] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [saveSuccess, setSaveSuccess] = useState(false)
+  const [exportSuccess, setExportSuccess] = useState(false)
 
   const { data: session } = useSession()
   const userId = session?.user?.id
@@ -91,7 +92,7 @@ export function MasterSheetPanel() {
     if (!spreadsheetRef.current || !masterSheetPreview) return
     const timer = setTimeout(() => {
       const ss = spreadsheetRef.current
-      if (!ss || !ss.updateCell) return
+      if (!ss || !ss.element || !ss.updateCell) return
       try {
         masterSheetPreview.columns.forEach((col, colIdx) => {
           const cellAddr = `${colLetter(colIdx)}1`
@@ -120,7 +121,7 @@ export function MasterSheetPanel() {
     let columns: string[] = []
     let rows: string[][] = []
 
-    if (ss && ss.getActiveSheet) {
+    if (ss && ss.element && ss.getActiveSheet) {
       try {
         const sheet = ss.getActiveSheet()
         const sheetRows = sheet?.rows || []
@@ -164,6 +165,41 @@ export function MasterSheetPanel() {
       alert("Failed to save MasterSheet.")
     } finally {
       setIsSaving(false)
+    }
+  }
+
+  // Export full spreadsheet state as JSON file (preserving merged cells, styles, formatting)
+  const handleExportSheet = async () => {
+    const ss = spreadsheetRef.current
+    if (!ss || !ss.element) return
+
+    try {
+      let exportData: any = null
+      if (ss.saveAsJson) {
+        const result = await ss.saveAsJson()
+        exportData = (result as any)?.jsonObject || result
+      }
+
+      if (!exportData) {
+        alert("Spreadsheet not ready or could not capture spreadsheet JSON state.")
+        return
+      }
+
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], {
+        type: "application/json",
+      })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `${(sheetName || "master-sheet").toLowerCase().replace(/\s+/g, "-")}-${Date.now()}.json`
+      a.click()
+      URL.revokeObjectURL(url)
+
+      setExportSuccess(true)
+      setTimeout(() => setExportSuccess(false), 2000)
+    } catch (err) {
+      console.error("Export failed:", err)
+      alert("Failed to export spreadsheet template.")
     }
   }
 
@@ -237,13 +273,13 @@ export function MasterSheetPanel() {
   }
 
   return (
-    <div className="rounded-xl border border-zinc-800 bg-card overflow-hidden">
-      <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 border-b bg-gradient-to-r from-zinc-900 to-zinc-800">
+    <div className="rounded-xl border border-zinc-800 bg-card overflow-hidden flex flex-col">
+      <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2 bg-zinc-950 border-b border-zinc-800 flex-shrink-0">
         <div className="flex items-center gap-2">
-          <Table2 className="size-4 text-purple-500" />
-          <span className="text-sm font-semibold text-zinc-200">Master Sheet</span>
+          <Table2 className="size-4 text-zinc-400" />
+          <span className="text-xs font-medium text-zinc-200 tracking-tight">Master Sheet</span>
           {masterSheetPreview && (
-            <Badge variant="secondary" className="text-[9px]">
+            <Badge variant="outline" className="text-[10px] bg-zinc-900 text-zinc-400 border-zinc-800 font-mono font-normal">
               {masterSheetPreview.data.length} rows × {masterSheetPreview.columns.length} cols
             </Badge>
           )}
@@ -256,10 +292,10 @@ export function MasterSheetPanel() {
             <button
               key={ab.id}
               onClick={() => useDeskStore.getState().triggerActionButton(ab.blockId, ab.id)}
-              className={`px-2 py-0.5 rounded text-[10px] font-medium transition-colors ${
+              className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
                 ab.triggered
-                  ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/50"
-                  : "bg-rose-600 hover:bg-rose-500 text-white shadow-sm"
+                  ? "bg-zinc-800 text-emerald-400 border border-emerald-500/30"
+                  : "bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 shadow-sm"
               }`}
             >
               {ab.label || "Action"}
@@ -271,10 +307,10 @@ export function MasterSheetPanel() {
             onClick={handleImportTemplate}
             disabled={!isOwner}
             title={isOwner ? "Import template JSON file" : "Only desk owner can import template"}
-            className={`px-2.5 py-1 rounded text-xs font-semibold flex items-center gap-1.5 transition-colors ${
+            className={`px-2.5 py-1 rounded-md text-xs font-medium flex items-center gap-1.5 transition-colors border shadow-sm ${
               isOwner
-                ? "bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 shadow-sm cursor-pointer"
-                : "bg-zinc-900/80 text-zinc-500 border border-zinc-800/80 cursor-not-allowed opacity-60"
+                ? "bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-zinc-100 border-zinc-800 cursor-pointer"
+                : "bg-zinc-950 text-zinc-600 border-zinc-900 cursor-not-allowed opacity-60"
             }`}
           >
             {isOwner ? (
@@ -284,8 +320,27 @@ export function MasterSheetPanel() {
               </>
             ) : (
               <>
-                <Lock className="size-3.5 text-zinc-500" />
+                <Lock className="size-3.5 text-zinc-600" />
                 Owner Only
+              </>
+            )}
+          </button>
+
+          {/* Export Sheet Button */}
+          <button
+            onClick={handleExportSheet}
+            title="Export full spreadsheet template JSON"
+            className="px-2.5 py-1 rounded-md text-xs font-medium bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-zinc-100 border border-zinc-800 flex items-center gap-1.5 shadow-sm transition-colors cursor-pointer"
+          >
+            {exportSuccess ? (
+              <>
+                <Check className="size-3.5 text-emerald-400" />
+                Exported
+              </>
+            ) : (
+              <>
+                <Download className="size-3.5 text-zinc-400" />
+                Export Sheet
               </>
             )}
           </button>
@@ -294,7 +349,7 @@ export function MasterSheetPanel() {
           <button
             onClick={handleSaveSheet}
             disabled={isSaving}
-            className="px-2.5 py-1 rounded text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white flex items-center gap-1.5 shadow-sm transition-colors cursor-pointer"
+            className="px-2.5 py-1 rounded-md text-xs font-medium bg-zinc-100 hover:bg-white text-zinc-950 flex items-center gap-1.5 shadow-sm transition-colors cursor-pointer"
           >
             {saveSuccess ? (
               "✓ Saved"
@@ -302,7 +357,7 @@ export function MasterSheetPanel() {
               "Saving..."
             ) : (
               <>
-                <Save className="size-3.5" />
+                <Save className="size-3.5 text-zinc-900" />
                 Save Sheet
               </>
             )}
@@ -311,18 +366,18 @@ export function MasterSheetPanel() {
 
         {/* Master Sheet ID input */}
         <div className="flex items-center gap-1.5">
-          <Search className="size-3 text-muted-foreground" />
+          <Search className="size-3 text-zinc-500" />
           <Input
             value={mastersheetId}
             onChange={(e) => setMastersheetId(e.target.value)}
             placeholder="MasterSheet Node ID..."
-            className="h-6 text-[10px] w-[160px] bg-zinc-900/50 border-zinc-700"
+            className="h-7 text-[11px] w-[160px] bg-zinc-900 border-zinc-800 text-zinc-300 placeholder:text-zinc-500 focus-visible:ring-1 focus-visible:ring-zinc-700"
           />
         </div>
       </div>
 
       {/* Always show Syncfusion spreadsheet — blank or with data */}
-      <div className="h-[350px]">
+      <div className="h-[520px] min-h-[450px] w-full">
         {isMounted ? (
           <SpreadsheetComponent
             ref={spreadsheetRef}

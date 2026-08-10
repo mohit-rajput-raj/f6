@@ -77,22 +77,22 @@ export function InviteNotification({ userEmail }: InviteNotificationProps) {
       {invites.map((invite) => (
         <div
           key={invite.id}
-          className="flex items-center justify-between px-4 py-2.5 rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950 animate-in slide-in-from-top"
+          className="flex items-center justify-between px-4 py-2.5 rounded-lg border border-zinc-800 bg-zinc-900 shadow-sm animate-in slide-in-from-top"
         >
           <div className="flex items-center gap-2">
-            <Bell className="size-4 text-amber-600" />
-            <span className="text-sm text-amber-800 dark:text-amber-200">
+            <Bell className="size-4 text-zinc-400" />
+            <span className="text-xs font-medium text-zinc-200">
               You've been invited to collaborate on{" "}
-              <span className="font-semibold">"{invite.masterSheet.name}"</span>
+              <span className="font-semibold text-zinc-100">"{invite.masterSheet.name}"</span>
             </span>
-            <Badge variant="secondary" className="text-[9px]">
+            <Badge variant="outline" className="text-[10px] bg-zinc-800 text-zinc-400 border-zinc-700 font-mono">
               {invite.permission}
             </Badge>
           </div>
           <div className="flex items-center gap-1.5">
             <Button
               size="sm"
-              className="h-7 gap-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs"
+              className="h-7 gap-1 bg-zinc-100 hover:bg-white text-zinc-950 text-xs font-medium"
               onClick={() => handleAccept(invite.id)}
               disabled={processing === invite.id}
             >
@@ -106,7 +106,7 @@ export function InviteNotification({ userEmail }: InviteNotificationProps) {
             <Button
               size="sm"
               variant="ghost"
-              className="h-7 text-xs text-red-500 hover:text-red-600"
+              className="h-7 text-xs text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800"
               onClick={() => handleReject(invite.id)}
               disabled={processing === invite.id}
             >
