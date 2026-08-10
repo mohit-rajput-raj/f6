@@ -5,6 +5,7 @@ import { Table2, Download, Upload, Check } from "lucide-react"
 import { Badge } from "@repo/ui/components/ui/badge"
 import { Button } from "@repo/ui/components/ui/button"
 import dynamic from "next/dynamic"
+import { unwrapSyncfusionJson, openSheetInSyncfusion, extractSyncfusionSaveData } from "@/lib/sheet-utils"
 
 const SpreadsheetComponent = dynamic(
   () => import("@syncfusion/ej2-react-spreadsheet").then((m) => m.SpreadsheetComponent),
@@ -30,7 +31,8 @@ export function MasterSheetPanelCustom({ spreadsheetRef: externalRef }: MasterSh
 
   // Callback when Syncfusion spreadsheet is fully created and ready
   const onSpreadsheetCreated = () => {
-    const ss = spreadsheetRef.current
+    const raw = spreadsheetRef.current
+    const ss = raw?.ej2Instances?.[0] || raw
     if (ss) {
       ssInstanceRef.current = ss
     }
@@ -38,15 +40,12 @@ export function MasterSheetPanelCustom({ spreadsheetRef: externalRef }: MasterSh
 
   // Helper to safely get the real Syncfusion instance
   const getSsInstance = () => {
-    // Prefer the instance captured via created callback
-    if (ssInstanceRef.current) return ssInstanceRef.current
-    // Fallback: try unwrapping from React ref
-    if (!spreadsheetRef.current) return null
-    const curr = spreadsheetRef.current
-    if (curr.ej2Instances) {
-      return Array.isArray(curr.ej2Instances) ? curr.ej2Instances[0] : curr.ej2Instances
+    const raw = ssInstanceRef.current || spreadsheetRef.current
+    if (!raw) return null
+    if (raw.ej2Instances) {
+      return Array.isArray(raw.ej2Instances) ? raw.ej2Instances[0] : raw.ej2Instances
     }
-    return curr
+    return raw
   }
 
   // Download helper — guaranteed to trigger a file download
@@ -66,84 +65,37 @@ export function MasterSheetPanelCustom({ spreadsheetRef: externalRef }: MasterSh
     }, 100)
   }
 
-  // Export spreadsheet data as JSON
-  const handleExportSheet = () => {
-    console.log("[MasterSheetPanelCustom] Export clicked")
-
-    const filename = `${sheetName.toLowerCase().replace(/\s+/g, "-")}-${Date.now()}.json`
-
-    const ss = ssInstanceRef.current || spreadsheetRef.current
-    console.log("[MasterSheetPanelCustom] ss instance:", !!ss, "saveAsJson:", typeof ss?.saveAsJson)
-
-    if (ss && typeof ss.saveAsJson === "function") {
-      const timeout = setTimeout(() => {
-        console.warn("[MasterSheetPanelCustom] saveAsJson timed out, using fallback")
-        exportFallbackCustom(filename, ss)
-      }, 3000)
-
-      ss.saveAsJson()
-        .then((result: any) => {
-          clearTimeout(timeout)
-          const exportData = result?.jsonObject || result
-          if (exportData && Object.keys(exportData).length > 0) {
-            downloadJson(exportData, filename)
-            setExportSuccess(true)
-            setTimeout(() => setExportSuccess(false), 2000)
-          } else {
-            exportFallbackCustom(filename, ss)
-          }
-        })
-        .catch((err: any) => {
-          clearTimeout(timeout)
-          console.warn("[MasterSheetPanelCustom] saveAsJson error:", err)
-          exportFallbackCustom(filename, ss)
-        })
-    } else {
-      exportFallbackCustom(filename, ss)
-    }
-  }
-
-  const exportFallbackCustom = (filename: string, ss: any) => {
-    let exportData: any = null
-
-    if (ss && typeof ss.getActiveSheet === "function") {
-      try {
-        const sheet = ss.getActiveSheet()
-        const sheetRows = sheet?.rows || []
-        let columns: string[] = []
-        let rows: string[][] = []
-
-        if (sheetRows[0]?.cells) {
-          columns = sheetRows[0].cells
-            .map((c: any) => c?.value ?? "")
-            .filter((v: string) => String(v).trim() !== "")
-        }
-        for (let r = 1; r < sheetRows.length; r++) {
-          const row = sheetRows[r]
-          if (!row?.cells) continue
-          const rowData = row.cells
-            .slice(0, columns.length)
-            .map((c: any) => c?.value ?? "")
-          if (rowData.some((v: string) => String(v).trim() !== "")) {
-            rows.push(rowData)
-          }
-        }
-        if (columns.length > 0) {
-          exportData = { name: sheetName, columns, sampleRows: rows }
-        }
-      } catch (err) {
-        console.warn("[MasterSheetPanelCustom] getActiveSheet fallback failed:", err)
-      }
-    }
-
-    if (!exportData) {
-      alert("No spreadsheet data available to export. Please add data first.")
+  // Export full Syncfusion workbook state as JSON (preserves merged cells, styles, spans, formulas)
+  const handleExportSheet = async () => {
+    const ss = getSsInstance()
+    if (!ss || typeof ss.saveAsJson !== "function") {
+      alert("Spreadsheet is not ready yet. Please wait a moment and try again.")
       return
     }
 
-    downloadJson(exportData, filename)
-    setExportSuccess(true)
-    setTimeout(() => setExportSuccess(false), 2000)
+    const filename = `${sheetName.toLowerCase().replace(/\s+/g, "-")}-${Date.now()}.json`
+
+    try {
+      const savePromise = ss.saveAsJson()
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("Export timed out. Please try again.")), 15000)
+      )
+
+      const result = await Promise.race([savePromise, timeoutPromise])
+      const jsonObject = extractSyncfusionSaveData(result)
+
+      if (!jsonObject || Object.keys(jsonObject).length === 0) {
+        alert("Spreadsheet returned empty data. Please add content first.")
+        return
+      }
+
+      downloadJson(jsonObject, filename)
+      setExportSuccess(true)
+      setTimeout(() => setExportSuccess(false), 2000)
+    } catch (err: any) {
+      console.error("Export error:", err)
+      alert(err?.message || "Export failed. Please try again.")
+    }
   }
 
   // Import handler: Loads complete Syncfusion JSON state (matching microSheetAgent loadJson pattern)
@@ -161,13 +113,7 @@ export function MasterSheetPanelCustom({ spreadsheetRef: externalRef }: MasterSh
           const ss = getSsInstance()
           if (!ss) return
 
-          const fileToOpen = parsed.Workbook ? parsed : (parsed.jsonObject || parsed)
-
-          if (ss.openFromJson) {
-            await ss.openFromJson({ file: fileToOpen })
-          } else if (ss.open) {
-            await ss.open({ file: fileToOpen })
-          }
+          openSheetInSyncfusion(ss, parsed)
         } catch (err) {
           console.error("Import failed:", err)
           alert("Failed to parse template JSON file.")

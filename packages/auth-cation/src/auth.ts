@@ -1,11 +1,10 @@
 import { betterAuth } from "better-auth";
-import { prismaAdapter } from "better-auth/adapters/prisma";
-import { prisma } from "@repo/db";
+import { Pool } from "pg";
 import "dotenv/config";
 
 export const auth = betterAuth({
-  database: prismaAdapter(prisma, {
-    provider: "postgresql",
+  database: new Pool({
+    connectionString: process.env.DATABASE_URL,
   }),
   emailAndPassword: {
     enabled: true,
@@ -43,3 +42,4 @@ export const auth = betterAuth({
 });
 export type Auth = ReturnType<typeof betterAuth>;
 export type Session = Auth["$Infer"]["Session"];
+

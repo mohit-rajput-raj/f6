@@ -814,15 +814,36 @@ export const executeWorkflow = async (
           const ds: Dataset = inputValue ?? { columns: [], data: [] };
           outputValue = ds;
           const previewEnabled = nodeData?.previewEnabled !== false; // default true
+          const targetTabName = nodeData?.targetTabName?.trim();
+          const targetSheetName = nodeData?.targetSheetName?.trim();
+
           if (previewEnabled && ds && ds.columns && ds.columns.length > 0) {
             try {
               const { useDeskStore } = await import("@/stores/desk-store");
               const deskBlockId = nodeData?.deskBlockId;
               if (deskBlockId) {
                 useDeskStore.getState().setBlockOutput(deskBlockId, ds);
+                if (targetTabName) {
+                  useDeskStore.getState().setTabOutput(deskBlockId, targetTabName, ds);
+                }
+              }
+
+              // If a target sub-sheet name is specified (e.g. Sheet1, Sheet2), push to MasterSheet store with that sheetName
+              if (targetSheetName) {
+                const { useMasterSheetStore } = await import("@/stores/master-sheet-store");
+                useMasterSheetStore.getState().pushData({
+                  masterSheetName: targetSheetName,
+                  sheetName: targetSheetName,
+                  data: ds,
+                  blockCodenames: [],
+                  pushedBy: 'workflow',
+                  pushedByName: nodeData?.previewName || 'Output Preview',
+                  pushedAt: Date.now(),
+                  sourceNodeId: currentId,
+                });
               }
             } catch (e) {
-              console.warn("Could not push to desk store:", e);
+              console.warn("Could not push to desk/master-sheet store:", e);
             }
           }
           break;

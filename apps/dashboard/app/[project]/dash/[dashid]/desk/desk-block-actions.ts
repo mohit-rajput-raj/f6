@@ -1,7 +1,6 @@
 "use server";
 
-import { prisma } from "@repo/db";
-// Trigger Turbopack reload for updated Prisma Client schema
+import { supabase } from "@repo/db";
 
 // ─── Types ──────────────────────────────────────────────────
 export interface DeskTextInput {
@@ -45,12 +44,13 @@ export interface DeskBlockData {
 
 // ─── Get all blocks for a project ───────────────────────────
 export async function getDeskBlocks(projectWorkflowId: string): Promise<DeskBlockData[]> {
-  const blocks = await prisma.deskBlock.findMany({
-    where: { projectWorkflowId },
-    orderBy: { blockOrder: "asc" },
-  });
+  const { data: blocks } = await supabase
+    .from("desk_block")
+    .select("*")
+    .eq("projectWorkflowId", projectWorkflowId)
+    .order("blockOrder", { ascending: true });
 
-  return blocks.map((b) => ({
+  return (blocks || []).map((b: any) => ({
     id: b.id,
     name: b.name,
     blockOrder: b.blockOrder,
@@ -58,7 +58,7 @@ export async function getDeskBlocks(projectWorkflowId: string): Promise<DeskBloc
     projectWorkflowId: b.projectWorkflowId,
     parentId: b.parentId,
     treeDepth: b.treeDepth,
-    reservedColumns: b.reservedColumns,
+    reservedColumns: b.reservedColumns || [],
     textInputs: (b.textInputs as unknown as DeskTextInput[]) ?? [],
     sheets: (b.sheets as unknown as DeskSheet[]) ?? [],
     outputPreview: (b.outputPreview as unknown as Dataset) ?? null,
@@ -75,25 +75,28 @@ export async function createDeskBlock(
   tabName?: string
 ): Promise<DeskBlockData> {
   // Get current max order
-  const maxBlock = await prisma.deskBlock.findFirst({
-    where: { projectWorkflowId },
-    orderBy: { blockOrder: "desc" },
-    select: { blockOrder: true },
-  });
+  const { data: maxBlocks } = await supabase
+    .from("desk_block")
+    .select("blockOrder")
+    .eq("projectWorkflowId", projectWorkflowId)
+    .order("blockOrder", { ascending: false })
+    .limit(1);
 
+  const maxBlock = maxBlocks && maxBlocks.length > 0 ? maxBlocks[0] : null;
   const order = blockOrder ?? (maxBlock ? maxBlock.blockOrder + 1 : 0);
 
   // Determine tree depth from parent
   let treeDepth = 0;
   if (parentId) {
-    const parent = await prisma.deskBlock.findUnique({
-      where: { id: parentId },
-      select: { treeDepth: true },
-    });
+    const { data: parent } = await supabase
+      .from("desk_block")
+      .select("treeDepth")
+      .eq("id", parentId)
+      .maybeSingle();
+
     treeDepth = (parent?.treeDepth ?? 0) + 1;
   }
 
-  // Pre-generate ID
   const blockId = crypto.randomUUID();
   const blockName = tabName || `Block ${order + 1}`;
   const initialSheets = [
@@ -105,8 +108,9 @@ export async function createDeskBlock(
   ];
 
   // Create a workflow for this block's editor with empty nodes
-  const editorWorkflow = await prisma.workflow.create({
-    data: {
+  const { data: editorWorkflow, error: wfErr } = await supabase
+    .from("workflow")
+    .insert({
       userId,
       name: `${blockName} Editor`,
       definition: {
@@ -118,11 +122,15 @@ export async function createDeskBlock(
         },
       },
       tags: ["desk-block-editor"],
-    },
-  });
+    })
+    .select()
+    .single();
 
-  const block = await prisma.deskBlock.create({
-    data: {
+  if (wfErr) throw wfErr;
+
+  const { data: block, error: blockErr } = await supabase
+    .from("desk_block")
+    .insert({
       id: blockId,
       projectWorkflowId,
       editorWorkflowId: editorWorkflow.id,
@@ -130,11 +138,14 @@ export async function createDeskBlock(
       blockOrder: order,
       parentId: parentId ?? null,
       treeDepth,
-      textInputs: [] as any,
-      sheets: initialSheets as any,
-      checkboxFields: [] as any,
-    },
-  });
+      textInputs: [],
+      sheets: initialSheets,
+      checkboxFields: [],
+    })
+    .select()
+    .single();
+
+  if (blockErr) throw blockErr;
 
   return {
     id: block.id,
@@ -144,7 +155,7 @@ export async function createDeskBlock(
     projectWorkflowId: block.projectWorkflowId,
     parentId: block.parentId,
     treeDepth: block.treeDepth,
-    reservedColumns: block.reservedColumns,
+    reservedColumns: block.reservedColumns || [],
     textInputs: [],
     sheets: initialSheets,
     outputPreview: null,
@@ -157,16 +168,21 @@ export async function syncBlockFieldsFromWorkflow(
   editorWorkflowId: string
 ) {
   // Find the block that owns this editor
-  const block = await prisma.deskBlock.findUnique({
-    where: { editorWorkflowId },
-  });
+  const { data: block } = await supabase
+    .from("desk_block")
+    .select("*")
+    .eq("editorWorkflowId", editorWorkflowId)
+    .maybeSingle();
+
   if (!block) return;
 
   // Load the workflow to scan nodes
-  const workflow = await prisma.workflow.findUnique({
-    where: { id: editorWorkflowId },
-    select: { definition: true },
-  });
+  const { data: workflow } = await supabase
+    .from("workflow")
+    .select("definition")
+    .eq("id", editorWorkflowId)
+    .maybeSingle();
+
   if (!workflow?.definition) return;
 
   const def = workflow.definition as any;
@@ -218,14 +234,15 @@ export async function syncBlockFieldsFromWorkflow(
     });
 
   // Update the block
-  await prisma.deskBlock.update({
-    where: { id: block.id },
-    data: {
+  await supabase
+    .from("desk_block")
+    .update({
       textInputs: textInputs as any,
       sheets: sheets as any,
       checkboxFields: checkboxFields as any,
-    },
-  });
+      updatedAt: new Date().toISOString(),
+    })
+    .eq("id", block.id);
 
   return { textInputs, sheets, checkboxFields };
 }
@@ -235,12 +252,12 @@ export async function initializeDefaultDesk(
   projectWorkflowId: string,
   userId: string
 ): Promise<DeskBlockData[]> {
-  // Check if blocks already exist
-  const existing = await prisma.deskBlock.count({
-    where: { projectWorkflowId },
-  });
+  const { count } = await supabase
+    .from("desk_block")
+    .select("id", { count: "exact", head: true })
+    .eq("projectWorkflowId", projectWorkflowId);
 
-  if (existing > 0) {
+  if (count && count > 0) {
     return getDeskBlocks(projectWorkflowId);
   }
 
@@ -261,15 +278,20 @@ export async function updateDeskBlockInputs(
     checkboxFields?: CheckboxField[];
   }
 ) {
-  const updateData: any = {};
+  const updateData: any = { updatedAt: new Date().toISOString() };
   if (data.textInputs !== undefined) updateData.textInputs = data.textInputs;
   if (data.sheets !== undefined) updateData.sheets = data.sheets;
   if (data.checkboxFields !== undefined) updateData.checkboxFields = data.checkboxFields;
 
-  return prisma.deskBlock.update({
-    where: { id: blockId },
-    data: updateData,
-  });
+  const { data: updated, error } = await supabase
+    .from("desk_block")
+    .update(updateData)
+    .eq("id", blockId)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return updated;
 }
 
 // ─── Update block output preview ────────────────────────────
@@ -277,27 +299,31 @@ export async function updateDeskBlockOutput(
   blockId: string,
   outputPreview: Dataset | null
 ) {
-  return prisma.deskBlock.update({
-    where: { id: blockId },
-    data: { outputPreview: outputPreview as any },
-  });
+  const { data, error } = await supabase
+    .from("desk_block")
+    .update({ outputPreview: outputPreview as any, updatedAt: new Date().toISOString() })
+    .eq("id", blockId)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
 }
 
 // ─── Delete a block ─────────────────────────────────────────
 export async function deleteDeskBlock(blockId: string) {
-  const block = await prisma.deskBlock.findUnique({
-    where: { id: blockId },
-    select: { editorWorkflowId: true },
-  });
+  const { data: block } = await supabase
+    .from("desk_block")
+    .select("editorWorkflowId")
+    .eq("id", blockId)
+    .maybeSingle();
 
   if (!block) throw new Error("Block not found");
 
-  // Delete the block (cascade will handle the relation)
-  await prisma.deskBlock.delete({ where: { id: blockId } });
+  await supabase.from("desk_block").delete().eq("id", blockId);
 
-  // Delete the editor workflow
   try {
-    await prisma.workflow.delete({ where: { id: block.editorWorkflowId } });
+    await supabase.from("workflow").delete().eq("id", block.editorWorkflowId);
   } catch {
     // May already be deleted by cascade
   }
@@ -305,10 +331,15 @@ export async function deleteDeskBlock(blockId: string) {
 
 // ─── Rename a block ─────────────────────────────────────────
 export async function renameDeskBlock(blockId: string, name: string) {
-  return prisma.deskBlock.update({
-    where: { id: blockId },
-    data: { name },
-  });
+  const { data, error } = await supabase
+    .from("desk_block")
+    .update({ name, updatedAt: new Date().toISOString() })
+    .eq("id", blockId)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
 }
 
 // ─── Reorder blocks ─────────────────────────────────────────
@@ -316,18 +347,19 @@ export async function reorderDeskBlocks(
   projectWorkflowId: string,
   orderedIds: string[]
 ) {
-  const updates = orderedIds.map((id, index) =>
-    prisma.deskBlock.update({
-      where: { id },
-      data: { blockOrder: index },
-    })
+  await Promise.all(
+    orderedIds.map((id, index) =>
+      supabase
+        .from("desk_block")
+        .update({ blockOrder: index, updatedAt: new Date().toISOString() })
+        .eq("id", id)
+    )
   );
-  await prisma.$transaction(updates);
 }
 
 // ─── Get single block ───────────────────────────────────────
 export async function getDeskBlock(blockId: string): Promise<DeskBlockData | null> {
-  const b = await prisma.deskBlock.findUnique({ where: { id: blockId } });
+  const { data: b } = await supabase.from("desk_block").select("*").eq("id", blockId).maybeSingle();
   if (!b) return null;
 
   return {
@@ -338,10 +370,11 @@ export async function getDeskBlock(blockId: string): Promise<DeskBlockData | nul
     projectWorkflowId: b.projectWorkflowId,
     parentId: b.parentId,
     treeDepth: b.treeDepth,
-    reservedColumns: b.reservedColumns,
+    reservedColumns: b.reservedColumns || [],
     textInputs: (b.textInputs as unknown as DeskTextInput[]) ?? [],
     sheets: (b.sheets as unknown as DeskSheet[]) ?? [],
     outputPreview: (b.outputPreview as unknown as Dataset) ?? null,
     checkboxFields: (b.checkboxFields as unknown as CheckboxField[]) ?? [],
   };
 }
+

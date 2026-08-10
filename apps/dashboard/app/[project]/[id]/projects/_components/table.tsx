@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import dynamic from "next/dynamic";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -10,34 +9,8 @@ import {
   MoreHorizontal,
   Plus,
   Trash2,
-  Download,
-  Upload,
-  GraduationCap,
-  Calendar,
-  Package,
-  Table as TableIcon,
-  FileSpreadsheet,
   FolderPlus,
-  Check,
-  X,
 } from "lucide-react";
-
-import MasterSheetPanelCustom from "./MasterSheetPanelCustom";
-
-const SpreadsheetComponent = dynamic(
-  () => import("@syncfusion/ej2-react-spreadsheet").then((m) => m.SpreadsheetComponent),
-  { ssr: false }
-);
-
-function colLetter(idx: number): string {
-  let result = "";
-  let n = idx;
-  while (n >= 0) {
-    result = String.fromCharCode(65 + (n % 26)) + result;
-    n = Math.floor(n / 26) - 1;
-  }
-  return result;
-}
 
 import { Button } from "@repo/ui/components/ui/button";
 import {
@@ -330,28 +303,9 @@ export const ProjectList = () => {
     </div>
   );
 };
-const TEMPLATE_OPTIONS = [
-  {
-    id: "custom",
-    name: "Custom Blank Sheet",
-    description: "Start with a clean blank sheet and customize headers and data freely.",
-    icon: FileSpreadsheet,
-    columns: [],
-    sampleRows: [],
-  },
-];
 
 export const CreateWorkFlow = () => {
   const [open, setOpen] = useState(false);
-  const [isMounted, setIsMounted] = useState(false);
-  const [selectedTemplateId, setSelectedTemplateId] = useState<string>("custom");
-  const spreadsheetRef = useRef<any>(null);
-
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
-
-  const queryClient = useQueryClient();
   const router = useRouter();
   const { data: session } = useSession();
   const userId = session?.user?.id;
@@ -368,156 +322,26 @@ export const CreateWorkFlow = () => {
     mutationFn: async ({
       id,
       name,
-      templateData,
     }: {
       id: string;
       name: string;
-      templateData?: { columns: string[]; data?: any[][] };
     }) => {
-      return await createWorkFlow({ id, name, templateData });
+      return await createWorkFlow({ id, name });
     },
     onSuccess: (newWorkflow) => {
       refetch();
       setOpen(false);
-      window.open(`/dashboard/dash/${newWorkflow.id}/desk`, "_blank");
       methods.reset();
+      router.push(`/dashboard/dash/${newWorkflow.id}/desk`);
     },
   });
 
-  // On submit: read sheet data from ref and pass columns + data
-  const handleCreateSubmit = (data: CreateWorkFlowFormProps) => {
+  const handleCreateSubmit = async (data: CreateWorkFlowFormProps) => {
     if (!userId) return;
-
-    let columns: string[] = [];
-    let rows: any[][] = [];
-
-    const ss = spreadsheetRef.current;
-    if (ss?.getActiveSheet) {
-      try {
-        const sheet = ss.getActiveSheet();
-        const sheetRows = sheet?.rows || [];
-        if (sheetRows[0]?.cells) {
-          columns = sheetRows[0].cells
-            .map((c: any) => c?.value ?? "")
-            .filter((v: string) => String(v).trim() !== "");
-        }
-        for (let r = 1; r < sheetRows.length; r++) {
-          const row = sheetRows[r];
-          if (!row?.cells) continue;
-          const rowData = row.cells
-            .slice(0, columns.length)
-            .map((c: any) => c?.value ?? "");
-          if (rowData.some((v: string) => String(v).trim() !== "")) {
-            rows.push(rowData);
-          }
-        }
-      } catch (err) {
-        console.warn("Sheet read error:", err);
-      }
-    }
-
     mutation.mutate({
       id: userId,
       name: data.name,
-      templateData: { columns, data: rows },
     });
-  };
-
-  // Export: use Syncfusion's native saveAsJson — dumps entire spreadsheet state
-  const handleExportTemplate = async () => {
-    const ss = spreadsheetRef.current;
-    if (!ss) {
-      alert("Spreadsheet not ready. Please try again.");
-      return;
-    }
-    try {
-      let result: any = null;
-      if (ss.saveAsJson) {
-        const jsonRes = await ss.saveAsJson();
-        result = (jsonRes as any)?.jsonObject || jsonRes;
-      }
-      if (!result && ss.getActiveSheet) {
-        const sheet = ss.getActiveSheet();
-        const sheetRows = sheet?.rows || [];
-        let columns: string[] = [];
-        let rows: any[][] = [];
-        if (sheetRows[0]?.cells) {
-          columns = sheetRows[0].cells.map((c: any) => c?.value ?? "").filter((v: string) => String(v).trim() !== "");
-        }
-        for (let r = 1; r < sheetRows.length; r++) {
-          const row = sheetRows[r];
-          if (!row?.cells) continue;
-          const rowData = row.cells.slice(0, columns.length).map((c: any) => c?.value ?? "");
-          if (rowData.some((v: string) => String(v).trim() !== "")) {
-            rows.push(rowData);
-          }
-        }
-        result = { columns, sampleRows: rows };
-      }
-
-      if (!result) {
-        alert("Could not export spreadsheet data.");
-        return;
-      }
-
-      const blob = new Blob([JSON.stringify(result, null, 2)], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `spreadsheet-template-${Date.now()}.json`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch (err) {
-      console.error("Export failed:", err);
-      alert("Failed to export spreadsheet.");
-    }
-  };
-
-  // Import: use Syncfusion's native openFromJson — restores entire spreadsheet state
-  const handleImportTemplate = () => {
-    const input = document.createElement("input");
-    input.type = "file";
-    input.accept = ".json";
-    input.onchange = (e: any) => {
-      const file = e.target.files?.[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = async (ev) => {
-        try {
-          const json = JSON.parse(ev.target?.result as string);
-          const ss = spreadsheetRef.current;
-          if (!ss) {
-            alert("Spreadsheet not ready. Please try again.");
-            return;
-          }
-
-          if (ss.openFromJson) {
-            const fileToOpen = json.Workbook ? json : (json.jsonObject || json);
-            await ss.openFromJson({ file: fileToOpen });
-          } else if (json.columns && Array.isArray(json.columns) && ss.updateCell) {
-            json.columns.forEach((col: string, colIdx: number) => {
-              const cellAddr = `${colLetter(colIdx)}1`;
-              ss.updateCell(
-                { value: col, style: { fontWeight: "bold", backgroundColor: "#e2e8f0" } },
-                cellAddr
-              );
-            });
-            const rows = json.data || json.sampleRows || [];
-            rows.forEach((row: any[], rowIdx: number) => {
-              row.forEach((cell: any, colIdx: number) => {
-                const cellAddr = `${colLetter(colIdx)}${rowIdx + 2}`;
-                ss.updateCell({ value: String(cell ?? "") }, cellAddr);
-              });
-            });
-          }
-        } catch (err) {
-          console.error("Import failed:", err);
-          alert("Failed to import template. Make sure it's a valid JSON file.");
-        }
-      };
-      reader.readAsText(file);
-    };
-    input.click();
   };
 
   return (
@@ -528,171 +352,61 @@ export const CreateWorkFlow = () => {
         </Button>
       </DialogTrigger>
 
-      <DialogContent className="sm:max-w-7xl w-[96vw] max-h-[95vh] h-[90vh] dark bg-zinc-950 border-zinc-800/80 text-zinc-100 p-0 flex flex-col overflow-hidden shadow-2xl">
-        {/* Header */}
-        <div className="border-b border-zinc-800/80 px-6 py-3.5 bg-zinc-950 flex items-center justify-between flex-shrink-0">
-          <div className="flex items-center gap-2.5">
-            <FolderPlus className="size-4 text-zinc-400" />
-            <h2 className="text-sm font-semibold text-zinc-100 tracking-tight">
-              Create Workflow Project & MasterSheet
-            </h2>
-          </div>
-          <DialogClose asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-7 rounded-md text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/80 transition-colors"
-            >
-              <X className="size-4" />
-            </Button>
-          </DialogClose>
-        </div>
+      <DialogContent className="sm:max-w-md dark bg-zinc-950 border-zinc-800 text-zinc-100 p-6 flex flex-col gap-4 shadow-2xl">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-base font-semibold">
+            <FolderPlus className="size-5 text-zinc-400" />
+            Create Workflow Project
+          </DialogTitle>
+          <DialogDescription className="text-xs text-zinc-400">
+            Enter a name for your new workflow project to get started.
+          </DialogDescription>
+        </DialogHeader>
 
         <Form {...methods}>
           <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              methods.handleSubmit(handleCreateSubmit)(e);
-            }}
-            className="flex-1 flex min-h-0 overflow-hidden"
+            onSubmit={methods.handleSubmit(handleCreateSubmit)}
+            className="space-y-4"
           >
-            {/* LEFT SIDE (1/3 Width) - Project Details & Template Selector */}
-            <div className="w-1/3 min-w-[320px] max-w-[400px] border-r border-zinc-800/80 bg-zinc-950 p-5 flex flex-col justify-between overflow-y-auto space-y-6 flex-shrink-0">
-              <div className="space-y-6">
-                {/* 1. Naming Section */}
-                <div className="space-y-3">
-                  <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400 block">
-                    1. Project Details
-                  </span>
-                  <FormField
-                    control={methods.control}
-                    name="name"
-                    render={({ field }) => (
-                      <FormItem className="space-y-1.5">
-                        <FormLabel className="text-xs font-medium text-zinc-300">
-                          Workflow Project Name *
-                        </FormLabel>
-                        <FormControl>
-                          <Input
-                            placeholder="e.g. Q3 Student Grade Sheet"
-                            className="h-9 bg-zinc-900 border-zinc-800 focus:border-zinc-700 text-xs text-zinc-100 placeholder:text-zinc-500 rounded-md focus-visible:ring-1 focus-visible:ring-zinc-700"
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") e.preventDefault();
-                            }}
-                            {...field}
-                          />
-                        </FormControl>
-                        <FormMessage className="text-[11px]" />
-                      </FormItem>
-                    )}
-                  />
-                </div>
+            <FormField
+              control={methods.control}
+              name="name"
+              render={({ field }) => (
+                <FormItem className="space-y-1.5">
+                  <FormLabel className="text-xs font-medium text-zinc-300">
+                    Workflow Project Name *
+                  </FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder="e.g. Q3 Student Grade Sheet"
+                      className="h-9 bg-zinc-900 border-zinc-800 focus:border-zinc-700 text-xs text-zinc-100 placeholder:text-zinc-500 rounded-md focus-visible:ring-1 focus-visible:ring-zinc-700"
+                      autoFocus
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage className="text-[11px]" />
+                </FormItem>
+              )}
+            />
 
-                {/* 2. Sheet Selector Section */}
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
-                      2. Sheet Template
-                    </span>
-                    {selectedTemplateId === "custom" && (
-                      <span className="text-[10px] bg-zinc-800 text-zinc-300 px-2 py-0.5 rounded border border-zinc-700 font-mono">
-                        Tools Active
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="space-y-2">
-                    {TEMPLATE_OPTIONS.map((tpl) => {
-                      const isSelected = selectedTemplateId === tpl.id;
-                      const Icon = tpl.icon;
-                      return (
-                        <div
-                          key={tpl.id}
-                          onClick={() => setSelectedTemplateId(tpl.id)}
-                          className={`p-3 rounded-lg border text-zinc-100 flex items-center justify-between cursor-pointer transition-colors ${
-                            isSelected
-                              ? "border-zinc-700 bg-zinc-800/80"
-                              : "border-zinc-800/50 bg-zinc-900/50 hover:bg-zinc-800/40"
-                          }`}
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className="size-7 rounded-md flex items-center justify-center bg-zinc-700 text-zinc-100">
-                              <Icon className="size-3.5" />
-                            </div>
-                            <div>
-                              <h4 className="text-xs font-medium text-zinc-100">
-                                {tpl.name}
-                              </h4>
-                              <p className="text-[10px] text-zinc-400 font-mono">
-                                Blank Canvas (Syncfusion)
-                              </p>
-                            </div>
-                          </div>
-                          {isSelected && <Check className="size-3.5 text-zinc-300" />}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* 3. Template Import / Export Section */}
-                <div className="space-y-3 pt-1 border-t border-zinc-800/60">
-                  <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400 block">
-                    3. Custom Template Actions
-                  </span>
-                  <p className="text-[11px] text-zinc-500 leading-relaxed">
-                    Export your configured sheet layout as JSON to reuse across projects, or import a pre-saved template.
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={handleImportTemplate}
-                      className="flex-1 gap-1.5 h-8 text-xs border-zinc-800 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-zinc-100 transition-colors"
-                    >
-                      <Upload className="size-3.5 text-zinc-400" />
-                      Import Template
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={handleExportTemplate}
-                      className="flex-1 gap-1.5 h-8 text-xs border-zinc-800 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-zinc-100 transition-colors"
-                    >
-                      <Download className="size-3.5 text-zinc-400" />
-                      Export Template
-                    </Button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Action Buttons Footer */}
-              <div className="pt-4 border-t border-zinc-800/80 flex items-center gap-2.5">
-                <DialogClose asChild>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="flex-1 border-zinc-800 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-xs h-9"
-                  >
-                    Cancel
-                  </Button>
-                </DialogClose>
+            <DialogFooter className="pt-2 flex items-center justify-end gap-2">
+              <DialogClose asChild>
                 <Button
-                  type="submit"
-                  disabled={mutation.isPending || !methods.watch("name")?.trim()}
-                  className="flex-1 bg-zinc-100 hover:bg-white text-zinc-950 font-medium text-xs h-9 shadow-sm"
+                  type="button"
+                  variant="outline"
+                  className="border-zinc-800 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-xs h-9"
                 >
-                  {mutation.isPending ? "Creating..." : "Create Project"}
+                  Cancel
                 </Button>
-              </div>
-            </div>
-
-            {/* RIGHT SIDE (2/3 Width) - MasterSheetPanelCustom */}
-            <div className="flex-1 bg-zinc-950 flex flex-col min-h-0 h-full overflow-hidden p-2">
-              <MasterSheetPanelCustom spreadsheetRef={spreadsheetRef} />
-            </div>
+              </DialogClose>
+              <Button
+                type="submit"
+                disabled={mutation.isPending || !methods.watch("name")?.trim()}
+                className="bg-zinc-100 hover:bg-white text-zinc-950 font-medium text-xs h-9 shadow-sm"
+              >
+                {mutation.isPending ? "Creating..." : "Create Project"}
+              </Button>
+            </DialogFooter>
           </form>
         </Form>
       </DialogContent>

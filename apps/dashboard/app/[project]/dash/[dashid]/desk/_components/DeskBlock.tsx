@@ -21,6 +21,8 @@ const SpreadsheetComponent = dynamic(
   { ssr: false }
 )
 
+import { openSheetInSyncfusion } from "@/lib/sheet-utils"
+
 // ─── CSV parsing helper ─────────────────────────────────────
 function parseCSV(text: string): { columns: string[]; data: string[][] } {
   const lines = text.trim().split("\n")
@@ -70,6 +72,7 @@ interface DeskBlockProps {
   onAddTab: (bigBlockId: string) => Promise<string | undefined>
   onRenameTab: (blockId: string, newName: string) => Promise<void>
   onDeleteTab: (blockId: string) => Promise<void>
+  onDeleteBigBlock?: (bigBlockId: string) => Promise<void>
   previousBlockOutput?: Dataset | null
 }
 
@@ -85,6 +88,7 @@ export function DeskBlock({
   onAddTab,
   onRenameTab,
   onDeleteTab,
+  onDeleteBigBlock,
   previousBlockOutput,
 }: DeskBlockProps) {
   const router = useRouter()
@@ -231,15 +235,15 @@ export function DeskBlock({
   // ─── Delete a child tab ────────────────────────────────────
   const handleDeleteTab = useCallback(async (childId: string) => {
     if (isGuest) return
-    if (childBlocks.length <= 1) {
-      toast.error("Cannot delete the last tab in a BigBlock")
-      return
-    }
-    if (confirm("Delete this tab? This cannot be undone.")) {
+    const isLastTab = childBlocks.length <= 1
+    const confirmMsg = isLastTab
+      ? "Deleting the last tab will also delete this BigBlock. Continue?"
+      : "Delete this tab? This cannot be undone."
+
+    if (confirm(confirmMsg)) {
       setIsDeleting(true)
       try {
         await onDeleteTab(childId)
-        // Switch to first remaining child
         const remaining = childBlocks.filter(c => c.id !== childId)
         if (remaining.length > 0) setActiveChildId(remaining[0].id)
       } catch (err) {
@@ -250,32 +254,69 @@ export function DeskBlock({
     }
   }, [isGuest, childBlocks, onDeleteTab])
 
-  // ─── Load preview data into Syncfusion ──────────────────
-  useEffect(() => {
-    if (!spreadsheetRef.current || !previewData || !previewData.columns) return
-    const timer = setTimeout(() => {
-      const ss = spreadsheetRef.current
-      if (!ss || !ss.element || !ss.updateCell) return
+  // Helper to safely render dataset into Syncfusion spreadsheet (with grid clearing fallback)
+  const renderSpreadsheetData = useCallback((ss: any, dataset: Dataset | null) => {
+    if (!ss || !dataset || !dataset.columns || dataset.columns.length === 0) return
+
+    // 1. Try openSheetInSyncfusion first
+    try {
+      openSheetInSyncfusion(ss, dataset)
+      return
+    } catch (e) {
+      console.warn("openSheetInSyncfusion failed, falling back to clean updateCell:", e)
+    }
+
+    // 2. Clear & updateCell fallback
+    if (typeof ss.updateCell === "function") {
       try {
-        previewData.columns.forEach((col, colIdx) => {
+        // Clear previous grid area (50 rows x 30 cols)
+        for (let r = 0; r < 50; r++) {
+          for (let c = 0; c < 30; c++) {
+            const addr = `${colLetter(c)}${r + 1}`
+            ss.updateCell({ value: "" }, addr)
+          }
+        }
+
+        // Render header row
+        dataset.columns.forEach((col, colIdx) => {
           const cellAddr = `${colLetter(colIdx)}1`
           ss.updateCell(
             { value: String(col ?? ""), style: { fontWeight: "bold", backgroundColor: "#334155", color: "#ffffff" } },
             cellAddr
           )
         })
-        ;(previewData.data || []).forEach((row, rowIdx) => {
+
+        // Render data rows
+        ;(dataset.data || []).forEach((row, rowIdx) => {
           ;(row || []).forEach((cell: any, colIdx: number) => {
             const cellAddr = `${colLetter(colIdx)}${rowIdx + 2}`
             ss.updateCell({ value: String(cell ?? "") }, cellAddr)
           })
         })
       } catch (err) {
-        console.warn("Spreadsheet update failed:", err)
+        console.warn("Spreadsheet updateCell failed:", err)
       }
-    }, 300)
+    }
+  }, [])
+
+  // Callback when Syncfusion spreadsheet inside DeskBlock is fully created
+  const onSpreadsheetCreated = () => {
+    if (previewData && spreadsheetRef.current) {
+      renderSpreadsheetData(spreadsheetRef.current, previewData)
+    }
+  }
+
+  // ─── Load preview data into Syncfusion ──────────────────
+  useEffect(() => {
+    if (!spreadsheetRef.current || !previewData) return
+    const timer = setTimeout(() => {
+      const ss = spreadsheetRef.current
+      if (ss) {
+        renderSpreadsheetData(ss, previewData)
+      }
+    }, 200)
     return () => clearTimeout(timer)
-  }, [previewData])
+  }, [previewData, activeChildId, activePreviewTab, renderSpreadsheetData])
 
   // ─── If no children exist yet, show empty state ────────────
   if (childBlocks.length === 0) {
@@ -363,6 +404,30 @@ export function DeskBlock({
                     <DropdownMenuItem onClick={() => handleDeleteTab(activeChild.id)} className="cursor-pointer text-xs text-red-600 focus:bg-red-50 focus:text-red-600">
                       <Trash2 className="mr-2 size-3.5" />
                       Delete Tab
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={async () => {
+                        if (confirm("Are you sure you want to delete this BigBlock and all its tabs?")) {
+                          setIsDeleting(true)
+                          try {
+                            if (onDeleteBigBlock) {
+                              await onDeleteBigBlock(block.id)
+                            } else {
+                              for (const child of childBlocks) {
+                                await onDeleteTab(child.id)
+                              }
+                            }
+                          } catch (e) {
+                            toast.error("Failed to delete BigBlock")
+                          } finally {
+                            setIsDeleting(false)
+                          }
+                        }
+                      }}
+                      className="cursor-pointer text-xs text-red-600 focus:bg-red-50 focus:text-red-600 border-t border-zinc-800"
+                    >
+                      <Trash2 className="mr-2 size-3.5" />
+                      Delete BigBlock
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
@@ -672,11 +737,13 @@ export function DeskBlock({
                     <div className={`w-full h-full ${previewData && previewData.columns && previewData.columns.length > 0 ? "block" : "hidden"}`}>
                       <SpreadsheetComponent
                         ref={spreadsheetRef}
+                        created={onSpreadsheetCreated}
                         className="w-full h-full"
                         height="100%"
                         width="100%"
-                        allowOpen={false}
-                        allowSave={false}
+                        allowOpen={true}
+                        allowSave={true}
+                        sheets={[{ name: 'Sheet1', showGridLines: true }]}
                       />
                     </div>
                   </ErrorBoundary>

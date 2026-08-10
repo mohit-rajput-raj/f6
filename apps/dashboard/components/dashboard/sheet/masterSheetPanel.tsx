@@ -13,6 +13,7 @@ import {
   upsertMasterSheetByName,
   addMasterSheetHistory,
 } from "@/app/[project]/dash/[dashid]/(documents)/data-library/master-sheet-actions";
+import { openSheetInSyncfusion } from "@/lib/sheet-utils";
 
 export default function MasterSheetPanel() {
   const spreadsheetRef = useRef<SpreadsheetComponent>(null);
@@ -65,20 +66,7 @@ export default function MasterSheetPanel() {
   const loadSheetToSpreadsheet = useCallback(() => {
     if (!spreadsheetRef.current || !currentSheet) return;
     const ss = spreadsheetRef.current;
-
-    // Write headers
-    currentSheet.columns.forEach((col, colIdx) => {
-      const cellAddr = `${colLetter(colIdx)}1`;
-      ss.updateCell({ value: col, style: { fontWeight: 'bold', backgroundColor: '#e2e8f0' } }, cellAddr);
-    });
-
-    // Write data
-    currentSheet.data.forEach((row, rowIdx) => {
-      row.forEach((cell: any, colIdx: number) => {
-        const cellAddr = `${colLetter(colIdx)}${rowIdx + 2}`;
-        ss.updateCell({ value: String(cell ?? '') }, cellAddr);
-      });
-    });
+    openSheetInSyncfusion(ss, currentSheet);
   }, [currentSheet]);
 
   useEffect(() => {

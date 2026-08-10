@@ -214,10 +214,10 @@ export default function DeskPage() {
           setBlockOutput(blockId, outputData)
           await updateDeskBlockOutput(blockId, outputData)
 
-          // Also propagate to parent BigBlock's outputPreview
-          // so the next BigBlock can receive it
+          // Also propagate to parent BigBlock's outputPreview & per-tab outputs
           if (block.parentId) {
             setBlockOutput(block.parentId, outputData)
+            useDeskStore.getState().setTabOutput(block.parentId, block.name, outputData)
             await updateDeskBlockOutput(block.parentId, outputData)
           }
         }
@@ -275,16 +275,53 @@ export default function DeskPage() {
     []
   )
 
-  // ─── Delete a child tab ───────────────────────────────────
+  // ─── Delete a child tab (and auto-delete BigBlock if last tab) ────
   const handleDeleteTab = useCallback(
     async (blockId: string) => {
       try {
+        const allBlocks = useDeskStore.getState().blocks
+        const targetBlock = allBlocks.find((b) => b.id === blockId)
+
         await deleteDeskBlock(blockId)
         useDeskStore.getState().removeBlock(blockId)
+
+        if (targetBlock?.parentId) {
+          const parentId = targetBlock.parentId
+          const remainingChildren = useDeskStore.getState().blocks.filter((b) => b.parentId === parentId)
+          if (remainingChildren.length === 0) {
+            await deleteDeskBlock(parentId)
+            useDeskStore.getState().removeBlock(parentId)
+            toast.success("BigBlock deleted (no tabs left)")
+            return
+          }
+        }
         toast.success("Tab deleted")
       } catch (err: any) {
         console.error("Failed to delete tab:", err)
         toast.error(err?.message || "Failed to delete")
+      }
+    },
+    []
+  )
+
+  // ─── Delete a BigBlock and all its child tabs ──────────────
+  const handleDeleteBigBlock = useCallback(
+    async (bigBlockId: string) => {
+      try {
+        const allBlocks = useDeskStore.getState().blocks
+        const children = allBlocks.filter((b) => b.parentId === bigBlockId)
+
+        for (const child of children) {
+          await deleteDeskBlock(child.id)
+          useDeskStore.getState().removeBlock(child.id)
+        }
+
+        await deleteDeskBlock(bigBlockId)
+        useDeskStore.getState().removeBlock(bigBlockId)
+        toast.success("BigBlock deleted")
+      } catch (err: any) {
+        console.error("Failed to delete BigBlock:", err)
+        toast.error(err?.message || "Failed to delete BigBlock")
       }
     },
     []
@@ -543,6 +580,7 @@ export default function DeskPage() {
                   onAddTab={handleAddTab}
                   onRenameTab={handleRenameTab}
                   onDeleteTab={handleDeleteTab}
+                  onDeleteBigBlock={handleDeleteBigBlock}
                   previousBlockOutput={index > 0 ? rootArr[index - 1]?.outputPreview : undefined}
                 />
 

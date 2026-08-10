@@ -1,4 +1,4 @@
-import { prisma } from "@repo/db";
+import { supabase } from "@repo/db";
 
 export class TeamService {
   /**
@@ -11,35 +11,38 @@ export class TeamService {
     reservedColumns?: string[];
     projectWorkflowId?: string;
   }) {
-    // Check existing invite
-    const existing = await prisma.deskShare.findUnique({
-      where: {
-        masterSheetId_invitedEmail: {
-          masterSheetId: data.masterSheetId,
-          invitedEmail: data.invitedEmail,
-        },
-      },
-    });
+    const { data: existing } = await supabase
+      .from("desk_share")
+      .select("*")
+      .eq("masterSheetId", data.masterSheetId)
+      .ilike("invitedEmail", data.invitedEmail)
+      .maybeSingle();
 
     if (existing) {
-      return prisma.deskShare.update({
-        where: { id: existing.id },
-        data: {
+      const { data: updated, error } = await supabase
+        .from("desk_share")
+        .update({
           permission: data.permission ?? existing.permission,
           reservedColumns: data.reservedColumns ?? existing.reservedColumns,
           projectWorkflowId: data.projectWorkflowId ?? existing.projectWorkflowId,
-        },
-      });
+        })
+        .eq("id", existing.id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return updated;
     }
 
-    // Find user by email if they exist
-    const user = await prisma.user.findUnique({
-      where: { email: data.invitedEmail },
-      select: { id: true },
-    });
+    const { data: user } = await supabase
+      .from("user")
+      .select("id")
+      .ilike("email", data.invitedEmail)
+      .maybeSingle();
 
-    const share = await prisma.deskShare.create({
-      data: {
+    const { data: share, error: shareErr } = await supabase
+      .from("desk_share")
+      .insert({
         masterSheetId: data.masterSheetId,
         invitedEmail: data.invitedEmail,
         invitedUserId: user?.id ?? null,
@@ -47,22 +50,22 @@ export class TeamService {
         reservedColumns: data.reservedColumns ?? [],
         projectWorkflowId: data.projectWorkflowId ?? null,
         status: "pending",
-      },
-    });
+      })
+      .select()
+      .single();
 
-    // Create notification for the invited user (if they exist)
+    if (shareErr) throw shareErr;
+
     if (user) {
-      await prisma.notification.create({
+      await supabase.from("notification").insert({
+        userId: user.id,
+        type: "desk_invite",
+        title: "Desk Invitation",
+        message: `You've been invited to collaborate on a shared desk.`,
         data: {
-          userId: user.id,
-          type: "desk_invite",
-          title: "Desk Invitation",
-          message: `You've been invited to collaborate on a shared desk.`,
-          data: {
-            shareId: share.id,
-            masterSheetId: data.masterSheetId,
-            projectWorkflowId: data.projectWorkflowId,
-          },
+          shareId: share.id,
+          masterSheetId: data.masterSheetId,
+          projectWorkflowId: data.projectWorkflowId,
         },
       });
     }
@@ -74,24 +77,35 @@ export class TeamService {
    * Get all collaborators for a master sheet.
    */
   async getCollaborators(masterSheetId: string) {
-    return prisma.deskShare.findMany({
-      where: { masterSheetId },
-      orderBy: { createdAt: "desc" },
-    });
+    const { data } = await supabase
+      .from("desk_share")
+      .select("*")
+      .eq("masterSheetId", masterSheetId)
+      .order("createdAt", { ascending: false });
+
+    return data || [];
   }
 
   /**
    * Accept a desk invite.
    */
   async acceptInvite(shareId: string, userId: string) {
-    const share = await prisma.deskShare.findUnique({ where: { id: shareId } });
+    const { data: share } = await supabase
+      .from("desk_share")
+      .select("*")
+      .eq("id", shareId)
+      .maybeSingle();
+
     if (!share) throw Object.assign(new Error("Invite not found"), { statusCode: 404 });
 
-    const updated = await prisma.deskShare.update({
-      where: { id: shareId },
-      data: { status: "accepted", invitedUserId: userId },
-    });
+    const { data: updated, error } = await supabase
+      .from("desk_share")
+      .update({ status: "accepted", invitedUserId: userId })
+      .eq("id", shareId)
+      .select()
+      .single();
 
+    if (error) throw error;
     return updated;
   }
 
@@ -99,41 +113,61 @@ export class TeamService {
    * Reject a desk invite.
    */
   async rejectInvite(shareId: string) {
-    return prisma.deskShare.update({
-      where: { id: shareId },
-      data: { status: "rejected" },
-    });
+    const { data: updated, error } = await supabase
+      .from("desk_share")
+      .update({ status: "rejected" })
+      .eq("id", shareId)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return updated;
   }
 
   /**
    * Update reserved columns for a collaborator.
    */
   async updateReservedColumns(shareId: string, columns: string[]) {
-    return prisma.deskShare.update({
-      where: { id: shareId },
-      data: { reservedColumns: columns },
-    });
+    const { data, error } = await supabase
+      .from("desk_share")
+      .update({ reservedColumns: columns })
+      .eq("id", shareId)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
   }
 
   /**
    * Remove a collaborator.
    */
   async removeCollaborator(shareId: string) {
-    return prisma.deskShare.delete({ where: { id: shareId } });
+    const { data, error } = await supabase
+      .from("desk_share")
+      .delete()
+      .eq("id", shareId)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
   }
 
   /**
    * Get pending invites for a user email.
    */
   async getPendingInvites(email: string) {
-    return prisma.deskShare.findMany({
-      where: { invitedEmail: email, status: "pending" },
-      include: {
-        masterSheet: { select: { id: true, name: true } },
-      },
-      orderBy: { createdAt: "desc" },
-    });
+    const { data } = await supabase
+      .from("desk_share")
+      .select("*, masterSheet:master_sheet(id, name)")
+      .ilike("invitedEmail", email)
+      .eq("status", "pending")
+      .order("createdAt", { ascending: false });
+
+    return data || [];
   }
 }
 
 export const teamService = new TeamService();
+

@@ -2,7 +2,7 @@ import { WorkFlowEditor } from "@/app/[project]/dash/[dashid]/editor/_components
 import { Suspense } from "react";
 import { ErrorBoundary } from "react-error-boundary";
 import { getWorkFlow } from "../../../editor/_actions/editor.service";
-import { prisma } from "@repo/db";
+import { supabase } from "@repo/db";
 
 type Props = {
     params: Promise<{
@@ -38,10 +38,12 @@ const Page = async ({ params }: Props) => {
     // Find the DeskBlock that owns this editor workflow so we can pass blockId
     let deskBlockId: string | undefined;
     try {
-        const block = await prisma.deskBlock.findUnique({
-            where: { editorWorkflowId: editorId },
-            select: { id: true },
-        });
+        const { data: block } = await supabase
+            .from("desk_block")
+            .select("id")
+            .eq("editorWorkflowId", editorId)
+            .maybeSingle();
+
         deskBlockId = block?.id;
     } catch {
         // Not a desk block editor — regular editor
