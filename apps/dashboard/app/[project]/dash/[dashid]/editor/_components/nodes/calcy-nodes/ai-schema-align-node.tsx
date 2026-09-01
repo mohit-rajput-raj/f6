@@ -8,7 +8,7 @@ import { Input } from "@repo/ui/components/ui/input";
 import { Badge } from "@repo/ui/components/ui/badge";
 import { useSession } from "@/lib/auth-client";
 import { getUserLLMKeys } from "@/app/[project]/dash/[dashid]/(documents)/data-library/api-key-actions";
-import api from "@/lib/axios";
+import { pypApi } from "@/lib/axios";
 
 interface SubjectOption {
   subject: string;
@@ -93,26 +93,17 @@ export function AISchemaAlignNode({ id, data }: any) {
       }
 
       // Call Python service PYP FastAPI server (/ai/align-schema)
-      const pypUrl = process.env.NEXT_PUBLIC_PYP_SERVER_URL || "http://localhost:8000";
-      const resp = await fetch(`${pypUrl}/ai/align-schema`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          master_grid: masterGrid,
-          csv_string: csvString,
-          target_subject: activeTarget.subject,
-          target_component: activeTarget.component,
-          provider: provider,
-          api_key: apiKey || undefined,
-        }),
+      const res = await pypApi.post("/ai/align-schema", {
+        master_grid: masterGrid,
+        csv_string: csvString,
+        target_subject: activeTarget.subject,
+        target_component: activeTarget.component,
+        custom_prompt: data?.incomingCustomPrompt || data?.customPrompt || undefined,
+        provider: provider,
+        api_key: apiKey || undefined,
       });
 
-      if (!resp.ok) {
-        const err = await resp.json();
-        throw new Error(err.detail || "Alignment backend error");
-      }
-
-      const result = await resp.json();
+      const result = res.data;
       if (result.success) {
         setUpdatesCount(result.updates.length);
         setSuccessMsg(`Matched & aligned ${result.updates.length} student records!`);

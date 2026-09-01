@@ -3,6 +3,7 @@
 import React, { useRef, useEffect, useState } from "react"
 import { Table2, Search, RefreshCw, Save, Upload, Lock, Download, Check } from "lucide-react"
 import { useDeskStore, type Dataset } from "@/stores/desk-store"
+import { useMasterSheetStore } from "@/stores/master-sheet-store"
 import { Badge } from "@repo/ui/components/ui/badge"
 import { Input } from "@repo/ui/components/ui/input"
 import { useSession } from "@/lib/auth-client"
@@ -88,9 +89,12 @@ export function MasterSheetPanel() {
         if (sheets && sheets.length > 0) {
           const mainSheet = sheets[0]
           if (mainSheet.data) {
-            setSheetName(mainSheet.name || "Master Sheet")
+            const name = mainSheet.name || "Master Sheet"
+            setSheetName(name)
             dataLoadedRef.current = false
             setDbSheetJson(mainSheet.data)
+            useDeskStore.getState().setDeskMasterSheetData(mainSheet.data)
+            useMasterSheetStore.getState().setSheetData(name, mainSheet.data)
           }
         }
       } catch (err) {
@@ -110,6 +114,9 @@ export function MasterSheetPanel() {
     const timer = setTimeout(() => {
       const ss = ssInstanceRef.current || spreadsheetRef.current
       if (ss) {
+        if (typeof window !== "undefined") {
+          (window as any).__masterSheetSpreadsheet = ss
+        }
         openSheetInSyncfusion(ss, dbSheetJson)
         dataLoadedRef.current = true
       }
@@ -118,15 +125,38 @@ export function MasterSheetPanel() {
     return () => clearTimeout(timer)
   }, [dbSheetJson, isMounted])
 
+  const deskMasterSheetData = useDeskStore((s) => s.activeMasterSheetData)
+
+  // Listen to activeMasterSheetData from desk store (e.g. when confirmed from UpdatedMergedPreview)
+  useEffect(() => {
+    if (!deskMasterSheetData || !isMounted) return
+    const timer = setTimeout(() => {
+      const ss = getSsInstance()
+      if (ss) {
+        if (typeof window !== "undefined") {
+          (window as any).__masterSheetSpreadsheet = ss
+        }
+        openSheetInSyncfusion(ss, deskMasterSheetData)
+        dataLoadedRef.current = true
+        setDbSheetJson(deskMasterSheetData)
+      }
+    }, 100)
+    return () => clearTimeout(timer)
+  }, [deskMasterSheetData, isMounted])
+
   // Callback when Syncfusion spreadsheet is fully created and ready (microSheetAgent pattern)
   const onSpreadsheetCreated = () => {
     const ss = spreadsheetRef.current
     if (!ss) return
     ssInstanceRef.current = ss
+    if (typeof window !== "undefined") {
+      (window as any).__masterSheetSpreadsheet = ss
+    }
 
     // If DB data already loaded, render it now
-    if (dbSheetJson && !dataLoadedRef.current) {
-      openSheetInSyncfusion(ss, dbSheetJson)
+    const targetData = deskMasterSheetData || dbSheetJson
+    if (targetData && !dataLoadedRef.current) {
+      openSheetInSyncfusion(ss, targetData)
       dataLoadedRef.current = true
     }
   }

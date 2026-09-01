@@ -194,3 +194,241 @@ export function extractSyncfusionSaveData(saveAsJsonResult: any): any {
   return jsonObject;
 }
 
+/**
+ * Extracts a normalized 2D table { columns: string[], data: any[][] } from any sheet representation
+ * (FlatDataset, nested object, or Syncfusion Workbook JSON).
+ */
+export function extract2DGridFromAnySheet(sheetData: any): { columns: string[]; data: any[][] } {
+  if (!sheetData) return { columns: [], data: [] };
+
+  // 1. Direct FlatDataset { columns: [...], data: [...] }
+  if (Array.isArray(sheetData.columns) && Array.isArray(sheetData.data)) {
+    return { columns: sheetData.columns, data: sheetData.data };
+  }
+
+  // 2. Wrapped in data { columns: [...], data: [...] }
+  if (sheetData.data && Array.isArray(sheetData.data.columns) && Array.isArray(sheetData.data.data)) {
+    return { columns: sheetData.data.columns, data: sheetData.data.data };
+  }
+
+  // 3. Syncfusion Workbook format
+  const wb = unwrapSyncfusionJson(sheetData) || sheetData;
+  const sheets = wb?.Workbook?.sheets || wb?.sheets;
+  if (Array.isArray(sheets) && sheets.length > 0) {
+    const firstSheet = sheets[0];
+    const rows = firstSheet?.rows || [];
+    if (Array.isArray(rows) && rows.length > 0) {
+      const grid: any[][] = [];
+      let maxCols = 0;
+
+      rows.forEach((r: any) => {
+        const rowCells: any[] = [];
+        if (r && Array.isArray(r.cells)) {
+          r.cells.forEach((c: any, cIdx: number) => {
+            const val = c?.value !== undefined && c?.value !== null ? c.value : "";
+            rowCells[cIdx] = val;
+          });
+        }
+        maxCols = Math.max(maxCols, rowCells.length);
+        grid.push(rowCells);
+      });
+
+      // Fill in undefined entries
+      grid.forEach((row) => {
+        while (row.length < maxCols) row.push("");
+      });
+
+      if (grid.length > 0) {
+        const headerRow = grid[0].map((v, i) => (v ? String(v) : `Col_${i + 1}`));
+        const dataRows = grid.slice(1);
+        return { columns: headerRow, data: dataRows };
+      }
+    }
+  }
+
+  return { columns: [], data: [] };
+}
+
+/**
+ * Applies computed student updates to generate clean preview rows (no vertical space offset)
+ */
+export function applyComputedUpdatesToGrid(
+  baseColumns: string[],
+  baseData: any[][],
+  updates: any[],
+  targetPath?: string
+): { columns: string[]; data: any[][] } {
+  const pathPrefix = targetPath || "CO24554/Th.";
+  const previewColumns = ["S.No", "Enrollment", "Name", `${pathPrefix}:Total`, `${pathPrefix}:Attended`, `${pathPrefix}:%`];
+
+  if (!Array.isArray(updates) || updates.length === 0) {
+    return {
+      columns: previewColumns,
+      data: [],
+    };
+  }
+
+  // Generate clean preview rows starting immediately at index 0 (S.No 1, 2, 3...)
+  const previewData = updates.map((u, idx) => {
+    const sNo = u.s_no !== undefined ? u.s_no : (idx + 1);
+    const enroll = u.enrollment || "";
+    const name = u.student_name || "";
+    const total = u.total_new_value !== undefined && u.total_new_value !== null ? u.total_new_value : "";
+    const attended = u.attended_new_value !== undefined && u.attended_new_value !== null ? u.attended_new_value : "";
+    const pct = u.percentage_new_value || (total ? `${Math.round(((Number(attended) || 0) / (Number(total) || 1)) * 100)}%` : "0%");
+
+    return [sNo, enroll, name, total, attended, pct];
+  });
+
+  return {
+    columns: previewColumns,
+    data: previewData,
+  };
+}
+
+/**
+ * Converts 0-based column index to Excel column letter (0 -> A, 1 -> B, 26 -> AA, etc.)
+ */
+export function colIndexToLetter(colIndex: number): string {
+  let temp = colIndex + 1;
+  let letter = "";
+  while (temp > 0) {
+    const mod = (temp - 1) % 26;
+    letter = String.fromCharCode(65 + mod) + letter;
+    temp = Math.floor((temp - mod) / 26);
+  }
+  return letter;
+}
+
+/**
+ * Directly updates cells in an active Syncfusion Spreadsheet instance using updateCell / cell addresses.
+ */
+export function applyUpdatesDirectlyToSyncfusion(ss: any, updates: any[]): boolean {
+  if (!ss || !Array.isArray(updates) || updates.length === 0) return false;
+
+  try {
+    updates.forEach((u) => {
+      const rowNum = (u.row_idx !== undefined && u.row_idx !== null ? u.row_idx : 0) + 1;
+
+      if (u.total_col_idx !== undefined && u.total_new_value !== undefined) {
+        const colLetter = colIndexToLetter(u.total_col_idx);
+        const cellAddr = `${colLetter}${rowNum}`;
+        if (typeof ss.updateCell === "function") {
+          ss.updateCell({ value: u.total_new_value }, cellAddr);
+        }
+      }
+
+      if (u.attended_col_idx !== undefined && u.attended_new_value !== undefined) {
+        const colLetter = colIndexToLetter(u.attended_col_idx);
+        const cellAddr = `${colLetter}${rowNum}`;
+        if (typeof ss.updateCell === "function") {
+          ss.updateCell({ value: u.attended_new_value }, cellAddr);
+        }
+      }
+
+      if (u.percentage_col_idx !== undefined && u.percentage_new_value !== undefined) {
+        const colLetter = colIndexToLetter(u.percentage_col_idx);
+        const cellAddr = `${colLetter}${rowNum}`;
+        if (typeof ss.updateCell === "function") {
+          ss.updateCell({ value: u.percentage_new_value }, cellAddr);
+        }
+      }
+    });
+
+    return true;
+  } catch (err) {
+    console.warn("Direct updateCell failed:", err);
+    return false;
+  }
+}
+
+/**
+ * Applies computed student updates in-place into the full MasterSheet (Syncfusion Workbook or 2D Table)
+ * preserving all title rows, headers, merges, and styles.
+ */
+export function applyUpdatesToMasterSheet(
+  currentSheetRaw: any,
+  updates: any[],
+  targetPath?: string
+): any {
+  if (!currentSheetRaw || !Array.isArray(updates) || updates.length === 0) {
+    return currentSheetRaw;
+  }
+
+  // 1. If it's a Syncfusion Workbook
+  const unwrapped = unwrapSyncfusionJson(currentSheetRaw);
+  if (unwrapped && (unwrapped.Workbook || unwrapped.sheets)) {
+    const wb = JSON.parse(JSON.stringify(unwrapped));
+    const sheets = wb.Workbook?.sheets || wb.sheets || [];
+    if (sheets.length > 0) {
+      const sheet = sheets[0];
+      if (!Array.isArray(sheet.rows)) sheet.rows = [];
+
+      updates.forEach((u) => {
+        const rIdx = u.row_idx;
+        if (rIdx === undefined || rIdx === null) return;
+
+        // Ensure row exists
+        while (sheet.rows.length <= rIdx) {
+          sheet.rows.push({ cells: [] });
+        }
+        const row = sheet.rows[rIdx];
+        if (!Array.isArray(row.cells)) row.cells = [];
+
+        // Helper to set cell value
+        const setCellVal = (colIdx: number, val: any) => {
+          if (colIdx === undefined || colIdx === null || colIdx < 0) return;
+          while (row.cells.length <= colIdx) {
+            row.cells.push({});
+          }
+          if (!row.cells[colIdx]) row.cells[colIdx] = {};
+          row.cells[colIdx].value = val;
+        };
+
+        if (u.auto_populated) {
+          if (u.s_no) setCellVal(0, u.s_no);
+          if (u.enrollment && u.enrollment_col_idx != null) setCellVal(u.enrollment_col_idx, u.enrollment);
+          if (u.student_name && u.name_col_idx != null) setCellVal(u.name_col_idx, u.student_name);
+        }
+
+        if (u.total_col_idx != null) setCellVal(u.total_col_idx, u.total_new_value);
+        if (u.attended_col_idx != null) setCellVal(u.attended_col_idx, u.attended_new_value);
+        if (u.percentage_col_idx != null) setCellVal(u.percentage_col_idx, u.percentage_new_value);
+      });
+
+      return wb;
+    }
+  }
+
+  // 2. If it's a 2D table { columns, data }
+  if (currentSheetRaw.columns && Array.isArray(currentSheetRaw.data)) {
+    const updatedData = currentSheetRaw.data.map((r: any[]) => [...r]);
+    const cols = [...currentSheetRaw.columns];
+
+    updates.forEach((u) => {
+      const rIdx = u.row_idx;
+      while (updatedData.length <= rIdx) {
+        updatedData.push(new Array(cols.length).fill(""));
+      }
+      while (updatedData[rIdx].length < cols.length) {
+        updatedData[rIdx].push("");
+      }
+
+      if (u.total_col_idx != null && u.total_col_idx < updatedData[rIdx].length) {
+        updatedData[rIdx][u.total_col_idx] = u.total_new_value;
+      }
+      if (u.attended_col_idx != null && u.attended_col_idx < updatedData[rIdx].length) {
+        updatedData[rIdx][u.attended_col_idx] = u.attended_new_value;
+      }
+      if (u.percentage_col_idx != null && u.percentage_col_idx < updatedData[rIdx].length) {
+        updatedData[rIdx][u.percentage_col_idx] = u.percentage_new_value;
+      }
+    });
+
+    return { columns: cols, data: updatedData };
+  }
+
+  return currentSheetRaw;
+}
+
+

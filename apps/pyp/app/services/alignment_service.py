@@ -1,6 +1,7 @@
 """
 AI Schema Alignment & Attendance Merger Service for apps/pyp.
 Provides LLM-assisted and heuristic schema alignment between CSV attendance files and master spreadsheet grids.
+Supports dynamic target paths (e.g. CO24554/th, CO24804/lab), custom prompts from LLM nodes, and percentage calculation.
 """
 
 import csv
@@ -9,6 +10,7 @@ import json
 from typing import List, Dict, Any, Tuple, Optional
 from pydantic import BaseModel, Field
 
+from fastapi import HTTPException
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI
 
@@ -24,12 +26,14 @@ class SchemaAlignment(BaseModel):
     # Date-wise checklist format
     is_date_wise: bool = Field(False, description="True if the CSV has individual columns representing dates with P/A marks.")
     date_columns: List[str] = Field(default=[], description="List of individual date columns in the CSV representing days.")
-    present_value: str = Field("P", description="The value indicating present status.")
+    present_value: str = Field("P", description="The value indicating present status (e.g. 'P', '1', 'Present').")
     
     # Master sheet coordinates
     master_enrollment_col_idx: int = Field(description="0-based column index in master grid for Enrollment IDs.")
-    master_attended_col_idx: int = Field(description="0-based column index in master grid for target subject Attended classes.")
+    master_name_col_idx: Optional[int] = Field(None, description="0-based column index in master grid for student Names.")
     master_total_col_idx: int = Field(description="0-based column index in master grid for target subject Total classes.")
+    master_attended_col_idx: int = Field(description="0-based column index in master grid for target subject Attended classes.")
+    master_percentage_col_idx: Optional[int] = Field(None, description="0-based column index in master grid for target subject Percentage / % column.")
 
 
 def parse_csv_content(csv_string: str) -> Tuple[List[str], List[Dict[str, str]]]:
@@ -59,7 +63,10 @@ def clean_id(val: Any) -> str:
     return re.sub(r'[^a-zA-Z0-9]', '', str(val)).lower().strip()
 
 
-def get_alignment_llm(provider: str, api_key: str, model: Optional[str] = None):
+def get_alignment_llm(provider: str, api_key: Optional[str] = None, model: Optional[str] = None):
+    if not api_key or not api_key.strip():
+        raise ValueError("API Key is required. Please provide a valid Gemini / OpenAI API key in your node or user settings.")
+    
     if provider == "openai":
         return ChatOpenAI(
             model=model or "gpt-4o-mini",
@@ -76,7 +83,7 @@ def get_alignment_llm(provider: str, api_key: str, model: Optional[str] = None):
     else:
         # Default gemini
         return ChatGoogleGenerativeAI(
-            model=model or "gemini-2.0-flash",
+            model=model or "gemini-2.5-flash",
             google_api_key=api_key,
             temperature=0,
         )
@@ -97,7 +104,7 @@ def heuristic_align_schema(
             break
     if not enrollment_csv:
         for col in csv_headers:
-            if col.lower() in ("id", "no", "s.no"):
+            if col.lower() in ("id", "no", "s.no", "enrollment_no", "roll_no"):
                 enrollment_csv = col
                 break
     if not enrollment_csv:
@@ -106,7 +113,7 @@ def heuristic_align_schema(
     # 2. Identify Name column in CSV
     name_csv = None
     for col in csv_headers:
-        if "name" in col.lower():
+        if "name" in col.lower() or "student" in col.lower():
             name_csv = col
             break
             
@@ -126,9 +133,9 @@ def heuristic_align_schema(
     if not is_date_wise:
         for col in csv_headers:
             col_lower = col.lower()
-            if ("attend" in col_lower or "present" in col_lower) and "total" not in col_lower:
+            if ("attend" in col_lower or "present" in col_lower or "attar" in col_lower) and "total" not in col_lower:
                 attended_csv = col
-            if ("total" in col_lower or "held" in col_lower) and "attend" not in col_lower:
+            if ("total" in col_lower or "held" in col_lower) and ("attend" not in col_lower and "attar" not in col_lower):
                 total_csv = col
         if not attended_csv:
             for col in csv_headers:
@@ -138,8 +145,10 @@ def heuristic_align_schema(
 
     # 5. Master grid column locations
     master_enrollment_col = 1
-    master_attended_col = 4
+    master_name_col = 2
     master_total_col = 3
+    master_attended_col = 4
+    master_percentage_col = 5
     
     detail_row_idx = -1
     for r_idx, row in enumerate(master_grid[:15]):
@@ -150,20 +159,34 @@ def heuristic_align_schema(
                 break
         if detail_row_idx != -1:
             break
+
+    # Also look for Name column in master_grid
+    if detail_row_idx != -1:
+        for c_idx, cell in enumerate(master_grid[detail_row_idx]):
+            if cell and "name" in str(cell).lower():
+                master_name_col = c_idx
+                break
             
-    if detail_row_idx < 2:
+    if detail_row_idx < 1:
         return SchemaAlignment(
-            enrollment_csv_column=enrollment_csv, name_csv_column=name_csv,
-            attended_classes_csv_column=attended_csv, total_classes_csv_column=total_csv,
-            is_date_wise=is_date_wise, date_columns=date_cols, present_value="P",
+            enrollment_csv_column=enrollment_csv,
+            name_csv_column=name_csv,
+            attended_classes_csv_column=attended_csv,
+            total_classes_csv_column=total_csv,
+            is_date_wise=is_date_wise,
+            date_columns=date_cols,
+            present_value="P",
             master_enrollment_col_idx=master_enrollment_col,
-            master_attended_col_idx=master_attended_col, master_total_col_idx=master_total_col
+            master_name_col_idx=master_name_col,
+            master_attended_col_idx=master_attended_col,
+            master_total_col_idx=master_total_col,
+            master_percentage_col_idx=master_percentage_col
         )
     
-    component_keywords = ["theory", "tutorial", "lab", "practical", "lecture", "tut", "th"]
+    # Identify component row (Theory/Tutorial/Lab) and subject row (e.g. CO24554:Discret)
+    component_keywords = ["theory", "tutorial", "lab", "practical", "lecture", "tut", "th", "tut."]
     component_row_idx = -1
     subject_row_idx = -1
-    sub_detail_row_idx = detail_row_idx - 1
     
     for r_idx in range(detail_row_idx - 1, max(-1, detail_row_idx - 5), -1):
         if r_idx < 0 or r_idx >= len(master_grid):
@@ -177,28 +200,24 @@ def heuristic_align_schema(
         if r_idx < 0 or r_idx >= len(master_grid) or r_idx == component_row_idx:
             continue
         for cell in master_grid[r_idx]:
-            if cell and subject_pattern.search(str(cell)):
+            if cell and (subject_pattern.search(str(cell)) or ":" in str(cell)):
                 subject_row_idx = r_idx
                 break
         if subject_row_idx != -1:
             break
             
-    if subject_row_idx == -1 or component_row_idx == -1:
-        return SchemaAlignment(
-            enrollment_csv_column=enrollment_csv, name_csv_column=name_csv,
-            attended_classes_csv_column=attended_csv, total_classes_csv_column=total_csv,
-            is_date_wise=is_date_wise, date_columns=date_cols, present_value="P",
-            master_enrollment_col_idx=master_enrollment_col,
-            master_attended_col_idx=master_attended_col, master_total_col_idx=master_total_col
-        )
+    if subject_row_idx == -1 and component_row_idx != -1 and component_row_idx > 0:
+        subject_row_idx = component_row_idx - 1
+    elif component_row_idx == -1 and subject_row_idx != -1 and subject_row_idx < detail_row_idx - 1:
+        component_row_idx = subject_row_idx + 1
+
+    subject_row = master_grid[subject_row_idx] if 0 <= subject_row_idx < len(master_grid) else []
+    component_row = master_grid[component_row_idx] if 0 <= component_row_idx < len(master_grid) else []
+    detail_row = master_grid[detail_row_idx] if 0 <= detail_row_idx < len(master_grid) else []
     
-    subject_row = master_grid[subject_row_idx]
-    component_row = master_grid[component_row_idx]
-    sub_detail_row = master_grid[sub_detail_row_idx] if 0 <= sub_detail_row_idx < len(master_grid) else []
+    max_cols = max(len(subject_row), len(component_row), len(detail_row), len(master_grid[0]) if master_grid else 0)
     
-    max_cols = max(len(subject_row), len(component_row), len(sub_detail_row))
-    
-    col_subject = {}
+    col_subject: Dict[int, str] = {}
     current_sub = None
     for c in range(max_cols):
         val = subject_row[c] if c < len(subject_row) else None
@@ -207,7 +226,7 @@ def heuristic_align_schema(
         if current_sub:
             col_subject[c] = current_sub
             
-    col_component = {}
+    col_component: Dict[int, str] = {}
     current_comp = None
     for c in range(max_cols):
         val = component_row[c] if c < len(component_row) else None
@@ -216,50 +235,80 @@ def heuristic_align_schema(
         if current_comp:
             col_component[c] = current_comp
             
-    target_sub_clean = target_subject.lower().replace(":", "").replace(" ", "")
-    target_comp_clean = target_component.lower().replace(" ", "").replace(".", "")
+    target_sub_clean = re.sub(r'[^a-zA-Z0-9]', '', target_subject).lower()
+    target_comp_clean = re.sub(r'[^a-zA-Z0-9]', '', target_component).lower()
     
-    matched_start_col = -1
+    matched_cols = []
     for c in range(max_cols):
-        sub_name = col_subject.get(c, "").lower().replace(":", "").replace(" ", "")
-        comp_name = col_component.get(c, "").lower().replace(" ", "").replace(".", "")
+        sub_name = re.sub(r'[^a-zA-Z0-9]', '', col_subject.get(c, "")).lower()
+        comp_name = re.sub(r'[^a-zA-Z0-9]', '', col_component.get(c, "")).lower()
         
-        sub_match = (target_sub_clean in sub_name or sub_name in target_sub_clean) and len(sub_name) > 3
-        comp_match = (target_comp_clean == comp_name) or \
-                     (target_comp_clean in comp_name and len(target_comp_clean) > 1) or \
-                     (comp_name in target_comp_clean and len(comp_name) > 1) or \
-                     (target_comp_clean == "theory" and comp_name in ("th", "theory")) or \
-                     (target_comp_clean == "tutorial" and comp_name in ("tut", "tutorial")) or \
-                     (target_comp_clean == "lab" and comp_name in ("lab", "laboratory"))
+        sub_match = (target_sub_clean in sub_name or sub_name in target_sub_clean) and len(sub_name) >= 3
+        
+        # Component matching aliases
+        comp_match = False
+        # Component matching aliases (robust against abbreviations, casing, punctuation like Th.)
+        if target_comp_clean in ("th", "theory", "lecture", "lec"):
+            comp_match = comp_name in ("th", "theory", "lecture", "lec") if comp_name else True
+        elif target_comp_clean in ("tut", "tutorial"):
+            comp_match = comp_name in ("tut", "tutorial") if comp_name else True
+        elif target_comp_clean in ("lab", "practical", "laboratory", "prac"):
+            comp_match = comp_name in ("lab", "practical", "laboratory", "prac") if comp_name else True
+        else:
+            comp_match = (target_comp_clean in comp_name or comp_name in target_comp_clean) if comp_name else True
         
         if sub_match and comp_match:
-            matched_start_col = c
-            break
+            matched_cols.append(c)
             
-    if matched_start_col != -1:
+    if matched_cols:
+        matched_start_col = matched_cols[0]
+        # Inspect columns within matched group
         found_total = False
         found_attended = False
-        for offset in range(4):
-            c = matched_start_col + offset
-            if c < len(sub_detail_row) and sub_detail_row[c]:
-                label = str(sub_detail_row[c]).lower().strip()
-                if ("total" in label and "attar" not in label and "attend" not in label) or label.startswith("total class"):
-                    master_total_col = c
-                    found_total = True
-                elif "attar" in label or "attend" in label:
-                    master_attended_col = c
-                    found_attended = True
+        found_pct = False
+        
+        for c in matched_cols:
+            label = str(detail_row[c]).lower().strip() if c < len(detail_row) else ""
+            if ("total" in label and "attar" not in label and "attend" not in label) or label.startswith("total class"):
+                master_total_col = c
+                found_total = True
+            elif "attar" in label or "attend" in label or "present" in label:
+                master_attended_col = c
+                found_attended = True
+            elif "percent" in label or "pct" in label or "%" in label:
+                master_percentage_col = c
+                found_pct = True
+                
         if not found_total:
             master_total_col = matched_start_col
         if not found_attended:
             master_attended_col = matched_start_col + 1
-            
+        if not found_pct:
+            master_percentage_col = matched_start_col + 2
+    else:
+        # Fallback search by scanning detail_row and subject_row directly
+        for c in range(max_cols):
+            label = str(detail_row[c]).lower().strip() if c < len(detail_row) else ""
+            if "total class" in label and not master_total_col:
+                master_total_col = c
+            elif ("total attar" in label or "attendance" in label) and not master_attended_col:
+                master_attended_col = c
+            elif ("percentage" in label or "%" in label) and not master_percentage_col:
+                master_percentage_col = c
+
     return SchemaAlignment(
-        enrollment_csv_column=enrollment_csv, name_csv_column=name_csv,
-        attended_classes_csv_column=attended_csv, total_classes_csv_column=total_csv,
-        is_date_wise=is_date_wise, date_columns=date_cols, present_value="P",
+        enrollment_csv_column=enrollment_csv,
+        name_csv_column=name_csv,
+        attended_classes_csv_column=attended_csv,
+        total_classes_csv_column=total_csv,
+        is_date_wise=is_date_wise,
+        date_columns=date_cols,
+        present_value="P",
         master_enrollment_col_idx=master_enrollment_col,
-        master_attended_col_idx=master_attended_col, master_total_col_idx=master_total_col
+        master_name_col_idx=master_name_col,
+        master_attended_col_idx=master_attended_col,
+        master_total_col_idx=master_total_col,
+        master_percentage_col_idx=master_percentage_col
     )
 
 
@@ -271,7 +320,8 @@ def llm_align_schema(
     target_component: str,
     provider: str = "gemini",
     api_key: Optional[str] = None,
-    model: Optional[str] = None
+    model: Optional[str] = None,
+    custom_prompt: Optional[str] = None
 ) -> Optional[SchemaAlignment]:
     if not api_key:
         return None
@@ -285,30 +335,39 @@ def llm_align_schema(
                 grid_preview += f"Row {idx}: {', '.join(row_vals)}\n"
             
         csv_preview = f"Headers: {csv_headers}\nSample Rows:\n"
-        for r in csv_sample_rows[:3]:
+        for r in csv_sample_rows[:4]:
             csv_preview += f"- {r}\n"
             
+        custom_section = f"\n### CUSTOM USER INSTRUCTIONS (FROM LLM WORKFLOW NODE):\n{custom_prompt}\n" if custom_prompt and custom_prompt.strip() else ""
+
         prompt = f"""
-You are an expert data mapping assistant. Analyze two spreadsheet schemas and align them to merge student attendance for a target subject and component.
+You are an expert data mapping and spreadsheet alignment assistant. Analyze two spreadsheet schemas (a multi-level Master Spreadsheet grid and an uploaded CSV file) and align them to merge student attendance for a target subject and component.
 
-TARGET SUBJECT & COMPONENT:
+### TARGET SUBJECT & COMPONENT:
 Subject: {target_subject}
-Component: {target_component}
-
-MASTER SPREADSHEET (Top 15 Rows):
+Component: {target_component} (e.g. Theory, Lab, Tutorial)
+{custom_section}
+### MASTER SPREADSHEET (Top 15 Rows with 0-based column and row indices):
 {grid_preview}
 
-UPLOADED CSV FILE DETAILS:
+### UPLOADED CSV FILE DETAILS:
 {csv_preview}
 
-TASK:
-1. Identify CSV column for student enrollment ID.
-2. Identify CSV column for student name (if available).
-3. Determine if CSV is aggregated (total & attended columns) or date-wise (date columns with P/A).
-4. In Master Spreadsheet:
-   - Find 0-based column index for student Enrollment IDs.
-   - Find 0-based column index for target subject Total Classes.
-   - Find 0-based column index for target subject Attended Classes.
+### TASK:
+1. Identify the exact CSV column for student enrollment ID (e.g. "Enrollment", "Roll No", "Enrollment No").
+2. Identify the CSV column for student name (if available).
+3. Determine if the CSV is:
+   - Aggregated format: has columns for total classes and attended classes.
+   - Date-wise checklist format: has individual date columns with P/A (Present/Absent) marks.
+4. In the Master Spreadsheet Grid:
+   - Identify the 0-based column index for student Enrollment IDs.
+   - Identify the 0-based column index for student Names (if present).
+   - Under the specific target subject ({target_subject}) and component ({target_component}):
+     - Find the 0-based column index for "Total Classes" (e.g. Total Class).
+     - Find the 0-based column index for "Attended Classes" (e.g. Total Attar, Total Attendance).
+     - Find the 0-based column index for "Percentage" (e.g. Percentage, %).
+
+Return the alignment details structured matching the SchemaAlignment schema.
 """
         structured_llm = llm.with_structured_output(SchemaAlignment)
         result = structured_llm.invoke(prompt)
@@ -326,9 +385,10 @@ def align_and_compute_updates(
     target_component: str,
     provider: str = "gemini",
     api_key: Optional[str] = None,
-    model: Optional[str] = None
+    model: Optional[str] = None,
+    custom_prompt: Optional[str] = None
 ) -> Dict[str, Any]:
-    # 1. Align schema
+    # 1. Align schema via LLM if api_key available, otherwise fallback to heuristics
     alignment = None
     if api_key:
         alignment = llm_align_schema(
@@ -339,7 +399,8 @@ def align_and_compute_updates(
             target_component=target_component,
             provider=provider,
             api_key=api_key,
-            model=model
+            model=model,
+            custom_prompt=custom_prompt
         )
     
     if not alignment:
@@ -379,6 +440,7 @@ def align_and_compute_updates(
             return 0
 
     # 4. Generate updates
+    student_counter = 1
     for r_idx in range(actual_start_row, len(master_grid)):
         row = master_grid[r_idx]
         if len(row) <= alignment.master_enrollment_col_idx:
@@ -391,11 +453,11 @@ def align_and_compute_updates(
         clean_enroll = clean_id(enrollment_val)
         csv_student_row = csv_map.get(clean_enroll)
         
-        # Name fallback
+        # Name fallback matching
         if not csv_student_row and alignment.name_csv_column:
-            master_name_col_idx = alignment.master_enrollment_col_idx + 1
-            if master_name_col_idx < len(row):
-                master_name_val = row[master_name_col_idx]
+            name_col = alignment.master_name_col_idx if alignment.master_name_col_idx is not None else alignment.master_enrollment_col_idx + 1
+            if name_col < len(row):
+                master_name_val = row[name_col]
                 if master_name_val:
                     clean_master_name = re.sub(r'[^a-z]', '', str(master_name_val).lower())
                     for row_csv in csv_rows:
@@ -417,7 +479,7 @@ def align_and_compute_updates(
                 added_total = len(alignment.date_columns)
                 added_attended = sum(
                     1 for col_name in alignment.date_columns 
-                    if str(csv_student_row.get(col_name, '')).strip().upper() == alignment.present_value.upper()
+                    if str(csv_student_row.get(col_name, '')).strip().upper() in ("P", "1", "PRESENT", "PR", "YES", "Y", "TRUE")
                 )
                 new_total = old_total + added_total
                 new_attended = old_attended + added_attended
@@ -431,16 +493,85 @@ def align_and_compute_updates(
                 new_total = old_total + added_total
                 new_attended = old_attended + added_attended
 
+            # Compute Percentage
+            pct_val = round((new_attended / new_total) * 100, 1) if new_total > 0 else 0.0
+            pct_str = f"{int(pct_val)}%" if pct_val.is_integer() else f"{pct_val:.1f}%"
+
+            student_name = ""
+            name_col = alignment.master_name_col_idx if alignment.master_name_col_idx is not None else alignment.master_enrollment_col_idx + 1
+            if name_col < len(row):
+                student_name = str(row[name_col] or "")
+            if not student_name and alignment.name_csv_column:
+                student_name = str(csv_student_row.get(alignment.name_csv_column, ""))
+
+            pct_col = alignment.master_percentage_col_idx if alignment.master_percentage_col_idx is not None else alignment.master_attended_col_idx + 1
+
+            s_no_val = student_counter
+            if alignment.master_enrollment_col_idx > 0 and len(row) > 0 and row[0]:
+                try:
+                    s_no_val = int(row[0])
+                except Exception:
+                    s_no_val = student_counter
+
             updates.append({
                 "row_idx": r_idx,
-                "student_name": csv_student_row.get(alignment.name_csv_column, str(enrollment_val)),
+                "s_no": s_no_val,
+                "student_name": student_name or str(enrollment_val),
                 "enrollment": str(enrollment_val),
+                "enrollment_col_idx": alignment.master_enrollment_col_idx,
+                "name_col_idx": name_col,
                 "total_col_idx": alignment.master_total_col_idx,
                 "total_old_value": old_total,
                 "total_new_value": new_total,
                 "attended_col_idx": alignment.master_attended_col_idx,
                 "attended_old_value": old_attended,
                 "attended_new_value": new_attended,
+                "percentage_col_idx": pct_col,
+                "percentage_old_value": row[pct_col] if pct_col < len(row) else "",
+                "percentage_new_value": pct_str,
+            })
+            student_counter += 1
+
+    # 5. Auto-populate student rows if master_grid is empty
+    if not updates and csv_rows:
+        for idx, row_csv in enumerate(csv_rows):
+            r_idx = actual_start_row + idx
+            enrollment_val = row_csv.get(alignment.enrollment_csv_column, f"ID_{idx+1}")
+            student_name = row_csv.get(alignment.name_csv_column, f"Student {idx+1}") if alignment.name_csv_column else f"Student {idx+1}"
+            
+            if alignment.is_date_wise and alignment.date_columns:
+                added_total = len(alignment.date_columns)
+                added_attended = sum(
+                    1 for col_name in alignment.date_columns 
+                    if str(row_csv.get(col_name, '')).strip().upper() in ("P", "1", "PRESENT", "PR", "YES", "Y", "TRUE")
+                )
+            else:
+                raw_add_total = row_csv.get(alignment.total_classes_csv_column) if alignment.total_classes_csv_column else None
+                raw_add_att = row_csv.get(alignment.attended_classes_csv_column) if alignment.attended_classes_csv_column else None
+                added_total = parse_int_safe(raw_add_total) if raw_add_total is not None else 1
+                added_attended = parse_int_safe(raw_add_att) if raw_add_att is not None else 1
+                
+            pct_val = round((added_attended / added_total) * 100, 1) if added_total > 0 else 0.0
+            pct_str = f"{int(pct_val)}%" if pct_val.is_integer() else f"{pct_val:.1f}%"
+            pct_col = alignment.master_percentage_col_idx if alignment.master_percentage_col_idx is not None else alignment.master_attended_col_idx + 1
+
+            updates.append({
+                "row_idx": r_idx,
+                "s_no": idx + 1,
+                "student_name": student_name,
+                "enrollment": enrollment_val,
+                "enrollment_col_idx": alignment.master_enrollment_col_idx,
+                "name_col_idx": alignment.master_name_col_idx or (alignment.master_enrollment_col_idx + 1),
+                "total_col_idx": alignment.master_total_col_idx,
+                "total_old_value": 0,
+                "total_new_value": added_total,
+                "attended_col_idx": alignment.master_attended_col_idx,
+                "attended_old_value": 0,
+                "attended_new_value": added_attended,
+                "percentage_col_idx": pct_col,
+                "percentage_old_value": "",
+                "percentage_new_value": pct_str,
+                "auto_populated": True
             })
 
     return {
@@ -448,3 +579,49 @@ def align_and_compute_updates(
         "alignment": alignment.dict(),
         "updates": updates
     }
+
+
+class DynamicAlignmentRequest(BaseModel):
+    master_grid: List[List[Any]]
+    csv_string: str
+    target_column_path: str  # e.g. "CO24554/th", "CO24804/lab", "CO24804:Mobile Application/Lab"
+    custom_prompt: Optional[str] = None
+    sheet_name: Optional[str] = "Sheet1"
+    provider: Optional[str] = "gemini"
+    api_key: Optional[str] = None
+    model: Optional[str] = "gemini-2.5-flash"
+
+
+def dynamic_align_schema(req: DynamicAlignmentRequest) -> dict:
+    """
+    Dynamic schema alignment driven by user node custom prompt and target column path.
+    Splits path like 'CO24554/th' or 'CO24804/Lab' into subject/component and aligns against master_grid.
+    """
+    path_parts = [p.strip() for p in req.target_column_path.replace(":", "/").split("/") if p.strip()]
+    target_subject = path_parts[0] if len(path_parts) > 0 else "General"
+    target_component = path_parts[1] if len(path_parts) > 1 else "Theory"
+
+    if not req.api_key or not req.api_key.strip():
+        raise HTTPException(status_code=400, detail="Missing API Key. Please enter a valid Gemini/OpenAI API Key on the node or in account settings.")
+
+    csv_headers, csv_rows = parse_csv_content(req.csv_string)
+    if not csv_headers or not csv_rows:
+        raise HTTPException(status_code=400, detail="Provided CSV data is empty or invalid")
+
+    hardcoded_prompt = (
+        req.custom_prompt
+        if req.custom_prompt and req.custom_prompt.strip()
+        else "Match Enrollment ID in column 1. Calculate present count and update total and attended classes for target path."
+    )
+
+    return align_and_compute_updates(
+        master_grid=req.master_grid,
+        csv_headers=csv_headers,
+        csv_rows=csv_rows,
+        target_subject=target_subject,
+        target_component=target_component,
+        provider=req.provider or "gemini",
+        api_key=req.api_key,
+        model=req.model or "gemini-2.5-flash",
+        custom_prompt=hardcoded_prompt
+    )
