@@ -120,29 +120,14 @@ export const MasterSheetPreviewNode = memo(({ id, data }: { id: string; data: an
             </div>
           )}
 
-          {/* Save trigger indicator */}
-          <div className="border-t pt-2 space-y-1">
-            <div className="flex items-center gap-2">
-              <div className={`w-2 h-2 rounded-full ${saveTriggered ? 'bg-emerald-500' : 'bg-zinc-300 dark:bg-zinc-600'}`} />
-              <span className="text-[9px] text-muted-foreground">
-                Save Trigger: <span className="font-semibold">{saveTriggered ? 'Connected ✓' : 'Connect ActionButton →'}</span>
-              </span>
-            </div>
-          </div>
         </BaseNodeContent>
 
         {/* Input handle — data */}
-        <Handle type="target" position={Position.Left} id="in" className="w-3 h-3 bg-indigo-600" style={{ top: '40%' }} />
-        
-        {/* Save trigger handle */}
-        <Handle type="target" position={Position.Left} id="save-trigger" className="w-3 h-3 bg-rose-500" style={{ top: '80%' }} />
+        <Handle type="target" position={Position.Left} id="in" className="w-3 h-3 bg-indigo-600" style={{ top: '50%' }} />
 
         {/* Handle labels */}
-        <div className="absolute left-[-4px] text-[7px] text-indigo-500 font-medium" style={{ top: '37%', transform: 'translateX(-100%)' }}>
+        <div className="absolute left-[-4px] text-[7px] text-indigo-500 font-medium" style={{ top: '47%', transform: 'translateX(-100%)' }}>
           Data
-        </div>
-        <div className="absolute left-[-4px] text-[7px] text-rose-500 font-medium" style={{ top: '77%', transform: 'translateX(-100%)' }}>
-          Save Trigger
         </div>
       </BaseNode>
     </>

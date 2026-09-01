@@ -144,7 +144,6 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@repo/ui/components/ui/accordion";
-import { TabsBottom } from "./tabsBottom";
 import { Button } from "@/components/ui/components"
 import { useSession } from "@/lib/auth-client"
 
@@ -246,6 +245,12 @@ const nodes = [
         type: "AISchemaAlignNode",
         icon: <IconSparkles />,
         description: "AI-assisted schema alignment & row matching",
+      },
+      {
+        title: "Dynamic MasterSheet Node",
+        type: "DynamicMasterSheetNode",
+        icon: <IconSparkles />,
+        description: "Dynamic sheet selection & dynamic column mapping (code123/th)",
       },
     ]
   },
@@ -388,10 +393,10 @@ const nodes = [
         description: "Show data in bottom MasterSheet (with ID)",
       },
       {
-        title: "Master Sheet Update",
-        type: "MasterSheetUpdateNode",
-        icon: <IconDatabase />,
-        description: "Save / sync output to MasterSheet",
+        title: "Updated Merged Preview",
+        type: "UpdatedMergedPreviewNode",
+        icon: <IconSparkles />,
+        description: "Preview AI merged updates & confirm merge into MasterSheet",
       },
     ]
   }

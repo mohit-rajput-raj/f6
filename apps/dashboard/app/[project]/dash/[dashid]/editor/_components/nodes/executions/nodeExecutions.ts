@@ -953,13 +953,144 @@ export const executeWorkflow = async (
           break;
         }
 
-        case "MasterSheetUpdateNode": {
-          const updatesEdge = incomingEdges.find((e: any) => e.targetHandle === "updates");
-          const incomingResult = updatesEdge
-            ? (runtimeData.get(`${updatesEdge.source}__${updatesEdge.sourceHandle}`) ?? runtimeData.get(updatesEdge.source))
+        case "DynamicMasterSheetNode": {
+          const dataInputEdge = incomingEdges.find((e: any) => e.targetHandle === "data-input");
+          const sheetNameEdge = incomingEdges.find((e: any) => e.targetHandle === "sheet-name");
+          const targetPathEdge = incomingEdges.find((e: any) => e.targetHandle === "target-path");
+          const customPromptEdge = incomingEdges.find((e: any) => e.targetHandle === "custom-prompt" || e.targetHandle === "prompt");
+
+          const dataInputVal = dataInputEdge
+            ? (runtimeData.get(`${dataInputEdge.source}__${dataInputEdge.sourceHandle}`) ?? runtimeData.get(dataInputEdge.source))
+            : (nodeData?.csvContent || nodeData?.dataInput || nodeData?.text || null);
+
+          const sheetNameVal = sheetNameEdge
+            ? (runtimeData.get(`${sheetNameEdge.source}__${sheetNameEdge.sourceHandle}`) ?? runtimeData.get(sheetNameEdge.source))
             : null;
 
-          const updatesList = incomingResult?.updates || nodeData?.updates || [];
+          const targetPathVal = targetPathEdge
+            ? (runtimeData.get(`${targetPathEdge.source}__${targetPathEdge.sourceHandle}`) ?? runtimeData.get(targetPathEdge.source))
+            : null;
+
+          const customPromptVal = customPromptEdge
+            ? (runtimeData.get(`${customPromptEdge.source}__${customPromptEdge.sourceHandle}`) ?? runtimeData.get(customPromptEdge.source))
+            : null;
+
+          const HARDCODED_DEFAULT_PROMPT = "Match Enrollment ID in column 1. Calculate present count and update total and attended classes for target path.";
+
+          const pathString = typeof targetPathVal === "string" ? targetPathVal : (targetPathVal?.text || nodeData?.targetPath || "CO24554/Th.");
+          const sheetString = typeof sheetNameVal === "string" ? sheetNameVal : (sheetNameVal?.text || nodeData?.selectedSheet || "Sheet1");
+          const promptString = typeof customPromptVal === "string"
+            ? customPromptVal
+            : (customPromptVal?.text || nodeData?.customPrompt || HARDCODED_DEFAULT_PROMPT);
+
+          // Convert dataInputVal to CSV string
+          let csvString = typeof dataInputVal === "string" ? dataInputVal : "";
+          let inputDataset: any = null;
+
+          if (!csvString && typeof dataInputVal === "object" && dataInputVal !== null) {
+            if (Array.isArray(dataInputVal.columns) && Array.isArray(dataInputVal.data)) {
+              inputDataset = dataInputVal;
+              const headers = dataInputVal.columns.join(",");
+              const rows = dataInputVal.data.map((r: any[]) => (Array.isArray(r) ? r.join(",") : String(r))).join("\n");
+              csvString = `${headers}\n${rows}`;
+            } else if (Array.isArray(dataInputVal.data)) {
+              csvString = JSON.stringify(dataInputVal.data);
+            }
+          }
+
+          // Resolve master sheet grid
+          const { useMasterSheetStore } = await import("@/stores/master-sheet-store");
+          const { useDeskStore } = await import("@/stores/desk-store");
+          const { extract2DGridFromAnySheet, applyComputedUpdatesToGrid } = await import("@/lib/sheet-utils");
+
+          const msStore = useMasterSheetStore.getState();
+          const deskStore = useDeskStore.getState();
+
+          let currentSheetRaw = msStore.sheets[sheetString]?.data || deskStore.activeMasterSheetData || deskStore.masterSheetPreview || nodeData?.masterGrid?.data || nodeData?.masterGrid;
+          let { columns: masterCols, data: masterRows } = extract2DGridFromAnySheet(currentSheetRaw);
+
+          if (masterCols.length === 0) {
+            masterCols = ["S.No", "Enrollment", "Name", `${pathString}:Total`, `${pathString}:Attended`, `${pathString}:%`];
+            masterRows = [];
+          }
+
+          const masterGrid = [masterCols, ...masterRows];
+          let updates: any[] = nodeData?.updates || [];
+          let alignment: any = nodeData?.alignment || null;
+
+          // Attempt AI alignment via backend if csvString exists
+          if (csvString) {
+            const apiKey = nodeData?.apiKey || (typeof window !== "undefined" ? localStorage.getItem("GEMINI_API_KEY") || localStorage.getItem("OPENAI_API_KEY") : "");
+            const provider = nodeData?.provider || "gemini";
+            const model = nodeData?.model || "gemini-2.5-flash";
+            const customPrompt = nodeData?.customPrompt || "Match Enrollment ID in column 1. Calculate present count and update total and attended classes.";
+
+            try {
+              const { pypApi } = await import("@/lib/axios");
+              const res = await pypApi.post("/ai/dynamic-align-schema", {
+                master_grid: masterGrid,
+                csv_string: csvString,
+                target_column_path: pathString,
+                custom_prompt: promptString,
+                sheet_name: sheetString,
+                provider: provider,
+                api_key: apiKey ? apiKey.trim() : undefined,
+                model: model,
+              });
+
+              if (res?.data?.success && Array.isArray(res.data.updates)) {
+                updates = res.data.updates;
+                alignment = res.data.alignment;
+              }
+            } catch (err: any) {
+              console.warn("AI alignment API failed during workflow execution, fallback to local match:", err?.message || err);
+              // Fallback heuristic alignment
+              if (inputDataset && Array.isArray(inputDataset.data)) {
+                const isDateWise = inputDataset.columns.some((c: string) => /jul|aug|sep|oct|nov|dec|jan|feb|mar|apr|may|jun|\d{1,2}[\/-]\d{1,2}/i.test(c));
+                const dateCols = isDateWise ? inputDataset.columns.filter((c: string) => /jul|aug|sep|oct|nov|dec|jan|feb|mar|apr|may|jun|\d{1,2}[\/-]\d{1,2}/i.test(c)) : [];
+                
+                updates = inputDataset.data.map((row: any[], idx: number) => {
+                  const enroll = row[1] || row[0] || `ID_${idx + 1}`;
+                  const name = row[2] || row[1] || `Student ${idx + 1}`;
+                  let attendedCount = 1;
+                  let totalCount = 1;
+                  if (isDateWise && dateCols.length > 0) {
+                    totalCount = dateCols.length;
+                    attendedCount = dateCols.filter((colName: string) => {
+                      const colIdx = inputDataset.columns.indexOf(colName);
+                      const val = String(row[colIdx] ?? '').trim().toUpperCase();
+                      return val === 'P' || val === '1' || val === 'PRESENT';
+                    }).length;
+                  }
+                  return {
+                    row_idx: 1 + idx,
+                    s_no: idx + 1,
+                    student_name: String(name),
+                    enrollment: String(enroll),
+                    enrollment_col_idx: 1,
+                    name_col_idx: 2,
+                    total_col_idx: 3,
+                    total_old_value: 0,
+                    total_new_value: totalCount,
+                    attended_col_idx: 4,
+                    attended_old_value: 0,
+                    attended_new_value: attendedCount,
+                    auto_populated: true,
+                  };
+                });
+              }
+            }
+          }
+
+          const mergedDataset = applyComputedUpdatesToGrid(masterCols, masterRows, updates, pathString);
+          const finalResult = {
+            ...mergedDataset,
+            updates,
+            alignment,
+            sheetName: sheetString,
+            targetPath: pathString,
+          };
+
           setNodes((nds) =>
             nds.map((n) =>
               n.id === currentId
@@ -967,14 +1098,42 @@ export const executeWorkflow = async (
                     ...n,
                     data: {
                       ...n.data,
-                      updates: updatesList,
-                      alignment: incomingResult?.alignment || n.data.alignment,
+                      csvContent: dataInputVal,
+                      dataInput: dataInputVal,
+                      incomingSheetName: sheetString,
+                      incomingTargetPath: pathString,
+                      updates,
+                      alignment,
+                      result: finalResult,
                     },
                   }
                 : n
             )
           );
-          outputValue = updatesList;
+
+          // Push to desk store merged preview
+          deskStore.setMergedPreview(finalResult);
+          outputValue = finalResult;
+          break;
+        }
+
+        case "UpdatedMergedPreviewNode": {
+          const { useDeskStore } = await import("@/stores/desk-store");
+          outputValue = inputValue || nodeData?.result || { columns: [], data: [] };
+          useDeskStore.getState().setMergedPreview(outputValue);
+          setNodes((nds) =>
+            nds.map((n) =>
+              n.id === currentId
+                ? {
+                    ...n,
+                    data: {
+                      ...n.data,
+                      result: outputValue,
+                    },
+                  }
+                : n
+            )
+          );
           break;
         }
 

@@ -52,7 +52,27 @@ export function MasterSheetUpdateNode({ id, data }: any) {
 
       updates.forEach((update: any) => {
         const rIdx = update.row_idx;
+        
+        // Dynamically append new rows if rIdx exceeds current grid height
+        while (updatedGridData.length <= rIdx) {
+          const emptyRow = new Array(currentSheet.columns.length).fill("");
+          updatedGridData.push(emptyRow);
+        }
+
         if (rIdx < updatedGridData.length) {
+          // Auto-fill student info if auto_populated or empty
+          if (update.auto_populated) {
+            if (update.s_no && 0 < updatedGridData[rIdx].length && !updatedGridData[rIdx][0]) {
+              updatedGridData[rIdx][0] = update.s_no;
+            }
+            if (update.enrollment && update.enrollment_col_idx < updatedGridData[rIdx].length && !updatedGridData[rIdx][update.enrollment_col_idx]) {
+              updatedGridData[rIdx][update.enrollment_col_idx] = update.enrollment;
+            }
+            if (update.student_name && update.name_col_idx < updatedGridData[rIdx].length && !updatedGridData[rIdx][update.name_col_idx]) {
+              updatedGridData[rIdx][update.name_col_idx] = update.student_name;
+            }
+          }
+
           // Total Classes
           if (update.total_col_idx < updatedGridData[rIdx].length) {
             updatedGridData[rIdx][update.total_col_idx] = update.total_new_value;
@@ -67,7 +87,6 @@ export function MasterSheetUpdateNode({ id, data }: any) {
           const totalColLetter = getColLetter(update.total_col_idx);
           const attColLetter = getColLetter(update.attended_col_idx);
           const excelRow = rIdx + 1;
-          const pctFormula = `=IF(${totalColLetter}${excelRow}>0, ROUND((${attColLetter}${excelRow}/${totalColLetter}${excelRow})*100, 0), 0)`;
 
           if (pctColIdx < updatedGridData[rIdx].length) {
             // Calculate percentage numerical value
@@ -84,7 +103,10 @@ export function MasterSheetUpdateNode({ id, data }: any) {
         data: updatedGridData,
       };
 
-      // Push to master sheet store
+      // Update in-memory store for live spreadsheet grid view
+      store.setSheetData(targetSheetName, updatedSheetObj);
+
+      // Push to master sheet store queue
       store.pushData({
         masterSheetName: targetSheetName,
         sheetName: targetSheetName,
@@ -96,35 +118,9 @@ export function MasterSheetUpdateNode({ id, data }: any) {
         sourceNodeId: id,
       });
 
-      // Save to database if user is logged in
-      const userId = sessionData?.user?.id;
-      const userName = sessionData?.user?.name ?? "Unknown User";
-
-      if (userId) {
-        const saved = await upsertMasterSheetByName({
-          userId,
-          name: targetSheetName,
-          data: updatedSheetObj,
-          metadata: {
-            rowCount: updatedGridData.length,
-            colCount: currentSheet.columns.length,
-            lastMergedAt: new Date().toISOString(),
-          },
-        });
-
-        await addMasterSheetHistory({
-          masterSheetId: saved.id,
-          userId,
-          userName,
-          action: "update",
-          dataAfter: updatedSheetObj,
-          changeSummary: `Applied AI attendance update for ${updates.length} students in "${targetSheetName}"`,
-        });
-      }
-
       setAppliedCount(updates.length);
       setSuccess(true);
-      toast.success(`Successfully updated ${updates.length} student rows in Master Sheet!`);
+      toast.success(`Merged ${updates.length} updates into "${targetSheetName}". Click Save in MasterSheet header to persist to database.`);
     } catch (err: any) {
       console.error(err);
       toast.error("Failed to update Master Sheet: " + (err.message || err));
@@ -166,7 +162,7 @@ export function MasterSheetUpdateNode({ id, data }: any) {
           className="w-full bg-purple-600 hover:bg-purple-500 text-white h-8 text-xs gap-1.5"
         >
           {loading ? <Loader2 className="size-3.5 animate-spin" /> : <ArrowUpRight className="size-3.5" />}
-          {loading ? "Applying..." : "Push to Master Sheet"}
+          {loading ? "Merging..." : "Confirm Merge to Master Sheet"}
         </Button>
 
         {success && (

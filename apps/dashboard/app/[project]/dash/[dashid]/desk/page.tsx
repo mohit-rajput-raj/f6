@@ -39,6 +39,7 @@ import { usePathname, useRouter, useParams } from "next/navigation"
 import { DeskBlock } from "./_components/DeskBlock"
 import { InviteNotification } from "./_components/InviteNotification"
 import { MasterSheetPanel } from "./_components/MasterSheetPanel"
+import { UpdatedMergedPreview } from "./_components/UpdatedMergedPreview"
 import { executeWorkflow } from "../editor/_components/nodes/executions/nodeExecutions"
 import { getWorkFlow } from "../editor/_actions/editor.service"
 import { HelixLoader, RoseLoader } from "curls-loaders"
@@ -615,13 +616,16 @@ export default function DeskPage() {
           </>
         )}
 
+        {/* ─── AI Updated Merged Preview ───────────────── */}
+        <UpdatedMergedPreview />
+
         {/* ─── Master Sheet Panel ────────────────────────── */}
         <MasterSheetPanel />
       </div>
 
       {/* ─── Share Dialog ────────────────────────────────── */}
       <Dialog open={shareOpen} onOpenChange={setShareOpen}>
-        <DialogContent className="dark bg-zinc-950 border-zinc-800 max-w-md">
+        <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Users className="size-5" />

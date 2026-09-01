@@ -56,7 +56,7 @@ interface DeskState {
   projectWorkflowId: string | null;
   isLoading: boolean;
   isGuest: boolean;
-  masterSheetPreview: Dataset | null;
+  // masterSheetPreview: Dataset | null;
 
   // OCR state (kept from old store)
   ocrResult: Dataset | null;
@@ -122,8 +122,13 @@ interface DeskState {
   // ─── Per-block Execution ───
   setBlockExecuting: (blockId: string, v: boolean) => void;
 
-  // ─── Master Sheet ───
+  // ─── Master Sheet & AI Merged Preview ───
+  masterSheetPreview: Dataset | null;
+  mergedPreview: (Dataset & { updates?: any[]; alignment?: any; sheetName?: string; targetPath?: string }) | null;
+  activeMasterSheetData: any | null;
   setMasterSheetPreview: (data: Dataset | null) => void;
+  setMergedPreview: (data: (Dataset & { updates?: any[]; alignment?: any; sheetName?: string; targetPath?: string }) | null) => void;
+  setDeskMasterSheetData: (data: any) => void;
 
   // ─── OCR Actions ───
   setOcrResult: (data: Dataset | null) => void;
@@ -149,6 +154,8 @@ export const useDeskStore = create<DeskState>()((set, get) => ({
   isLoading: true,
   isGuest: false,
   masterSheetPreview: null,
+  mergedPreview: null,
+  activeMasterSheetData: null,
   ocrResult: null,
   isOcrProcessing: false,
 
@@ -395,8 +402,10 @@ export const useDeskStore = create<DeskState>()((set, get) => ({
       })),
     })),
 
-  // ─── Master Sheet ──────────────────────────────────────────
+  // ─── Master Sheet & Merged Preview ──────────────────────────
   setMasterSheetPreview: (data) => set({ masterSheetPreview: data }),
+  setMergedPreview: (data) => set({ mergedPreview: data }),
+  setDeskMasterSheetData: (data) => set({ activeMasterSheetData: data }),
 
   // ─── OCR ───────────────────────────────────────────────────
   setOcrResult: (data) => set({ ocrResult: data }),
@@ -410,6 +419,8 @@ export const useDeskStore = create<DeskState>()((set, get) => ({
       isLoading: true,
       isGuest: false,
       masterSheetPreview: null,
+      mergedPreview: null,
+      activeMasterSheetData: null,
       ocrResult: null,
       isOcrProcessing: false,
     }),

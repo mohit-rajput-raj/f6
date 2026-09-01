@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import List, Any, Optional
 from app.services.agent_service import run_agent
-from app.services.alignment_service import align_and_compute_updates, parse_csv_content
+from app.services.alignment_service import align_and_compute_updates, parse_csv_content, dynamic_align_schema, DynamicAlignmentRequest
 from app.tools.ocr_tool import extract_table_from_image
 from app.tools.formula_tool import evaluate_formula, aggregate_column
 from app.tools.column_matcher import match_columns
@@ -21,6 +21,7 @@ class AlignSchemaRequest(BaseModel):
     csv_string: str
     target_subject: str
     target_component: str
+    custom_prompt: Optional[str] = None
     provider: Optional[str] = "gemini"
     api_key: Optional[str] = None
     model: Optional[str] = None
@@ -164,11 +165,30 @@ async def align_schema_endpoint(req: AlignSchemaRequest):
             target_component=req.target_component,
             provider=req.provider or "gemini",
             api_key=req.api_key,
-            model=req.model
+            model=req.model,
+            custom_prompt=req.custom_prompt
         )
         return result
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/dynamic-align-schema")
+async def dynamic_align_schema_endpoint(req: DynamicAlignmentRequest):
+    """Dynamically align attendance/marks schema using dynamic target column path (e.g. code123/th) and custom prompt."""
+    try:
+        if not req.master_grid:
+            raise HTTPException(status_code=400, detail="Missing master grid")
+        if not req.csv_string:
+            raise HTTPException(status_code=400, detail="Missing input data string")
+            
+        result = dynamic_align_schema(req)
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 

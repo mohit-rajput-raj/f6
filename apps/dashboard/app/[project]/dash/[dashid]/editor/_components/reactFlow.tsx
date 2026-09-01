@@ -81,7 +81,8 @@ import { DynamicBlockConcatNode } from "./nodes/calcy-nodes/dynamic-block-concat
 import { BlockExtractorNode } from "./nodes/calcy-nodes/block-extractor-node";
 import { ActionButtonNode } from "./nodes/input-nodes/action-button-node";
 import { AISchemaAlignNode } from "./nodes/calcy-nodes/ai-schema-align-node";
-import { MasterSheetUpdateNode } from "./nodes/output-nodes/mastersheet-update-node";
+import { DynamicMasterSheetNode } from "./nodes/calcy-nodes/dynamic-mastersheet-node";
+import { UpdatedMergedPreviewNode } from "./nodes/output-nodes/updated-merged-preview-node";
 
 const Flow = ({ handleRuns }: { handleRuns: () => void }) => {
   const nodeTypess = useMemo(
@@ -164,7 +165,8 @@ const Flow = ({ handleRuns }: { handleRuns: () => void }) => {
 
       // AI & MasterSheet updates
       AISchemaAlignNode: AISchemaAlignNode,
-      MasterSheetUpdateNode: MasterSheetUpdateNode,
+      DynamicMasterSheetNode: DynamicMasterSheetNode,
+      UpdatedMergedPreviewNode: UpdatedMergedPreviewNode,
     }),
     []
   );

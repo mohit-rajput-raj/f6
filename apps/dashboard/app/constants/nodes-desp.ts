@@ -79,5 +79,6 @@ export const EditorCanvasDefaultCardTypes: Record<string, { description: string;
 
   // AI & MasterSheet updates
   AISchemaAlignNode: { description: 'AI-assisted schema alignment and student row matching for CSV attendance', type: 'Action' },
-  MasterSheetUpdateNode: { description: 'Update MasterSheet with calculated totals, attended counts, and formulas', type: 'Output' },
+  DynamicMasterSheetNode: { description: 'Dynamic sheet tab selection and custom column target mapping using TanStack Query & Gemini 2.5', type: 'Action' },
+  UpdatedMergedPreviewNode: { description: 'Preview AI-merged updates with one-click MasterSheet merge confirmation', type: 'Output' },
 }
