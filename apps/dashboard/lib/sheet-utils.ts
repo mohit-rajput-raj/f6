@@ -310,7 +310,7 @@ export function applyComputedUpdatesToGrid(
   targetPath?: string,
   groupColumns?: Array<{ col_idx: number; header: string }>
 ): { columns: string[]; data: any[][] } {
-  const pathPrefix = targetPath || "CO24554/Th.";
+  const pathPrefix = targetPath || "Path";
 
   let previewColumns: string[];
   if (Array.isArray(groupColumns) && groupColumns.length > 0) {

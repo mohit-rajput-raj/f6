@@ -127,10 +127,10 @@ interface DeskState {
 
   // ─── Master Sheet & AI Merged Preview ───
   masterSheetPreview: Dataset | null;
-  mergedPreview: (Dataset & { updates?: any[]; alignment?: any; dataStartRow?: number; groupColumns?: any[]; sheetName?: string; targetPath?: string }) | null;
+  mergedPreview: (Dataset & { updates?: any[]; alignment?: any; dataStartRow?: number; groupColumns?: any[]; sheetName?: string; targetPath?: string; stackName?: string }) | null;
   activeMasterSheetData: any | null;
   setMasterSheetPreview: (data: Dataset | null) => void;
-  setMergedPreview: (data: (Dataset & { updates?: any[]; alignment?: any; dataStartRow?: number; groupColumns?: any[]; sheetName?: string; targetPath?: string }) | null) => void;
+  setMergedPreview: (data: (Dataset & { updates?: any[]; alignment?: any; dataStartRow?: number; groupColumns?: any[]; sheetName?: string; targetPath?: string; stackName?: string }) | null) => void;
   setDeskMasterSheetData: (data: any) => void;
 
   // ─── OCR Actions ───

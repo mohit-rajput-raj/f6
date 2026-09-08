@@ -323,7 +323,6 @@ export default function AnalyticsPage() {
     return studentsList
       .slice()
       .sort((a, b) => b.percentage - a.percentage)
-      .slice(0, 40)
       .map((s) => ({
         name: s.name,
         enroll: s.enroll,
@@ -414,8 +413,7 @@ export default function AnalyticsPage() {
           Absent: studentA,
           Rate: rate,
         };
-      })
-      .slice(0, 35); // limit top 35 for readable chart
+      }); // all rows included, window size controls viewable range
 
     return {
       dailyTrend,
@@ -1441,7 +1439,7 @@ export default function AnalyticsPage() {
               {/* Window size selector */}
               <div className="flex items-center gap-1">
                 <span className="text-muted-foreground text-[10px] uppercase font-semibold mr-1">View:</span>
-                {[15, 25, 40, 'all'].map((sz) => (
+                {[15, 25, 50, 100, 'all'].map((sz) => (
                   <button
                     key={String(sz)}
                     onClick={() => setXAxisWindowSize(sz as any)}
@@ -1557,7 +1555,7 @@ export default function AnalyticsPage() {
                           fontSize={10}
                           angle={-35}
                           textAnchor="end"
-                          interval={0}
+                          interval={xAxisWindowSize === 'all' || (typeof xAxisWindowSize === 'number' && xAxisWindowSize > 35) ? 'preserveStartEnd' : 0}
                           height={60}
                         />
                         <YAxis stroke="#a1a1aa" fontSize={11} domain={[0, 100]} unit="%" />
@@ -1863,7 +1861,15 @@ export default function AnalyticsPage() {
                     <ResponsiveContainer width="100%" height="90%">
                       <BarChart data={slicedStudentBreakdown}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#27272a" opacity={0.5} />
-                        <XAxis dataKey="name" stroke="#a1a1aa" fontSize={10} angle={-30} textAnchor="end" height={60} />
+                        <XAxis
+                          dataKey="name"
+                          stroke="#a1a1aa"
+                          fontSize={10}
+                          angle={-30}
+                          textAnchor="end"
+                          height={60}
+                          interval={xAxisWindowSize === 'all' || (typeof xAxisWindowSize === 'number' && xAxisWindowSize > 35) ? 'preserveStartEnd' : 0}
+                        />
                         <YAxis stroke="#a1a1aa" fontSize={11} />
                         <Tooltip
                           contentStyle={{
@@ -2057,7 +2063,7 @@ export default function AnalyticsPage() {
               <div className="flex items-center justify-between">
                 <h4 className="text-xs font-semibold uppercase tracking-wider flex items-center gap-1.5">
                   <TableIcon className="size-3.5 text-violet-500" />
-                  Underlying Table Preview (First 50 Rows)
+                  Underlying Table Preview ({rows.length <= 100 ? `All ${rows.length} Rows` : `First 100 of ${rows.length} Rows`})
                 </h4>
                 <span className="text-[10px] font-mono text-muted-foreground">
                   {columns.length} columns aligned
@@ -2075,7 +2081,7 @@ export default function AnalyticsPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {rows.slice(0, 50).map((r, rIdx) => (
+                    {rows.slice(0, 100).map((r, rIdx) => (
                       <tr key={rIdx} className="border-b hover:bg-muted/30">
                         {columns.map((_, cIdx) => (
                           <td key={cIdx} className="px-3 py-1.5 whitespace-nowrap font-mono text-[11px]">
