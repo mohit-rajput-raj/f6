@@ -24,7 +24,7 @@ export function UpdatedMergedPreview() {
   const data = mergedPreview.data || []
   const updates = mergedPreview.updates || []
   const sheetName = mergedPreview.sheetName || "Sheet1"
-  const targetPath = mergedPreview.targetPath || "CO24554/Th."
+  const targetPath = mergedPreview.targetPath || mergedPreview.stackName || ""
 
   const handleConfirmMerge = async () => {
     setIsMerging(true)

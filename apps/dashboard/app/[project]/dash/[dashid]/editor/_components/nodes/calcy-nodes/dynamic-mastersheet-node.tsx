@@ -1,12 +1,13 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Handle, Position, useReactFlow } from "@xyflow/react";
+import { Handle, Position, useReactFlow, useEdges, useNodes } from "@xyflow/react";
 import { Sparkles, CheckCircle2, AlertCircle, Loader2, Table2, Key, Save, Check, Eye } from "lucide-react";
 import { Button } from "@/components/ui/components";
 import { Input } from "@repo/ui/components/ui/input";
 import { Badge } from "@repo/ui/components/ui/badge";
 import { useMasterSheetStore } from "@/stores/master-sheet-store";
+import { useDeskStore } from "@/stores/desk-store";
 import { useSession } from "@/lib/auth-client";
 import { getUserLLMKeys, saveUserLLMKeys } from "@/app/[project]/dash/[dashid]/(documents)/data-library/api-key-actions";
 import { upsertMasterSheetByName, addMasterSheetHistory } from "@/app/[project]/dash/[dashid]/(documents)/data-library/master-sheet-actions";
@@ -59,21 +60,151 @@ export function DynamicMasterSheetNode({ id, data }: any) {
   const availableSheets = getAvailableSheets();
 
   const handleDelete = useDeleteNode();
-
-  // Accept sheet name from connected DeskTextInput handle or fallback to local state
-  const effectiveSheetName = data?.incomingSheetName || data?.selectedSheet || activeSheetNameStore || availableSheets[0] || "Sheet1";
+  const edges = useEdges();
+  const nodes = useNodes();
 
   const HARDCODED_DEFAULT_PROMPT =
     "Match Enrollment ID in column 1. Calculate present count and update total and attended classes for target path.";
 
+  // Edge detection for target-path, sheet-name, custom-prompt
+  const targetPathEdge = edges.find(
+    (e) =>
+      e.target === id &&
+      (e.targetHandle === "target-path" ||
+        e.targetHandle === "targetPath" ||
+        e.targetHandle === "path")
+  );
+
+  const sheetNameEdge = edges.find(
+    (e) =>
+      e.target === id &&
+      (e.targetHandle === "sheet-name" ||
+        e.targetHandle === "sheetName" ||
+        e.targetHandle === "sheet")
+  );
+
+  const customPromptEdge = edges.find(
+    (e) =>
+      e.target === id &&
+      (e.targetHandle === "custom-prompt" ||
+        e.targetHandle === "prompt")
+  );
+
+  const targetPathSourceNode = targetPathEdge ? nodes.find((n) => n.id === targetPathEdge.source) : null;
+  const sheetNameSourceNode = sheetNameEdge ? nodes.find((n) => n.id === sheetNameEdge.source) : null;
+  const customPromptSourceNode = customPromptEdge ? nodes.find((n) => n.id === customPromptEdge.source) : null;
+
+  // Real-time resolution from desk store if connected to DeskTextInputNode
+  const dynamicDeskTargetPath = useDeskStore((s) => {
+    if (!targetPathEdge || !targetPathSourceNode) return "";
+    if (targetPathSourceNode.type === "DeskTextInputNode") {
+      const sourceData = targetPathSourceNode.data as any;
+      const deskBlockId = sourceData?.deskBlockId;
+      const deskInputId = sourceData?.deskInputId || targetPathSourceNode.id;
+      if (deskBlockId) {
+        const block = s.blocks.find((b) => b.id === deskBlockId);
+        const val = block?.textInputs?.find((t) => t.id === deskInputId)?.value;
+        if (val !== undefined && val !== null && val !== "") return val;
+      }
+      for (const b of s.blocks) {
+        const found = b.textInputs?.find((t) => t.id === deskInputId || t.id === targetPathSourceNode.id);
+        if (found && found.value) return found.value;
+      }
+      return sourceData?.text ?? "";
+    }
+    return typeof targetPathSourceNode.data?.text === "string"
+      ? targetPathSourceNode.data.text
+      : typeof targetPathSourceNode.data?.result === "string"
+      ? targetPathSourceNode.data.result
+      : "";
+  });
+
+  const dynamicDeskSheetName = useDeskStore((s) => {
+    if (!sheetNameEdge || !sheetNameSourceNode) return "";
+    if (sheetNameSourceNode.type === "DeskTextInputNode") {
+      const sourceData = sheetNameSourceNode.data as any;
+      const deskBlockId = sourceData?.deskBlockId;
+      const deskInputId = sourceData?.deskInputId || sheetNameSourceNode.id;
+      if (deskBlockId) {
+        const block = s.blocks.find((b) => b.id === deskBlockId);
+        const val = block?.textInputs?.find((t) => t.id === deskInputId)?.value;
+        if (val !== undefined && val !== null && val !== "") return val;
+      }
+      for (const b of s.blocks) {
+        const found = b.textInputs?.find((t) => t.id === deskInputId || t.id === sheetNameSourceNode.id);
+        if (found && found.value) return found.value;
+      }
+      return sourceData?.text ?? "";
+    }
+    return typeof sheetNameSourceNode.data?.text === "string"
+      ? sheetNameSourceNode.data.text
+      : typeof sheetNameSourceNode.data?.result === "string"
+      ? sheetNameSourceNode.data.result
+      : "";
+  });
+
+  const dynamicDeskCustomPrompt = useDeskStore((s) => {
+    if (!customPromptEdge || !customPromptSourceNode) return "";
+    if (customPromptSourceNode.type === "DeskTextInputNode") {
+      const sourceData = customPromptSourceNode.data as any;
+      const deskBlockId = sourceData?.deskBlockId;
+      const deskInputId = sourceData?.deskInputId || customPromptSourceNode.id;
+      if (deskBlockId) {
+        const block = s.blocks.find((b) => b.id === deskBlockId);
+        const val = block?.textInputs?.find((t) => t.id === deskInputId)?.value;
+        if (val !== undefined && val !== null && val !== "") return val;
+      }
+      for (const b of s.blocks) {
+        const found = b.textInputs?.find((t) => t.id === deskInputId || t.id === customPromptSourceNode.id);
+        if (found && found.value) return found.value;
+      }
+      return sourceData?.text ?? "";
+    }
+    return typeof customPromptSourceNode.data?.text === "string"
+      ? customPromptSourceNode.data.text
+      : typeof customPromptSourceNode.data?.result === "string"
+      ? customPromptSourceNode.data.result
+      : "";
+  });
+
+  const isTargetPathConnected = Boolean(targetPathEdge);
+  const isSheetNameConnected = Boolean(sheetNameEdge);
+  const isCustomPromptConnected = Boolean(customPromptEdge);
+
+  const effectiveTargetPath =
+    (isTargetPathConnected && dynamicDeskTargetPath ? dynamicDeskTargetPath : null) ||
+    (isTargetPathConnected && targetPathSourceNode?.data?.text ? targetPathSourceNode.data.text : null) ||
+    (isTargetPathConnected && data?.incomingTargetPath ? data.incomingTargetPath : null) ||
+    data?.incomingTargetPath ||
+    data?.targetPath ||
+    "";
+
+  const effectiveSheetName =
+    (isSheetNameConnected && dynamicDeskSheetName ? dynamicDeskSheetName : null) ||
+    (isSheetNameConnected && sheetNameSourceNode?.data?.text ? sheetNameSourceNode.data.text : null) ||
+    (isSheetNameConnected && data?.incomingSheetName ? data.incomingSheetName : null) ||
+    data?.incomingSheetName ||
+    data?.selectedSheet ||
+    activeSheetNameStore ||
+    availableSheets[0] ||
+    "Sheet1";
+
+  const effectiveCustomPrompt =
+    (isCustomPromptConnected && dynamicDeskCustomPrompt ? dynamicDeskCustomPrompt : null) ||
+    (isCustomPromptConnected && customPromptSourceNode?.data?.text ? customPromptSourceNode.data.text : null) ||
+    (isCustomPromptConnected && data?.incomingCustomPrompt ? data.incomingCustomPrompt : null) ||
+    data?.incomingCustomPrompt ||
+    data?.customPrompt ||
+    HARDCODED_DEFAULT_PROMPT;
+
   const [selectedSheet, setSelectedSheet] = useState<string>(
-    effectiveSheetName
+    effectiveSheetName || "Sheet1"
   );
   const [targetPath, setTargetPath] = useState<string>(
-    data?.targetPath || "CO24554/Th."
+    effectiveTargetPath || data?.targetPath || ""
   );
   const [customPrompt, setCustomPrompt] = useState<string>(
-    data?.customPrompt || HARDCODED_DEFAULT_PROMPT
+    effectiveCustomPrompt || HARDCODED_DEFAULT_PROMPT
   );
   const [apiKey, setApiKey] = useState<string>(data?.apiKey || "");
   const [provider, setProvider] = useState<string>(data?.provider || "gemini");
@@ -151,7 +282,7 @@ export function DynamicMasterSheetNode({ id, data }: any) {
   };
 
   const handleAlign = async () => {
-    const effectivePath = data?.incomingTargetPath || targetPath || "CO24554/th";
+    const effectivePath = data?.incomingTargetPath || targetPath || "";
     const effectiveSheet = data?.incomingSheetName || selectedSheet || "Sheet1";
 
     // 1. Resolve master grid (Syncfusion full grid first, then workbook JSON, then fallback)
@@ -294,7 +425,7 @@ export function DynamicMasterSheetNode({ id, data }: any) {
       } = await import("@/lib/sheet-utils");
 
       const effectiveSheet = data?.incomingSheetName || selectedSheet || "Sheet1";
-      const effectivePath = data?.incomingTargetPath || targetPath || "CO24554/Th.";
+      const effectivePath = data?.incomingTargetPath || targetPath || "";
 
       const ss = typeof window !== "undefined" ? (window as any).__masterSheetSpreadsheet : null;
 
@@ -515,7 +646,7 @@ export function DynamicMasterSheetNode({ id, data }: any) {
               updateNodeData("customPrompt", e.target.value);
             }}
             rows={2}
-            placeholder="e.g. Calculate present count for CO24554 Theory, compute percentage, update columns..."
+            placeholder="e.g. Calculate present count, compute percentage, update columns..."
             className="w-full p-2 text-[11px] rounded-md border border-input bg-background resize-none focus:outline-none focus:ring-1 focus:ring-ring"
           />
         </div>

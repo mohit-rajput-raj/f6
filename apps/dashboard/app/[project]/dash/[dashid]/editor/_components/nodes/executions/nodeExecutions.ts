@@ -1008,6 +1008,13 @@ export const executeWorkflow = async (
             }
           }
 
+          const finalStackDs = {
+            ...stackDs,
+            targetPath: resolvedStackName,
+            stackName: resolvedStackName,
+          };
+          outputValue = finalStackDs;
+
           // Always store incoming/calculated dataset and resolved table name into node data
           setNodes((nds) =>
             nds.map((node) =>
@@ -1016,10 +1023,11 @@ export const executeWorkflow = async (
                     ...node,
                     data: {
                       ...node.data,
-                      result: stackDs,
-                      rowCount: stackDs?.data?.length ?? 0,
+                      result: finalStackDs,
+                      rowCount: finalStackDs?.data?.length ?? 0,
                       stackName: resolvedStackName,
                       resolvedTableName: resolvedStackName,
+                      targetPath: resolvedStackName,
                     },
                   }
                 : node
@@ -1166,7 +1174,13 @@ export const executeWorkflow = async (
 
           const HARDCODED_DEFAULT_PROMPT = "Match Enrollment ID in column 1. Calculate present count and update total and attended classes for target path.";
 
-          const pathString = typeof targetPathVal === "string" ? targetPathVal : (targetPathVal?.text || nodeData?.targetPath || "CO24554/Th.");
+          let pathString = typeof targetPathVal === "string" ? targetPathVal : (targetPathVal?.text || nodeData?.targetPath || "");
+          if (!pathString) {
+            const analyticsNode = nodes.find((n) => n.type === "AnalyticsStackNode");
+            if (analyticsNode?.data?.resolvedTableName || analyticsNode?.data?.stackName) {
+              pathString = analyticsNode.data.resolvedTableName || analyticsNode.data.stackName;
+            }
+          }
           const sheetString = typeof sheetNameVal === "string" ? sheetNameVal : (sheetNameVal?.text || nodeData?.selectedSheet || "Sheet1");
           const promptString = typeof customPromptVal === "string"
             ? customPromptVal
@@ -1322,7 +1336,110 @@ export const executeWorkflow = async (
 
         case "UpdatedMergedPreviewNode": {
           const { useDeskStore } = await import("@/stores/desk-store");
-          outputValue = inputValue || nodeData?.result || { columns: [], data: [] };
+
+          // 1. Direct path / desk text input handle edge
+          const targetPathEdge = incomingEdges.find(
+            (e: any) =>
+              e.targetHandle === "target-path" ||
+              e.targetHandle === "targetPath" ||
+              e.targetHandle === "path" ||
+              e.targetHandle === "table-name" ||
+              e.targetHandle === "tableName"
+          );
+
+          // 2. Data handle edge
+          const dataEdge = incomingEdges.find(
+            (e: any) => e.targetHandle === "in" || !e.targetHandle
+          );
+
+          const rawData = dataEdge
+            ? (runtimeData.get(`${dataEdge.source}__${dataEdge.sourceHandle}`) ?? runtimeData.get(dataEdge.source) ?? inputValue)
+            : inputValue;
+
+          let effectivePath = "";
+
+          // Resolve from path edge
+          if (targetPathEdge) {
+            const rawPath =
+              runtimeData.get(`${targetPathEdge.source}__${targetPathEdge.sourceHandle}`) ??
+              runtimeData.get(targetPathEdge.source);
+            if (typeof rawPath === "string" && rawPath.trim()) {
+              effectivePath = rawPath.trim();
+            } else if (rawPath?.text) {
+              effectivePath = String(rawPath.text).trim();
+            } else if (rawPath?.value) {
+              effectivePath = String(rawPath.value).trim();
+            }
+
+            // Fallback: check desk store if source is DeskTextInputNode
+            if (!effectivePath) {
+              try {
+                const sourceNode = nodes.find((n) => n.id === targetPathEdge.source);
+                if (sourceNode?.type === "DeskTextInputNode") {
+                  const deskBlockId = sourceNode.data?.deskBlockId;
+                  const deskInputId = sourceNode.data?.deskInputId || sourceNode.id;
+                  const store = useDeskStore.getState();
+                  let input = deskBlockId ? store.getTextInputById(deskBlockId, deskInputId) : null;
+                  if (!input) {
+                    for (const b of store.blocks) {
+                      const found = b.textInputs?.find((t) => t.id === deskInputId || t.id === sourceNode.id);
+                      if (found) { input = found; break; }
+                    }
+                  }
+                  if (input?.value && input.value.trim()) {
+                    effectivePath = input.value.trim();
+                  }
+                }
+              } catch (err) {
+                console.warn("Could not read desk store for target path in MergedPreview:", err);
+              }
+            }
+          }
+
+          // If no direct path edge, check incoming data object (from AnalyticsStackNode or DynamicMasterSheetNode)
+          if (!effectivePath) {
+            if (rawData?.targetPath) {
+              effectivePath = rawData.targetPath;
+            } else if (rawData?.stackName) {
+              effectivePath = rawData.stackName;
+            }
+          }
+
+          // If still no path, check source node data
+          if (!effectivePath && dataEdge) {
+            const srcNode = nodes.find((n) => n.id === dataEdge.source);
+            if (srcNode) {
+              effectivePath =
+                srcNode.data?.resolvedTableName ||
+                srcNode.data?.stackName ||
+                srcNode.data?.incomingTargetPath ||
+                srcNode.data?.targetPath ||
+                "";
+            }
+          }
+
+          // If still no path, search any AnalyticsStackNode in the flow
+          if (!effectivePath) {
+            const anyAnalyticsNode = nodes.find((n) => n.type === "AnalyticsStackNode");
+            if (anyAnalyticsNode) {
+              effectivePath =
+                anyAnalyticsNode.data?.resolvedTableName ||
+                anyAnalyticsNode.data?.stackName ||
+                "";
+            }
+          }
+
+          if (!effectivePath) {
+            effectivePath = nodeData?.targetPath || "";
+          }
+
+          const baseOutput = rawData || nodeData?.result || { columns: [], data: [] };
+          outputValue = {
+            ...baseOutput,
+            targetPath: effectivePath || baseOutput.targetPath || "",
+            stackName: effectivePath || baseOutput.stackName || "",
+          };
+
           useDeskStore.getState().setMergedPreview(outputValue);
           setNodes((nds) =>
             nds.map((n) =>
@@ -1332,6 +1449,7 @@ export const executeWorkflow = async (
                     data: {
                       ...n.data,
                       result: outputValue,
+                      targetPath: effectivePath,
                     },
                   }
                 : n

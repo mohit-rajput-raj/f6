@@ -2,29 +2,15 @@
 
 import React, { useState, useCallback, useRef, useEffect } from "react"
 import {
-  Plus, Camera, Users, X,
+  Plus, Camera, X,
   Settings2, Loader2, ArrowDown,
 } from "lucide-react"
-import { Input } from "@repo/ui/components/ui/input"
 import { Button } from "@/components/ui/components"
-import { Label } from "@repo/ui/components/ui/label"
-import { Badge } from "@repo/ui/components/ui/badge"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@repo/ui/components/ui/dialog"
 import { toast } from "sonner"
 import { useSession } from "@/lib/auth-client"
 import { useDeskStore } from "@/stores/desk-store"
 import { scanTableImage } from "./ocr-actions"
 import {
-  inviteToDesk,
-  getDeskCollaborators,
-  removeCollaborator,
   getSharedDeskAccess,
 } from "./desk-share-actions"
 import {
@@ -74,11 +60,6 @@ export default function DeskPage() {
     setOcrProcessing,
   } = useDeskStore()
 
-  // Share dialog
-  const [shareOpen, setShareOpen] = useState(false)
-  const [shareEmail, setShareEmail] = useState("")
-  const [collaborators, setCollaborators] = useState<any[]>([])
-  const [loadingCollabs, setLoadingCollabs] = useState(false)
   const [isAddingBlock, setIsAddingBlock] = useState(false)
 
   // OCR file input ref
@@ -402,55 +383,7 @@ export default function DeskPage() {
     }
   }, [setOcrResult, setOcrProcessing])
 
-  // ─── Sharing handlers ─────────────────────────────────────
-  const handleInvite = useCallback(async () => {
-    if (!shareEmail.trim()) return
-    if (!activeMasterSheet?.sheetId) {
-      toast.error("No master sheet selected — merge data first to create one")
-      return
-    }
-    try {
-      await inviteToDesk({
-        masterSheetId: activeMasterSheet.sheetId,
-        invitedEmail: shareEmail.trim(),
-        permission: "editor",
-        projectWorkflowId: dashid,
-      })
-      toast.success(`Invitation notification sent to ${shareEmail}`)
-      setShareEmail("")
-      setShareOpen(false) // Close the dialog box automatically
-      loadCollaborators()
-    } catch (err: any) {
-      toast.error(err?.message || "Failed to invite")
-    }
-  }, [shareEmail, activeMasterSheet, dashid])
 
-  const loadCollaborators = useCallback(async () => {
-    if (!activeMasterSheet?.sheetId) return
-    setLoadingCollabs(true)
-    try {
-      const collabs = await getDeskCollaborators(activeMasterSheet.sheetId)
-      setCollaborators(collabs)
-    } catch (err) {
-      console.error("Failed to load collaborators:", err)
-    } finally {
-      setLoadingCollabs(false)
-    }
-  }, [activeMasterSheet?.sheetId])
-
-  const handleRemoveCollab = useCallback(async (shareId: string) => {
-    try {
-      await removeCollaborator(shareId)
-      toast.success("Removed collaborator")
-      loadCollaborators()
-    } catch (err: any) {
-      toast.error(err?.message || "Failed to remove")
-    }
-  }, [loadCollaborators])
-
-  useEffect(() => {
-    if (shareOpen) loadCollaborators()
-  }, [shareOpen, loadCollaborators])
 
   // ─── Render ───────────────────────────────────────────────
   if (isLoading) {
@@ -511,15 +444,7 @@ export default function DeskPage() {
             {isOcrProcessing ? "Scanning..." : "Scan Table Image"}
           </Button>
 
-          {/* Share button */}
-          <Button
-            variant="outline"
-            onClick={() => setShareOpen(true)}
-            className="gap-1.5"
-          >
-            <Users className="size-4" />
-            Invite Team
-          </Button>
+
         </div>
       </div>
 
@@ -659,89 +584,7 @@ export default function DeskPage() {
         <MasterSheetHistoryPanel />
       </div>
 
-      {/* ─── Share Dialog ────────────────────────────────── */}
-      <Dialog open={shareOpen} onOpenChange={setShareOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Users className="size-5" />
-              Invite Team Members
-            </DialogTitle>
-            <DialogDescription>
-              Share this desk so others can use it (they won't have access to editors).
-            </DialogDescription>
-          </DialogHeader>
 
-          <div className="space-y-4 py-2">
-            {/* Invite input */}
-            <div className="flex gap-2">
-              <Input
-                value={shareEmail}
-                onChange={(e) => setShareEmail(e.target.value)}
-                placeholder="colleague@email.com"
-                className="flex-1"
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") handleInvite()
-                }}
-              />
-              <Button
-                onClick={handleInvite}
-                disabled={!shareEmail.trim()}
-                className="bg-teal-600 hover:bg-teal-700 text-white"
-              >
-                Invite
-              </Button>
-            </div>
-
-            {/* Collaborator list */}
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Collaborators</Label>
-              {loadingCollabs ? (
-                <div className="flex items-center justify-center py-4">
-                  <Loader2 className="size-4 animate-spin text-muted-foreground" />
-                </div>
-              ) : collaborators.length === 0 ? (
-                <p className="text-xs text-muted-foreground text-center py-4 italic">
-                  No collaborators yet
-                </p>
-              ) : (
-                <div className="space-y-1 max-h-[200px] overflow-y-auto">
-                  {collaborators.map((collab) => (
-                    <div
-                      key={collab.id}
-                      className="flex items-center justify-between px-3 py-2 rounded-lg bg-muted/30 border"
-                    >
-                      <div>
-                        <span className="text-sm">{collab.invitedEmail}</span>
-                        <Badge variant="secondary" className="ml-2 text-[9px]">
-                          {collab.permission}
-                        </Badge>
-                        <Badge variant="outline" className="ml-1 text-[9px]">
-                          {collab.status}
-                        </Badge>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="size-6 text-red-400 hover:text-red-600"
-                        onClick={() => handleRemoveCollab(collab.id)}
-                      >
-                        <X className="size-3" />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShareOpen(false)}>
-              Close
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }
