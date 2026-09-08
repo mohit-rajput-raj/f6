@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { useSession } from '@/lib/auth-client';
 import {
   getMasterSheets,
@@ -18,6 +18,8 @@ import {
   Eye,
   Table,
   Loader2,
+  ChevronDown,
+  FileCode,
 } from 'lucide-react';
 import { Button } from '@repo/ui/components/ui/button';
 import { Input } from '@repo/ui/components/ui/input';
@@ -28,9 +30,26 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@repo/ui/components/ui/dialog';
-import Spreadsheet from 'react-spreadsheet';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@repo/ui/components/ui/dropdown-menu';
+import dynamic from 'next/dynamic';
 import { toast } from 'sonner';
 import { useMasterSheetStore } from '@/stores/master-sheet-store';
+import {
+  openSheetInSyncfusion,
+  exportSheetToExcel,
+  exportSheetToCsv,
+  exportSheetToJson,
+} from '@/lib/sheet-utils';
+
+const SpreadsheetComponent = dynamic(
+  () => import('@syncfusion/ej2-react-spreadsheet').then((m) => m.SpreadsheetComponent),
+  { ssr: false }
+);
 
 interface MasterSheetItem {
   id: string;
@@ -55,10 +74,10 @@ const SheetLibrary = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [previewSheet, setPreviewSheet] = useState<string | null>(null);
-  const [previewData, setPreviewData] = useState<{ columns: string[]; data: any[][] } | null>(null);
+  const [selectedSheetForPreview, setSelectedSheetForPreview] = useState<MasterSheetItem | null>(null);
   const [deletingSheetId, setDeletingSheetId] = useState<string | null>(null);
-
-  const { loadSheets, setActiveSheet } = useMasterSheetStore();
+  const [downloadingSheetId, setDownloadingSheetId] = useState<string | null>(null);
+  const previewSpreadsheetRef = useRef<any>(null);
 
   // Fetch sheets from DB for this desk (dashid)
   const fetchSheets = useCallback(async () => {
@@ -92,7 +111,7 @@ const SheetLibrary = () => {
       setSheets((prev) => prev.filter((s) => s.id !== sheetId));
       if (previewSheet === sheetId) {
         setPreviewSheet(null);
-        setPreviewData(null);
+        setSelectedSheetForPreview(null);
       }
       // Also remove from store
       useMasterSheetStore.getState().removeSheet(sheetName);
@@ -104,61 +123,73 @@ const SheetLibrary = () => {
     }
   };
 
-  // Download handler
-  const handleDownload = (sheet: MasterSheetItem) => {
-    const d = sheet.data as any;
-    if (!d?.columns || !d?.data) {
-      toast.error('No data to download');
-      return;
+  // Download handlers
+  const handleDownloadExcel = async (sheet: MasterSheetItem) => {
+    setDownloadingSheetId(sheet.id);
+    try {
+      const success = await exportSheetToExcel(sheet.data, sheet.name);
+      if (success) {
+        toast.success(`Downloaded "${sheet.name}.xlsx"`);
+      } else {
+        toast.error('Failed to export Excel file');
+      }
+    } catch (err: any) {
+      console.error('Excel download error:', err);
+      toast.error('Excel export failed: ' + (err?.message || 'Unknown error'));
+    } finally {
+      setDownloadingSheetId(null);
     }
-    const header = d.columns.join(',');
-    const rows = d.data.map((row: any[]) =>
-      row
-        .map((cell: any) => {
-          const s = String(cell ?? '');
-          return s.includes(',') || s.includes('"') || s.includes('\n')
-            ? `"${s.replace(/"/g, '""')}"`
-            : s;
-        })
-        .join(',')
-    );
-    const csv = [header, ...rows].join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `${sheet.name}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
+  };
+
+  const handleDownloadCsv = (sheet: MasterSheetItem) => {
+    const success = exportSheetToCsv(sheet.data, sheet.name);
+    if (success) {
+      toast.success(`Downloaded "${sheet.name}.csv"`);
+    } else {
+      toast.error('No data to export');
+    }
+  };
+
+  const handleDownloadJson = (sheet: MasterSheetItem) => {
+    const success = exportSheetToJson(sheet.data, sheet.name);
+    if (success) {
+      toast.success(`Downloaded "${sheet.name}.json"`);
+    } else {
+      toast.error('Failed to export JSON');
+    }
   };
 
   // Preview handler
   const handlePreview = (sheet: MasterSheetItem) => {
     if (previewSheet === sheet.id) {
       setPreviewSheet(null);
-      setPreviewData(null);
+      setSelectedSheetForPreview(null);
       return;
     }
-    const d = sheet.data as any;
-    if (!d?.columns || !d?.data) {
+    if (!sheet.data) {
       toast.error('No data to preview');
       return;
     }
     setPreviewSheet(sheet.id);
-    setPreviewData({ columns: d.columns, data: d.data.slice(0, 50) });
+    setSelectedSheetForPreview(sheet);
   };
 
-  // Load into editor panel
-  const handleLoadToPanel = (sheet: MasterSheetItem) => {
-    loadSheets([{
-      name: sheet.name,
-      id: sheet.id,
-      data: sheet.data,
-      metadata: sheet.metadata,
-    }]);
-    setActiveSheet(sheet.name);
-    toast.success(`Loaded "${sheet.name}" — switch to Editor > Master Sheet tab to view`);
+  const onPreviewSpreadsheetCreated = () => {
+    const ss = previewSpreadsheetRef.current;
+    if (!ss || !selectedSheetForPreview?.data) return;
+    openSheetInSyncfusion(ss, selectedSheetForPreview.data);
   };
+
+  useEffect(() => {
+    if (!selectedSheetForPreview) return;
+    const timer = setTimeout(() => {
+      const ss = previewSpreadsheetRef.current;
+      if (ss && selectedSheetForPreview.data) {
+        openSheetInSyncfusion(ss, selectedSheetForPreview.data);
+      }
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [selectedSheetForPreview]);
 
   const [filterTab, setFilterTab] = useState<'all' | 'personal' | 'shared'>('all');
 
@@ -327,22 +358,49 @@ const SheetLibrary = () => {
                   >
                     <Eye className="size-3 mr-1" /> Preview
                   </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 text-xs"
-                    onClick={() => handleLoadToPanel(sheet)}
-                  >
-                    <Table className="size-3 mr-1" /> Open
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 text-xs"
-                    onClick={() => handleDownload(sheet)}
-                  >
-                    <Download className="size-3 mr-1" /> CSV
-                  </Button>
+
+                  {/* Format Download Dropdown */}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 text-xs px-2 gap-1 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/50"
+                      >
+                        {downloadingSheetId === sheet.id ? (
+                          <Loader2 className="size-3 animate-spin" />
+                        ) : (
+                          <FileSpreadsheet className="size-3 text-emerald-600" />
+                        )}
+                        <span>Excel</span>
+                        <ChevronDown className="size-2.5 opacity-60" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-44">
+                      <DropdownMenuItem
+                        onClick={() => handleDownloadExcel(sheet)}
+                        className="text-xs flex items-center gap-2 cursor-pointer font-medium text-emerald-700 dark:text-emerald-400"
+                      >
+                        <FileSpreadsheet className="size-3.5 text-emerald-600" />
+                        <span>Excel (.xlsx)</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => handleDownloadCsv(sheet)}
+                        className="text-xs flex items-center gap-2 cursor-pointer"
+                      >
+                        <Download className="size-3.5 text-blue-500" />
+                        <span>CSV (.csv)</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => handleDownloadJson(sheet)}
+                        className="text-xs flex items-center gap-2 cursor-pointer"
+                      >
+                        <FileCode className="size-3.5 text-amber-500" />
+                        <span>JSON (.json)</span>
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+
                   <Button
                     variant="ghost"
                     size="sm"
@@ -399,12 +457,49 @@ const SheetLibrary = () => {
                         <Button variant="ghost" size="sm" className="h-7" onClick={() => handlePreview(sheet)}>
                           <Eye className="size-3" />
                         </Button>
-                        <Button variant="ghost" size="sm" className="h-7" onClick={() => handleLoadToPanel(sheet)}>
-                          <Table className="size-3" />
-                        </Button>
-                        <Button variant="ghost" size="sm" className="h-7" onClick={() => handleDownload(sheet)}>
-                          <Download className="size-3" />
-                        </Button>
+
+                        {/* Format Download Dropdown */}
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 px-1.5 gap-0.5 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/50"
+                              title="Download (Excel, CSV, JSON)"
+                            >
+                              {downloadingSheetId === sheet.id ? (
+                                <Loader2 className="size-3 animate-spin" />
+                              ) : (
+                                <FileSpreadsheet className="size-3 text-emerald-600" />
+                              )}
+                              <ChevronDown className="size-2.5 opacity-60" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-44">
+                            <DropdownMenuItem
+                              onClick={() => handleDownloadExcel(sheet)}
+                              className="text-xs flex items-center gap-2 cursor-pointer font-medium text-emerald-700 dark:text-emerald-400"
+                            >
+                              <FileSpreadsheet className="size-3.5 text-emerald-600" />
+                              <span>Excel (.xlsx)</span>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => handleDownloadCsv(sheet)}
+                              className="text-xs flex items-center gap-2 cursor-pointer"
+                            >
+                              <Download className="size-3.5 text-blue-500" />
+                              <span>CSV (.csv)</span>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => handleDownloadJson(sheet)}
+                              className="text-xs flex items-center gap-2 cursor-pointer"
+                            >
+                              <FileCode className="size-3.5 text-amber-500" />
+                              <span>JSON (.json)</span>
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+
                         <Button
                           variant="ghost"
                           size="sm"
@@ -428,52 +523,95 @@ const SheetLibrary = () => {
         </div>
       )}
 
-      {/* Preview Dialog Modal Overlay */}
+      {/* Preview Dialog Modal Overlay using Syncfusion Spreadsheet */}
       <Dialog
         open={Boolean(previewSheet)}
         onOpenChange={(open) => {
           if (!open) {
             setPreviewSheet(null);
-            setPreviewData(null);
+            setSelectedSheetForPreview(null);
           }
         }}
       >
-        <DialogContent className="min-w-[90%] max-w-[90%]  min-h-[96%] max-h-[96%]  flex flex-col p-6 space-y-4">
+        <DialogContent className="min-w-[92%] max-w-[92%] min-h-[90vh] max-h-[90vh] flex flex-col p-6 space-y-4">
           <DialogHeader className="flex flex-row items-center justify-between pb-2 border-b">
             <div>
               <DialogTitle className="text-lg font-bold flex items-center gap-2">
                 <FileSpreadsheet className="size-5 text-violet-600" />
-                {sheets.find((s) => s.id === previewSheet)?.name || 'Sheet Preview'}
+                {selectedSheetForPreview?.name || 'Sheet Preview'}
               </DialogTitle>
               <DialogDescription className="text-xs text-muted-foreground mt-1">
-                {previewData
-                  ? `${previewData.columns.length} columns • ${previewData.data.length} rows preview`
-                  : 'Loading preview...'}
+                Full Syncfusion spreadsheet preview with templates, formatting, and formulas
               </DialogDescription>
             </div>
+            {selectedSheetForPreview && (
+              <div className="flex items-center gap-2">
+                {/* Format Download Dropdown in Preview Modal */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8 text-xs gap-1.5 border-emerald-600/30 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
+                    >
+                      {downloadingSheetId === selectedSheetForPreview.id ? (
+                        <Loader2 className="size-3.5 animate-spin" />
+                      ) : (
+                        <FileSpreadsheet className="size-3.5 text-emerald-600" />
+                      )}
+                      <span>Download Excel</span>
+                      <ChevronDown className="size-3 opacity-60" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-52">
+                    <DropdownMenuItem
+                      onClick={() => handleDownloadExcel(selectedSheetForPreview)}
+                      className="text-xs flex items-center gap-2 cursor-pointer font-semibold text-emerald-700 dark:text-emerald-400"
+                    >
+                      <FileSpreadsheet className="size-3.5 text-emerald-600" />
+                      <span>Excel (.xlsx) — Full Format</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => handleDownloadCsv(selectedSheetForPreview)}
+                      className="text-xs flex items-center gap-2 cursor-pointer"
+                    >
+                      <Download className="size-3.5 text-blue-500" />
+                      <span>CSV (.csv) — Plain Data</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => handleDownloadJson(selectedSheetForPreview)}
+                      className="text-xs flex items-center gap-2 cursor-pointer"
+                    >
+                      <FileCode className="size-3.5 text-amber-500" />
+                      <span>JSON (.json) — Template</span>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            )}
           </DialogHeader>
 
-          {previewData ? (
-            <div className="flex-1 overflow-auto border rounded-lg w-full">
-              <Spreadsheet
-                data={previewData.data.map((row) =>
-                  row.map((cell: any) => ({ value: String(cell ?? '') }))
-                )}
-                columnLabels={previewData.columns}
+          <div className="flex-1 border rounded-lg overflow-hidden w-full h-[65vh] min-h-[480px]">
+            {selectedSheetForPreview ? (
+              <SpreadsheetComponent
+                ref={previewSpreadsheetRef}
+                created={onPreviewSpreadsheetCreated}
                 className="w-full h-full"
+                height="100%"
+                width="100%"
+                allowEditing={false}
+                allowOpen={true}
+                allowSave={false}
+                showFormulaBar={true}
+                showRibbon={false}
+                sheets={[{ name: 'Sheet1', showGridLines: true }]}
               />
-            </div>
-          ) : (
-            <div className="py-8 text-center text-sm text-muted-foreground">
-              No data available for preview.
-            </div>
-          )}
-
-          {previewData && previewData.data.length >= 50 && (
-            <div className="text-center text-xs text-muted-foreground pt-1 border-t">
-              Showing first 50 rows
-            </div>
-          )}
+            ) : (
+              <div className="py-8 text-center text-sm text-muted-foreground">
+                No data available for preview.
+              </div>
+            )}
+          </div>
         </DialogContent>
       </Dialog>
     </div>

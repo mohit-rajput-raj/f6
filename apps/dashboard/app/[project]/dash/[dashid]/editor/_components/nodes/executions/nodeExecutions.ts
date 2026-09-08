@@ -750,14 +750,24 @@ export const executeWorkflow = async (
           try {
             const { useDeskStore } = await import("@/stores/desk-store");
             const deskBlockId = nodeData?.deskBlockId;
-            const deskInputId = nodeData?.deskInputId;
+            const deskInputId = nodeData?.deskInputId || currentId;
             let val = "";
+            const store = useDeskStore.getState();
             if (deskBlockId && deskInputId) {
-              const input = useDeskStore.getState().getTextInputById(deskBlockId, deskInputId);
-              outputValue = input?.value ?? nodeData?.text ?? "";
-            } else {
-              outputValue = nodeData?.text ?? "";
+              const input = store.getTextInputById(deskBlockId, deskInputId);
+              val = input?.value ?? "";
             }
+            if (!val) {
+              // Search across all blocks
+              for (const b of store.blocks) {
+                const found = b.textInputs?.find((t) => t.id === deskInputId || t.id === currentId);
+                if (found && found.value) {
+                  val = found.value;
+                  break;
+                }
+              }
+            }
+            outputValue = val || nodeData?.text || "";
           } catch {
             outputValue = nodeData?.text ?? "";
           }
@@ -923,6 +933,185 @@ export const executeWorkflow = async (
           break;
         }
 
+        case "AnalyticsStackNode": {
+          const nameEdge = incomingEdges.find(
+            (e: any) =>
+              e.targetHandle === "table-name" ||
+              e.targetHandle === "tableName" ||
+              e.targetHandle === "table_name" ||
+              e.targetHandle === "name"
+          );
+
+          const dataEdge = incomingEdges.find((e: any) => e.targetHandle === "in" || e.targetHandle === "data")
+            || incomingEdges.find(
+              (e: any) =>
+                e.targetHandle !== "table-name" &&
+                e.targetHandle !== "tableName" &&
+                e.targetHandle !== "table_name" &&
+                e.targetHandle !== "name"
+            );
+
+          const stackDs: Dataset = dataEdge
+            ? (runtimeData.get(`${dataEdge.source}__${dataEdge.sourceHandle}`) ?? runtimeData.get(dataEdge.source) ?? inputValue ?? { columns: [], data: [] })
+            : (inputValue ?? { columns: [], data: [] });
+
+          outputValue = stackDs;
+
+          // Resolve dynamic table name from connected edge (e.g. DeskTextInputNode)
+          let resolvedStackName: string = nodeData?.stackName || "Attendance Tracker";
+
+          if (nameEdge) {
+            const rawVal =
+              runtimeData.get(`${nameEdge.source}__${nameEdge.sourceHandle}`) ??
+              runtimeData.get(nameEdge.source);
+            let extracted = "";
+            if (typeof rawVal === "string" && rawVal.trim().length > 0) {
+              extracted = rawVal.trim();
+            } else if (rawVal && typeof rawVal === "object") {
+              if (typeof rawVal.text === "string" && rawVal.text.trim().length > 0) {
+                extracted = rawVal.text.trim();
+              } else if (typeof rawVal.value === "string" && rawVal.value.trim().length > 0) {
+                extracted = rawVal.value.trim();
+              }
+            }
+
+            // Fallback: check desk store directly if source is DeskTextInputNode
+            if (!extracted) {
+              try {
+                const sourceNode = nodes.find((n) => n.id === nameEdge.source);
+                if (sourceNode?.type === "DeskTextInputNode") {
+                  const { useDeskStore } = await import("@/stores/desk-store");
+                  const deskBlockId = sourceNode.data?.deskBlockId;
+                  const deskInputId = sourceNode.data?.deskInputId || sourceNode.id;
+                  const store = useDeskStore.getState();
+                  let input = deskBlockId ? store.getTextInputById(deskBlockId, deskInputId) : null;
+                  if (!input) {
+                    for (const b of store.blocks) {
+                      const found = b.textInputs?.find((t) => t.id === deskInputId || t.id === sourceNode.id);
+                      if (found) {
+                        input = found;
+                        break;
+                      }
+                    }
+                  }
+                  if (input?.value && input.value.trim()) {
+                    extracted = input.value.trim();
+                  }
+                }
+              } catch (err) {
+                console.warn("Could not read desk store for table name:", err);
+              }
+            }
+
+            if (extracted) {
+              resolvedStackName = extracted;
+            }
+          }
+
+          // Always store incoming/calculated dataset and resolved table name into node data
+          setNodes((nds) =>
+            nds.map((node) =>
+              node.id === currentId
+                ? {
+                    ...node,
+                    data: {
+                      ...node.data,
+                      result: stackDs,
+                      rowCount: stackDs?.data?.length ?? 0,
+                      stackName: resolvedStackName,
+                      resolvedTableName: resolvedStackName,
+                    },
+                  }
+                : node
+            )
+          );
+
+          const autoExecute = nodeData?.autoExecute ?? false;
+
+          // Only auto-push to Analytics if autoExecute switch is ON
+          if (autoExecute && stackDs && Array.isArray(stackDs.columns) && stackDs.columns.length > 0) {
+            try {
+              const stackMode = nodeData?.stackMode || "align_columns";
+              const keyColumn = nodeData?.keyColumn || "Enrollment";
+              const dashid = (typeof window !== "undefined"
+                ? window?.location?.pathname?.split("/dash/")[1]?.split("/")[0]
+                : undefined) || nodeData?.dashid;
+
+              let resolvedUserId = userId;
+              if (!resolvedUserId) {
+                try {
+                  const { authClient } = await import("@/lib/auth-client");
+                  const session = await authClient.getSession();
+                  resolvedUserId = session?.data?.user?.id;
+                } catch (e) {
+                  console.warn("Could not retrieve user session for analytics stack:", e);
+                }
+              }
+
+              if (dashid && resolvedUserId) {
+                const { saveOrMergeAnalyticsStack } = await import(
+                  "@/app/[project]/dash/[dashid]/analytics/_actions/analytics-actions"
+                );
+                const res = await saveOrMergeAnalyticsStack({
+                  dashid,
+                  userId: resolvedUserId,
+                  stackName: resolvedStackName,
+                  stackMode,
+                  keyColumn,
+                  dataset: stackDs,
+                });
+
+                const syncedCols = res?.data?.columns?.length ?? stackDs.columns.length;
+                const syncedRows = res?.data?.data?.length ?? stackDs.data.length;
+
+                setNodes((nds) =>
+                  nds.map((node) =>
+                    node.id === currentId
+                      ? {
+                          ...node,
+                          data: {
+                            ...node.data,
+                            result: stackDs,
+                            rowCount: stackDs?.data?.length ?? 0,
+                            stackName: resolvedStackName,
+                            resolvedTableName: resolvedStackName,
+                            lastSyncStatus: "synced",
+                            lastSyncedAt: Date.now(),
+                            syncedRows,
+                            syncedCols,
+                          },
+                        }
+                      : node
+                  )
+                );
+
+                try {
+                  const { toast } = await import("sonner");
+                  toast.success(
+                    `[Analytics Stack] Auto-synced "${resolvedStackName}" (${syncedRows} rows × ${syncedCols} cols)`
+                  );
+                } catch {}
+              }
+            } catch (err) {
+              console.error("AnalyticsStackNode auto-sync error:", err);
+              setNodes((nds) =>
+                nds.map((node) =>
+                  node.id === currentId
+                    ? {
+                        ...node,
+                        data: {
+                          ...node.data,
+                          lastSyncStatus: "error",
+                        },
+                      }
+                    : node
+                )
+              );
+            }
+          }
+          break;
+        }
+
         case "AISchemaAlignNode": {
           const masterGridEdge = incomingEdges.find((e: any) => e.targetHandle === "master-grid");
           const csvFileEdge = incomingEdges.find((e: any) => e.targetHandle === "csv-file");
@@ -998,32 +1187,74 @@ export const executeWorkflow = async (
             }
           }
 
-          // Resolve master sheet grid
+          // Resolve master sheet grid (Syncfusion full grid first, then workbook JSON, then fallback)
           const { useMasterSheetStore } = await import("@/stores/master-sheet-store");
           const { useDeskStore } = await import("@/stores/desk-store");
-          const { extract2DGridFromAnySheet, applyComputedUpdatesToGrid } = await import("@/lib/sheet-utils");
+          const {
+            extractFullGridFromSyncfusion,
+            extract2DGridFromAnySheet,
+            applyComputedUpdatesToGrid,
+            unwrapSyncfusionJson,
+          } = await import("@/lib/sheet-utils");
 
           const msStore = useMasterSheetStore.getState();
           const deskStore = useDeskStore.getState();
 
-          let currentSheetRaw = msStore.sheets[sheetString]?.data || deskStore.activeMasterSheetData || deskStore.masterSheetPreview || nodeData?.masterGrid?.data || nodeData?.masterGrid;
-          let { columns: masterCols, data: masterRows } = extract2DGridFromAnySheet(currentSheetRaw);
-
-          if (masterCols.length === 0) {
-            masterCols = ["S.No", "Enrollment", "Name", `${pathString}:Total`, `${pathString}:Attended`, `${pathString}:%`];
-            masterRows = [];
+          let masterGrid: any[][] = [];
+          const ss = typeof window !== "undefined" ? (window as any).__masterSheetSpreadsheet : null;
+          if (ss) {
+            masterGrid = extractFullGridFromSyncfusion(ss);
           }
 
-          const masterGrid = [masterCols, ...masterRows];
+          let currentSheetRaw =
+            msStore.sheets[sheetString]?.data ||
+            deskStore.activeMasterSheetData ||
+            deskStore.masterSheetPreview ||
+            nodeData?.masterGrid?.data ||
+            nodeData?.masterGrid;
+
+          if (masterGrid.length === 0 && currentSheetRaw) {
+            const wb = unwrapSyncfusionJson(currentSheetRaw) || currentSheetRaw;
+            const sheets = wb?.Workbook?.sheets || wb?.sheets;
+            if (Array.isArray(sheets) && sheets.length > 0 && Array.isArray(sheets[0]?.rows)) {
+              const rows = sheets[0].rows;
+              let maxCols = 0;
+              rows.forEach((r: any) => {
+                const rowCells: any[] = [];
+                if (r && Array.isArray(r.cells)) {
+                  r.cells.forEach((c: any, cIdx: number) => {
+                    const val = c?.value !== undefined && c?.value !== null ? c.value : "";
+                    rowCells[cIdx] = val;
+                  });
+                }
+                maxCols = Math.max(maxCols, rowCells.length);
+                masterGrid.push(rowCells);
+              });
+              masterGrid.forEach((row) => {
+                while (row.length < maxCols) row.push("");
+              });
+            }
+          }
+
+          if (masterGrid.length === 0) {
+            const { columns: masterCols, data: masterRows } = extract2DGridFromAnySheet(currentSheetRaw);
+            if (masterCols.length > 0) {
+              masterGrid = [masterCols, ...masterRows];
+            } else {
+              masterGrid = [["S.No", "Enrollment", "Name", `${pathString}:Total`, `${pathString}:Attended`, `${pathString}:%`]];
+            }
+          }
+
           let updates: any[] = nodeData?.updates || [];
           let alignment: any = nodeData?.alignment || null;
+          let dataStartRow: number | undefined = undefined;
+          let groupColumns: any[] | undefined = undefined;
 
-          // Attempt AI alignment via backend if csvString exists
+          // Attempt alignment via backend if csvString exists
           if (csvString) {
             const apiKey = nodeData?.apiKey || (typeof window !== "undefined" ? localStorage.getItem("GEMINI_API_KEY") || localStorage.getItem("OPENAI_API_KEY") : "");
             const provider = nodeData?.provider || "gemini";
             const model = nodeData?.model || "gemini-2.5-flash";
-            const customPrompt = nodeData?.customPrompt || "Match Enrollment ID in column 1. Calculate present count and update total and attended classes.";
 
             try {
               const { pypApi } = await import("@/lib/axios");
@@ -1041,52 +1272,24 @@ export const executeWorkflow = async (
               if (res?.data?.success && Array.isArray(res.data.updates)) {
                 updates = res.data.updates;
                 alignment = res.data.alignment;
+                dataStartRow = res.data.data_start_row;
+                groupColumns = res.data.group_columns;
               }
             } catch (err: any) {
-              console.warn("AI alignment API failed during workflow execution, fallback to local match:", err?.message || err);
-              // Fallback heuristic alignment
-              if (inputDataset && Array.isArray(inputDataset.data)) {
-                const isDateWise = inputDataset.columns.some((c: string) => /jul|aug|sep|oct|nov|dec|jan|feb|mar|apr|may|jun|\d{1,2}[\/-]\d{1,2}/i.test(c));
-                const dateCols = isDateWise ? inputDataset.columns.filter((c: string) => /jul|aug|sep|oct|nov|dec|jan|feb|mar|apr|may|jun|\d{1,2}[\/-]\d{1,2}/i.test(c)) : [];
-                
-                updates = inputDataset.data.map((row: any[], idx: number) => {
-                  const enroll = row[1] || row[0] || `ID_${idx + 1}`;
-                  const name = row[2] || row[1] || `Student ${idx + 1}`;
-                  let attendedCount = 1;
-                  let totalCount = 1;
-                  if (isDateWise && dateCols.length > 0) {
-                    totalCount = dateCols.length;
-                    attendedCount = dateCols.filter((colName: string) => {
-                      const colIdx = inputDataset.columns.indexOf(colName);
-                      const val = String(row[colIdx] ?? '').trim().toUpperCase();
-                      return val === 'P' || val === '1' || val === 'PRESENT';
-                    }).length;
-                  }
-                  return {
-                    row_idx: 1 + idx,
-                    s_no: idx + 1,
-                    student_name: String(name),
-                    enrollment: String(enroll),
-                    enrollment_col_idx: 1,
-                    name_col_idx: 2,
-                    total_col_idx: 3,
-                    total_old_value: 0,
-                    total_new_value: totalCount,
-                    attended_col_idx: 4,
-                    attended_old_value: 0,
-                    attended_new_value: attendedCount,
-                    auto_populated: true,
-                  };
-                });
+              console.warn("AI alignment API failed during workflow execution:", err?.message || err);
+              if (!updates || updates.length === 0) {
+                updates = [];
               }
             }
           }
 
-          const mergedDataset = applyComputedUpdatesToGrid(masterCols, masterRows, updates, pathString);
+          const mergedDataset = applyComputedUpdatesToGrid([], [], updates, pathString, groupColumns);
           const finalResult = {
             ...mergedDataset,
             updates,
             alignment,
+            dataStartRow,
+            groupColumns,
             sheetName: sheetString,
             targetPath: pathString,
           };

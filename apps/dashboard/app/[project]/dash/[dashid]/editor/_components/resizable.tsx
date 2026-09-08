@@ -81,6 +81,7 @@ function WorkFlowEditorInner() {
     saveToDb,
     isSaving,
     hasUnsavedChanges,
+    workflowId,
   } = useEditorWorkFlow();
   const [isRunning, setIsRunning] = React.useState(false);
 
@@ -139,8 +140,9 @@ function WorkFlowEditorInner() {
           <Button
             variant="outline"
             onClick={() => {
+              const activeWfId = workflowId || flowId;
               const data = JSON.stringify(
-                { nodes, edges, meta: { exportedAt: new Date().toISOString(), workflowId: flowId } },
+                { nodes, edges, meta: { exportedAt: new Date().toISOString(), workflowId: activeWfId } },
                 null,
                 2
               );
@@ -148,7 +150,7 @@ function WorkFlowEditorInner() {
               const url = URL.createObjectURL(blob);
               const a = document.createElement("a");
               a.href = url;
-              a.download = `workflow-${flowId?.slice(0, 8) ?? "export"}.json`;
+              a.download = `workflow-${activeWfId?.slice(0, 8) ?? "export"}.json`;
               a.click();
               URL.revokeObjectURL(url);
               toast.success("Workflow exported");

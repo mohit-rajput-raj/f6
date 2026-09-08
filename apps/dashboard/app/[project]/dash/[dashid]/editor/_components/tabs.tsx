@@ -398,6 +398,12 @@ const nodes = [
         icon: <IconSparkles />,
         description: "Preview AI merged updates & confirm merge into MasterSheet",
       },
+      {
+        title: "Analytics Stack Node",
+        type: "AnalyticsStackNode",
+        icon: <IconChartBar />,
+        description: "Stack tables for Analytics with optional dynamic name from Desk Text Input",
+      },
     ]
   }
 ]

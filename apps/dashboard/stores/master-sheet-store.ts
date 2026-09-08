@@ -35,6 +35,19 @@ export interface MasterSheetEntry {
   blocks: Record<string, string[]>; // codename → column names belonging to that block
 }
 
+// ── Per-Sheet Version History Snapshot ──
+export interface SheetHistorySnapshot {
+  id: string;
+  sheetName: string;
+  timestamp: number;
+  action: string;        // e.g. "Pre-Save Snapshot", "Before Merge: CO24804/Tut.", "Manual Checkpoint"
+  changeSummary: string;
+  data: any;             // Syncfusion sheet JSON snapshot
+  rowCount?: number;
+  colCount?: number;
+  savedBy?: string;
+}
+
 interface MasterSheetState {
   // Multi-sheet storage keyed by name
   sheets: Record<string, MasterSheetEntry>;
@@ -48,6 +61,11 @@ interface MasterSheetState {
 
   // Notification
   hasNewPush: boolean;
+
+  // ── Per-Sheet Version History ──
+  sheetHistories: Record<string, SheetHistorySnapshot[]>;
+  activeSheetTab: string;
+  allSheetTabs: string[];
 
   // Actions
   pushData: (entry: Omit<PushEntry, 'id' | 'status'>) => void;
@@ -64,6 +82,16 @@ interface MasterSheetState {
   addHistoryEntry: (entry: Omit<MergeHistoryEntry, 'id'>) => void;
   loadHistory: (entries: MergeHistoryEntry[]) => void;
   reset: () => void;
+
+  // ── Per-Sheet Version History Actions ──
+  setActiveSheetTab: (tabName: string) => void;
+  setAllSheetTabs: (tabs: string[]) => void;
+  addSheetSnapshot: (sheetName: string, snapshot: Omit<SheetHistorySnapshot, 'id'>) => void;
+  setSheetHistories: (histories: Record<string, SheetHistorySnapshot[]>) => void;
+  duplicateSheetHistory: (sourceSheetName: string, targetSheetName: string) => void;
+  deleteSheetHistory: (sheetName: string) => void;
+  renameSheetHistory: (oldSheetName: string, newSheetName: string) => void;
+  clearSheetHistory: (sheetName: string) => void;
 }
 
 // ── Helper: Extract codenames from column names ──
@@ -227,12 +255,20 @@ function mergeBlocksIntoSheet(
   };
 }
 
+// ── Max snapshots per sheet to prevent unbounded growth ──
+const MAX_SNAPSHOTS_PER_SHEET = 50;
+
 export const useMasterSheetStore = create<MasterSheetState>((set, get) => ({
   sheets: {},
   activeSheetName: null,
   pendingPushes: [],
   history: [],
   hasNewPush: false,
+
+  // ── Per-Sheet Version History State ──
+  sheetHistories: {},
+  activeSheetTab: 'Sheet1',
+  allSheetTabs: ['Sheet1'],
 
   pushData: (entry) => {
     const push: PushEntry = {
@@ -434,5 +470,88 @@ export const useMasterSheetStore = create<MasterSheetState>((set, get) => ({
       pendingPushes: [],
       history: [],
       hasNewPush: false,
+      sheetHistories: {},
+      activeSheetTab: 'Sheet1',
+      allSheetTabs: ['Sheet1'],
     }),
+
+  // ── Per-Sheet Version History Actions ──
+
+  setActiveSheetTab: (tabName) => set({ activeSheetTab: tabName }),
+
+  setAllSheetTabs: (tabs) => set({ allSheetTabs: tabs }),
+
+  addSheetSnapshot: (sheetName, snapshot) => {
+    set((state) => {
+      const existing = state.sheetHistories[sheetName] || [];
+      const newSnapshot: SheetHistorySnapshot = {
+        ...snapshot,
+        id: crypto.randomUUID(),
+      };
+      // Prepend new snapshot, cap at MAX_SNAPSHOTS_PER_SHEET
+      const updated = [newSnapshot, ...existing].slice(0, MAX_SNAPSHOTS_PER_SHEET);
+      return {
+        sheetHistories: {
+          ...state.sheetHistories,
+          [sheetName]: updated,
+        },
+      };
+    });
+  },
+
+  setSheetHistories: (histories) => set({ sheetHistories: histories }),
+
+  duplicateSheetHistory: (sourceSheetName, targetSheetName) => {
+    set((state) => {
+      const sourceHistory = state.sheetHistories[sourceSheetName] || [];
+      // Deep clone snapshots with new IDs for the duplicate
+      const clonedHistory: SheetHistorySnapshot[] = sourceHistory.map((snap) => ({
+        ...snap,
+        id: crypto.randomUUID(),
+        sheetName: targetSheetName,
+      }));
+      return {
+        sheetHistories: {
+          ...state.sheetHistories,
+          [targetSheetName]: clonedHistory,
+        },
+      };
+    });
+  },
+
+  deleteSheetHistory: (sheetName) => {
+    set((state) => {
+      const { [sheetName]: _, ...rest } = state.sheetHistories;
+      return { sheetHistories: rest };
+    });
+  },
+
+  renameSheetHistory: (oldSheetName, newSheetName) => {
+    set((state) => {
+      const snapshots = state.sheetHistories[oldSheetName];
+      if (!snapshots) return state;
+      const { [oldSheetName]: _, ...rest } = state.sheetHistories;
+      // Update sheetName field inside each snapshot
+      const renamedSnapshots = snapshots.map((snap) => ({
+        ...snap,
+        sheetName: newSheetName,
+      }));
+      return {
+        sheetHistories: {
+          ...rest,
+          [newSheetName]: renamedSnapshots,
+        },
+        activeSheetTab: state.activeSheetTab === oldSheetName ? newSheetName : state.activeSheetTab,
+      };
+    });
+  },
+
+  clearSheetHistory: (sheetName) => {
+    set((state) => ({
+      sheetHistories: {
+        ...state.sheetHistories,
+        [sheetName]: [],
+      },
+    }));
+  },
 }));

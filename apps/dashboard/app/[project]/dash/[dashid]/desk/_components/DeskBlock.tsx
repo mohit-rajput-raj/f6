@@ -137,6 +137,7 @@ export function DeskBlock({
     updateSheetData,
     updateSheetName,
     toggleCheckbox,
+    isViewer,
   } = useDeskStore()
 
   // ─── Active preview tab state ──────────────────────────────
@@ -223,7 +224,7 @@ export function DeskBlock({
 
   // ─── Navigate to child block's editor ──────────────────────
   const openEditor = useCallback((child: DeskBlockState) => {
-    if (isGuest) {
+    if (isGuest || isViewer) {
       toast.error("You don't have permission to edit this block's workflow")
       return
     }
@@ -234,7 +235,7 @@ export function DeskBlock({
 
   // ─── Delete a child tab ────────────────────────────────────
   const handleDeleteTab = useCallback(async (childId: string) => {
-    if (isGuest) return
+    if (isGuest || isViewer) return
     const isLastTab = childBlocks.length <= 1
     const confirmMsg = isLastTab
       ? "Deleting the last tab will also delete this BigBlock. Continue?"
@@ -331,7 +332,7 @@ export function DeskBlock({
               BigBlock {blockIndex + 1}
             </span>
           </div>
-          {!isGuest && (
+          {!isGuest && !isViewer && (
             <Button
               size="sm"
               onClick={handleAddTab}
@@ -385,7 +386,7 @@ export function DeskBlock({
                 )}
                 Execute
               </Button>
-              {!isGuest && (
+              {!isGuest && !isViewer && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" size="sm" className="h-7 w-7 p-0" disabled={isDeleting}>
@@ -444,7 +445,7 @@ export function DeskBlock({
             <button
               key={child.id}
               onClick={() => setActiveChildId(child.id)}
-              onDoubleClick={() => !isGuest && startRename(child.id, child.name)}
+              onDoubleClick={() => !isGuest && !isViewer && startRename(child.id, child.name)}
               className={`text-xs px-3 py-1.5 rounded-md font-medium transition-all whitespace-nowrap ${
                 activeChildId === child.id
                   ? "bg-secondary text-secondary-foreground border border-border shadow-sm"
@@ -470,7 +471,7 @@ export function DeskBlock({
             </button>
           ))}
         </div>
-        {!isGuest && (
+        {!isGuest && !isViewer && (
           <Button
             variant="ghost"
             size="sm"
