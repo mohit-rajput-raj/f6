@@ -25,6 +25,7 @@ import {
   inviteToDesk,
   getDeskCollaborators,
   removeCollaborator,
+  getSharedDeskAccess,
 } from "./desk-share-actions"
 import {
   getDeskBlocks,
@@ -39,6 +40,7 @@ import { usePathname, useRouter, useParams } from "next/navigation"
 import { DeskBlock } from "./_components/DeskBlock"
 import { InviteNotification } from "./_components/InviteNotification"
 import { MasterSheetPanel } from "./_components/MasterSheetPanel"
+import { MasterSheetHistoryPanel } from "./_components/MasterSheetHistoryPanel"
 import { UpdatedMergedPreview } from "./_components/UpdatedMergedPreview"
 import { executeWorkflow } from "../editor/_components/nodes/executions/nodeExecutions"
 import { getWorkFlow } from "../editor/_actions/editor.service"
@@ -56,12 +58,14 @@ export default function DeskPage() {
     blocks,
     isLoading,
     isGuest,
+    isViewer,
     ocrResult,
     isOcrProcessing,
     setBlocks,
     setProjectWorkflowId,
     setIsLoading,
     setIsGuest,
+    setDeskAccess,
     addBlock,
     removeBlock,
     setBlockOutput,
@@ -95,6 +99,13 @@ export default function DeskPage() {
       setIsLoading(true)
       try {
         setProjectWorkflowId(dashid)
+
+        // Check viewer/editor permission for this desk
+        if (userEmail) {
+          const access = await getSharedDeskAccess(dashid, userEmail)
+          setDeskAccess(access)
+        }
+
         const dbBlocks = await initializeDefaultDesk(dashid, userId)
         setBlocks(
           dbBlocks.map((b) => ({
@@ -151,6 +162,10 @@ export default function DeskPage() {
   // ─── Add new BigBlock (root block + first child tab) ──────
   const handleAddBlock = useCallback(async () => {
     if (!dashid || !userId) return
+    if (isViewer) {
+      toast.error("Viewers cannot add blocks")
+      return
+    }
     setIsAddingBlock(true)
     try {
       // Create root BigBlock
@@ -204,7 +219,18 @@ export default function DeskPage() {
         }
 
         // Execute the workflow
-        await executeWorkflow(currentNodes, edges, mockSetNodes)
+        await executeWorkflow(currentNodes, edges, mockSetNodes, sessionData?.user?.id)
+
+        // Save updated execution states/results back to workflow definition so editor stays updated
+        try {
+          const { saveWorkflow } = await import("../editor/_actions/editor.service")
+          await saveWorkflow(block.editorWorkflowId, currentNodes, edges)
+
+          const { useWorkflowEditorStore } = await import("@/stores/workflow-editor-store")
+          useWorkflowEditorStore.getState().initWorkflow(block.editorWorkflowId, currentNodes, edges)
+        } catch {
+          // non-critical
+        }
 
         // Find OutputPreviewNode result and set as block output
         const outputNode = currentNodes.find(
@@ -560,10 +586,15 @@ export default function DeskPage() {
         {blocks.filter(b => !b.parentId).length === 0 ? (
           <div className="flex flex-col items-center justify-center h-64 text-muted-foreground gap-3">
             <p className="text-sm">No blocks yet.</p>
-            <Button onClick={handleAddBlock} className="gap-1.5 bg-teal-600 hover:bg-teal-700 text-white">
-              <Plus className="size-4" />
-              Add First BigBlock
-            </Button>
+            {!isViewer && (
+              <Button onClick={handleAddBlock} className="gap-1.5 bg-teal-600 hover:bg-teal-700 text-white">
+                <Plus className="size-4" />
+                Add First BigBlock
+              </Button>
+            )}
+            {isViewer && (
+              <p className="text-xs text-amber-500/80">You have view-only access to this desk.</p>
+            )}
           </div>
         ) : (
           <>
@@ -597,22 +628,24 @@ export default function DeskPage() {
               </React.Fragment>
             ))}
 
-            {/* Add BigBlock Button */}
-            <div className="flex justify-center py-4">
-              <Button
-                variant="outline"
-                onClick={handleAddBlock}
-                disabled={isAddingBlock}
-                className="gap-1.5 border-dashed border-2"
-              >
-                {isAddingBlock ? (
-                  <Loader2 className="size-4 animate-spin" />
-                ) : (
-                  <Plus className="size-4" />
-                )}
-                Add BigBlock
-              </Button>
-            </div>
+            {/* Add BigBlock Button — hidden for viewers */}
+            {!isViewer && (
+              <div className="flex justify-center py-4">
+                <Button
+                  variant="outline"
+                  onClick={handleAddBlock}
+                  disabled={isAddingBlock}
+                  className="gap-1.5 border-dashed border-2"
+                >
+                  {isAddingBlock ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <Plus className="size-4" />
+                  )}
+                  Add BigBlock
+                </Button>
+              </div>
+            )}
           </>
         )}
 
@@ -621,6 +654,9 @@ export default function DeskPage() {
 
         {/* ─── Master Sheet Panel ────────────────────────── */}
         <MasterSheetPanel />
+
+        {/* ─── Sheet Version History ──────────────────────── */}
+        <MasterSheetHistoryPanel />
       </div>
 
       {/* ─── Share Dialog ────────────────────────────────── */}

@@ -162,6 +162,7 @@ export type EditorCanvasTypes =
   | 'AISchemaAlignNode'
   | 'DynamicMasterSheetNode'
   | 'UpdatedMergedPreviewNode'
+  | 'AnalyticsStackNode'
   | 'Email'
   | 'Condition'
   | 'AI'

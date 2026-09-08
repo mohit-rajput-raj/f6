@@ -2,6 +2,10 @@ import { WorkFlowEditor } from "@/app/[project]/dash/[dashid]/editor/_components
 import { Suspense } from "react";
 import { ErrorBoundary } from "react-error-boundary";
 import { getWorkFlow } from "./_actions/editor.service";
+import { auth } from "@repo/auth";
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
+import { getSharedDeskAccess } from "../desk/desk-share-actions";
 
 type Props = {
   params: Promise<{
@@ -13,6 +17,18 @@ type Props = {
 const Page = async ({ params }: Props) => {
   const resolvedParams = await params;
   const id = resolvedParams.dashid;
+  const project = resolvedParams.project;
+
+  // Viewers cannot open the editor
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
+  if (session?.user?.email && id) {
+    const access = await getSharedDeskAccess(id, session.user.email);
+    if (access.isGuest && access.permission === "viewer") {
+      redirect(`/${project}/dash/${id}/desk`);
+    }
+  }
 
   if (!id) {
     return <div>Invalid dashboard ID</div>;

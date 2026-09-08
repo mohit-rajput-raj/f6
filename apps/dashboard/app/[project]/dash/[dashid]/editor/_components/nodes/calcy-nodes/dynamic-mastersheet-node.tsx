@@ -151,28 +151,63 @@ export function DynamicMasterSheetNode({ id, data }: any) {
   };
 
   const handleAlign = async () => {
-    if (!apiKey || !apiKey.trim()) {
-      toast.error("API Key is required. Please enter your Gemini/OpenAI API key below.");
-      return;
-    }
-
     const effectivePath = data?.incomingTargetPath || targetPath || "CO24554/th";
     const effectiveSheet = data?.incomingSheetName || selectedSheet || "Sheet1";
 
-    // 1. Resolve master grid (store -> desk store -> fallback)
+    // 1. Resolve master grid (Syncfusion full grid first, then workbook JSON, then fallback)
     const store = useMasterSheetStore.getState();
     const deskStore = (await import("@/stores/desk-store")).useDeskStore.getState();
-    const { extract2DGridFromAnySheet, applyComputedUpdatesToGrid } = await import("@/lib/sheet-utils");
+    const {
+      extractFullGridFromSyncfusion,
+      extract2DGridFromAnySheet,
+      applyComputedUpdatesToGrid,
+      unwrapSyncfusionJson,
+    } = await import("@/lib/sheet-utils");
 
-    let currentSheetRaw = store.sheets[effectiveSheet]?.data || deskStore.activeMasterSheetData || deskStore.masterSheetPreview || data?.masterGrid?.data || data?.masterGrid;
-    let { columns: masterCols, data: masterRows } = extract2DGridFromAnySheet(currentSheetRaw);
-
-    if (masterCols.length === 0) {
-      masterCols = ["S.No", "Enrollment", "Name", `${effectivePath}:Total`, `${effectivePath}:Attended`, `${effectivePath}:%`];
-      masterRows = [];
+    let masterGrid: any[][] = [];
+    const ss = typeof window !== "undefined" ? (window as any).__masterSheetSpreadsheet : null;
+    if (ss) {
+      masterGrid = extractFullGridFromSyncfusion(ss);
     }
 
-    const masterGrid = [masterCols, ...masterRows];
+    let currentSheetRaw =
+      store.sheets[effectiveSheet]?.data ||
+      deskStore.activeMasterSheetData ||
+      deskStore.masterSheetPreview ||
+      data?.masterGrid?.data ||
+      data?.masterGrid;
+
+    if (masterGrid.length === 0 && currentSheetRaw) {
+      const wb = unwrapSyncfusionJson(currentSheetRaw) || currentSheetRaw;
+      const sheets = wb?.Workbook?.sheets || wb?.sheets;
+      if (Array.isArray(sheets) && sheets.length > 0 && Array.isArray(sheets[0]?.rows)) {
+        const rows = sheets[0].rows;
+        let maxCols = 0;
+        rows.forEach((r: any) => {
+          const rowCells: any[] = [];
+          if (r && Array.isArray(r.cells)) {
+            r.cells.forEach((c: any, cIdx: number) => {
+              const val = c?.value !== undefined && c?.value !== null ? c.value : "";
+              rowCells[cIdx] = val;
+            });
+          }
+          maxCols = Math.max(maxCols, rowCells.length);
+          masterGrid.push(rowCells);
+        });
+        masterGrid.forEach((row) => {
+          while (row.length < maxCols) row.push("");
+        });
+      }
+    }
+
+    if (masterGrid.length === 0) {
+      const { columns: masterCols, data: masterRows } = extract2DGridFromAnySheet(currentSheetRaw);
+      if (masterCols.length > 0) {
+        masterGrid = [masterCols, ...masterRows];
+      } else {
+        masterGrid = [["S.No", "Enrollment", "Name", `${effectivePath}:Total`, `${effectivePath}:Attended`, `${effectivePath}:%`]];
+      }
+    }
 
     // 2. Resolve CSV input data
     const csvContent = data?.csvContent || data?.fileData?.rawText || data?.dataInput || data?.text;
@@ -202,7 +237,7 @@ export function DynamicMasterSheetNode({ id, data }: any) {
         custom_prompt: effectivePrompt,
         sheet_name: effectiveSheet,
         provider: provider,
-        api_key: apiKey.trim(),
+        api_key: apiKey ? apiKey.trim() : undefined,
         model: model || "gemini-2.5-flash",
       },
       {
@@ -212,12 +247,14 @@ export function DynamicMasterSheetNode({ id, data }: any) {
             setMergeSuccess(false);
             toast.success(`Matched & calculated ${res.updates.length} student records for "${effectiveSheet}"!`);
 
-            const mergedDataset = applyComputedUpdatesToGrid(masterCols, masterRows, res.updates, effectivePath);
+            const mergedDataset = applyComputedUpdatesToGrid([], [], res.updates, effectivePath, res.group_columns);
 
             const finalResult = {
               ...mergedDataset,
               updates: res.updates,
               alignment: res.alignment,
+              dataStartRow: res.data_start_row,
+              groupColumns: res.group_columns,
               sheetName: effectiveSheet,
               targetPath: effectivePath,
             };
@@ -250,33 +287,62 @@ export function DynamicMasterSheetNode({ id, data }: any) {
     try {
       const store = useMasterSheetStore.getState();
       const deskStore = (await import("@/stores/desk-store")).useDeskStore.getState();
-      const { applyUpdatesToMasterSheet } = await import("@/lib/sheet-utils");
+      const {
+        applyUpdatesToMasterSheet,
+        applyUpdatesDirectlyToSyncfusion,
+        extractSyncfusionInstanceData,
+      } = await import("@/lib/sheet-utils");
 
       const effectiveSheet = data?.incomingSheetName || selectedSheet || "Sheet1";
       const effectivePath = data?.incomingTargetPath || targetPath || "CO24554/Th.";
 
-      let currentSheetRaw =
-        store.sheets[effectiveSheet]?.data ||
-        deskStore.activeMasterSheetData ||
-        deskStore.masterSheetPreview ||
-        data?.masterGrid;
+      const ss = typeof window !== "undefined" ? (window as any).__masterSheetSpreadsheet : null;
 
-      const updatedMasterSheet = applyUpdatesToMasterSheet(currentSheetRaw, computedUpdates, effectivePath);
+      // 1. Direct update to visible Syncfusion instance
+      if (ss) {
+        applyUpdatesDirectlyToSyncfusion(ss, computedUpdates);
+      }
 
-      // Update in-memory store for live spreadsheet grid view
-      store.setSheetData(effectiveSheet, updatedMasterSheet);
-      deskStore.setDeskMasterSheetData(updatedMasterSheet);
+      // 2. Extract full updated workbook JSON or fallback to in-place update
+      let updatedMasterSheet = null;
+      if (ss && typeof ss.saveAsJson === "function") {
+        try {
+          const res = await ss.saveAsJson();
+          updatedMasterSheet = res?.jsonObject || res;
+        } catch (e) {
+          console.warn("saveAsJson notice:", e);
+        }
+      }
 
-      store.pushData({
-        masterSheetName: effectiveSheet,
-        sheetName: effectiveSheet,
-        data: updatedMasterSheet,
-        blockCodenames: [effectivePath],
-        pushedBy: "workflow",
-        pushedByName: "Dynamic MasterSheet Node",
-        pushedAt: Date.now(),
-        sourceNodeId: id,
-      });
+      if (!updatedMasterSheet && ss) {
+        updatedMasterSheet = extractSyncfusionInstanceData(ss);
+      }
+
+      if (!updatedMasterSheet) {
+        const currentSheetRaw =
+          store.sheets[effectiveSheet]?.data ||
+          deskStore.activeMasterSheetData ||
+          deskStore.masterSheetPreview ||
+          data?.masterGrid;
+        updatedMasterSheet = applyUpdatesToMasterSheet(currentSheetRaw, computedUpdates, effectivePath, data?.result?.dataStartRow);
+      }
+
+      // 3. Update stores
+      if (updatedMasterSheet) {
+        store.setSheetData(effectiveSheet, updatedMasterSheet);
+        deskStore.setDeskMasterSheetData(updatedMasterSheet);
+
+        store.pushData({
+          masterSheetName: effectiveSheet,
+          sheetName: effectiveSheet,
+          data: updatedMasterSheet,
+          blockCodenames: [effectivePath],
+          pushedBy: "workflow",
+          pushedByName: "Dynamic MasterSheet Node",
+          pushedAt: Date.now(),
+          sourceNodeId: id,
+        });
+      }
 
       setMergeSuccess(true);
       toast.success(`Merged ${computedUpdates.length} updates into "${effectiveSheet}". Click Save Sheet in MasterSheet to persist.`);

@@ -54,7 +54,6 @@ export const UpdatedMergedPreviewNode = memo(({ id, data }: { id: string; data: 
         applyUpdatesToMasterSheet,
         applyUpdatesDirectlyToSyncfusion,
         extractSyncfusionInstanceData,
-        openSheetInSyncfusion,
       } = await import("@/lib/sheet-utils");
 
       const ss = typeof window !== "undefined" ? (window as any).__masterSheetSpreadsheet : null;
@@ -85,7 +84,7 @@ export const UpdatedMergedPreviewNode = memo(({ id, data }: { id: string; data: 
           msStore.sheets[targetSheet]?.data ||
           deskStore.activeMasterSheetData ||
           deskStore.masterSheetPreview;
-        updatedMasterSheet = applyUpdatesToMasterSheet(currentRaw, result.updates, targetPath);
+        updatedMasterSheet = applyUpdatesToMasterSheet(currentRaw, result.updates, targetPath, (result as any).dataStartRow);
       }
 
       // 3. Update in-memory store
@@ -102,11 +101,6 @@ export const UpdatedMergedPreviewNode = memo(({ id, data }: { id: string; data: 
           pushedAt: Date.now(),
           sourceNodeId: id,
         });
-      }
-
-      // 4. Refresh if direct update was not available
-      if (!updatedDirectly && ss && updatedMasterSheet) {
-        openSheetInSyncfusion(ss, updatedMasterSheet);
       }
 
       setIsMerged(true);

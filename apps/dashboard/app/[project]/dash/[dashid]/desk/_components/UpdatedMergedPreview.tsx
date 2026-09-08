@@ -35,10 +35,29 @@ export function UpdatedMergedPreview() {
         applyUpdatesToMasterSheet,
         applyUpdatesDirectlyToSyncfusion,
         extractSyncfusionInstanceData,
-        openSheetInSyncfusion,
+        extractSingleSheetSnapshot,
+        countSheetRowsCols,
       } = await import("@/lib/sheet-utils")
 
       const ss = typeof window !== "undefined" ? (window as any).__masterSheetSpreadsheet : null
+
+      // ── Pre-Merge Snapshot: capture the active sheet state before applying updates ──
+      if (ss) {
+        const activeTabName = msStore.activeSheetTab || sheetName || "Sheet1"
+        const snapshotData = extractSingleSheetSnapshot(ss, activeTabName)
+        if (snapshotData) {
+          const dims = countSheetRowsCols(snapshotData)
+          msStore.addSheetSnapshot(activeTabName, {
+            sheetName: activeTabName,
+            timestamp: Date.now(),
+            action: `Before Merge: ${targetPath}`,
+            changeSummary: `Snapshot before merging ${updates.length} records for ${targetPath}`,
+            data: snapshotData,
+            rowCount: dims.rowCount,
+            colCount: dims.colCount,
+          })
+        }
+      }
 
       // 1. Direct cell updates to visible Syncfusion spreadsheet
       let updatedDirectly = false
@@ -66,7 +85,7 @@ export function UpdatedMergedPreview() {
           msStore.sheets[sheetName]?.data ||
           deskStore.activeMasterSheetData ||
           deskStore.masterSheetPreview
-        updatedMasterSheet = applyUpdatesToMasterSheet(currentRaw, updates, targetPath)
+        updatedMasterSheet = applyUpdatesToMasterSheet(currentRaw, updates, targetPath, mergedPreview.dataStartRow)
       }
 
       // 3. Update desk store & master-sheet-store
@@ -83,11 +102,6 @@ export function UpdatedMergedPreview() {
           pushedAt: Date.now(),
           sourceNodeId: "desk-merged-preview",
         })
-      }
-
-      // 4. If direct update was not available, reload via openSheetInSyncfusion
-      if (!updatedDirectly && ss && updatedMasterSheet) {
-        openSheetInSyncfusion(ss, updatedMasterSheet)
       }
 
       setMergedSuccess(true)

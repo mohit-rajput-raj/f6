@@ -9,13 +9,14 @@ import React, {
   useEffect,
 } from "react";
 import type { Edge } from "@xyflow/react";
-import { EditorCanvasCardType, EditorNodeType } from "@/lib/types";
-import { saveWorkflow } from "@/app/[project]/dash/[dashid]/editor/_actions/editor.service";
-import { syncBlockFieldsFromWorkflow } from "@/app/[project]/dash/[dashid]/desk/desk-block-actions";
+import { EditorNodeType } from "@/lib/types";
 import { toast } from "sonner";
-
 import { useSession } from "@/lib/auth-client";
 import { getSharedDeskAccess } from "@/app/[project]/dash/[dashid]/desk/desk-share-actions";
+import {
+  useWorkflowEditorStore,
+  HistorySnapshot,
+} from "@/stores/workflow-editor-store";
 
 // ─── Dataset type used across all nodes ──────────────────────
 export interface Dataset {
@@ -23,11 +24,7 @@ export interface Dataset {
   data: any[][];
 }
 
-// ─── History snapshot ────────────────────────────────────────
-interface HistorySnapshot {
-  nodes: EditorNodeType[];
-  edges: Edge[];
-}
+export type { HistorySnapshot };
 
 // ─── Context type ────────────────────────────────────────────
 type EditorWorkFlowContextType = {
@@ -63,8 +60,6 @@ type EditorProps = {
   deskBlockId?: string;
 };
 
-const MAX_HISTORY = 50;
-
 export const EditorWorkFlowContextProvider = ({
   children,
   initialNodes = [],
@@ -72,12 +67,46 @@ export const EditorWorkFlowContextProvider = ({
   workflowId,
   deskBlockId,
 }: EditorProps) => {
-  const [nodes, setNodes] = useState<EditorNodeType[]>(initialNodes);
-  const [edges, setEdges] = useState<Edge[]>(initialEdges);
-  const [isSaving, setIsSaving] = useState(false);
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const initializedRef = useRef(false);
+  // ── Global Zustand Store Integration ──
+  // Reads and caches nodes/edges per workflowId so navigating away
+  // (e.g. to analytics) and pressing browser back NEVER clears the view!
+  const storeWorkflow = useWorkflowEditorStore(
+    useCallback(
+      (state) => (workflowId ? state.workflows[workflowId] : undefined),
+      [workflowId]
+    )
+  );
+
+  const initWorkflow = useWorkflowEditorStore((s) => s.initWorkflow);
+  const storeSetNodes = useWorkflowEditorStore((s) => s.setNodes);
+  const storeSetEdges = useWorkflowEditorStore((s) => s.setEdges);
+  const storePushHistory = useWorkflowEditorStore((s) => s.pushHistory);
+  const storeUndo = useWorkflowEditorStore((s) => s.undo);
+  const storeRedo = useWorkflowEditorStore((s) => s.redo);
+  const saveWorkflowToDb = useWorkflowEditorStore((s) => s.saveWorkflowToDb);
+  const fetchWorkflowClient = useWorkflowEditorStore((s) => s.fetchWorkflowClient);
+
+  // Local fallback state in case workflowId is not provided (e.g. root layout wrapper)
+  const [localNodes, setLocalNodes] = useState<EditorNodeType[]>(initialNodes);
+  const [localEdges, setLocalEdges] = useState<Edge[]>(initialEdges);
+  const [localCanUndo, setLocalCanUndo] = useState(false);
+  const [localCanRedo, setLocalCanRedo] = useState(false);
+  const [localIsSaving, setLocalIsSaving] = useState(false);
+  const [localHasUnsavedChanges, setLocalHasUnsavedChanges] = useState(false);
+
+  // ── Initialize or restore from store ──
+  useEffect(() => {
+    if (!workflowId) return;
+
+    // initWorkflow preserves cached nodes/edges if this workflow was already visited
+    initWorkflow(workflowId, initialNodes, initialEdges, deskBlockId);
+
+    // If workflow has 0 nodes and initialNodes was empty, attempt client-side fetch from DB
+    const current = useWorkflowEditorStore.getState().workflows[workflowId];
+    if (!current || (!current.initialized && current.nodes.length === 0)) {
+      fetchWorkflowClient(workflowId);
+    }
+  }, [workflowId, deskBlockId, initialNodes, initialEdges, initWorkflow, fetchWorkflowClient]);
 
   // ── Permission awareness ──
   const { data: sessionData } = useSession();
@@ -86,130 +115,80 @@ export const EditorWorkFlowContextProvider = ({
 
   useEffect(() => {
     if (!workflowId || !sessionData?.user?.email) return;
-    getSharedDeskAccess(workflowId, sessionData.user.email).then((access) => {
-      setPermission((access.permission as "editor" | "viewer") || "editor");
-    }).catch(() => { /* default to editor if check fails */ });
+    getSharedDeskAccess(workflowId, sessionData.user.email)
+      .then((access) => {
+        setPermission((access.permission as "editor" | "viewer") || "editor");
+      })
+      .catch(() => {
+        /* default to editor if check fails */
+      });
   }, [workflowId, sessionData?.user?.email]);
 
-  // Initialize from props when they change (first load from DB)
-  useEffect(() => {
-    if (!initializedRef.current && (initialNodes.length > 0 || initialEdges.length > 0)) {
-      setNodes(initialNodes);
-      setEdges(initialEdges);
-      initializedRef.current = true;
-    }
-  }, [initialNodes, initialEdges]);
-
-  // ── History (useRef so we never cause extra renders) ──
-  const historyRef = useRef<HistorySnapshot[]>([{ nodes: [], edges: [] }]);
-  const historyIndexRef = useRef(0);
-  const [canUndo, setCanUndo] = useState(false);
-  const [canRedo, setCanRedo] = useState(false);
-
-  const syncFlags = useCallback(() => {
-    setCanUndo(historyIndexRef.current > 0);
-    setCanRedo(
-      historyIndexRef.current < historyRef.current.length - 1
-    );
-  }, []);
-
-  const pushHistory = useCallback(() => {
-    // Get current nodes/edges via setState callback to avoid stale closures
-    setNodes((currentNodes) => {
-      setEdges((currentEdges) => {
-        const snapshot: HistorySnapshot = {
-          nodes: JSON.parse(JSON.stringify(currentNodes)),
-          edges: JSON.parse(JSON.stringify(currentEdges)),
-        };
-
-        // Trim any future history if we're not at the end
-        const newHistory = historyRef.current.slice(
-          0,
-          historyIndexRef.current + 1
-        );
-        newHistory.push(snapshot);
-
-        // Cap history size
-        if (newHistory.length > MAX_HISTORY) {
-          newHistory.shift();
+  // ── Node & Edge Setters ──
+  const setNodes: React.Dispatch<React.SetStateAction<EditorNodeType[]>> =
+    useCallback(
+      (updater) => {
+        if (workflowId) {
+          storeSetNodes(workflowId, updater);
         } else {
-          historyIndexRef.current += 1;
+          setLocalNodes(updater);
         }
+      },
+      [workflowId, storeSetNodes]
+    );
 
-        historyRef.current = newHistory;
-        syncFlags();
-        return currentEdges; // no change
-      });
-      return currentNodes; // no change
-    });
-    setHasUnsavedChanges(true);
-  }, [syncFlags]);
+  const setEdges: React.Dispatch<React.SetStateAction<Edge[]>> = useCallback(
+    (updater) => {
+      if (workflowId) {
+        storeSetEdges(workflowId, updater);
+      } else {
+        setLocalEdges(updater);
+      }
+    },
+    [workflowId, storeSetEdges]
+  );
+
+  // ── History actions ──
+  const pushHistory = useCallback(() => {
+    if (workflowId) {
+      storePushHistory(workflowId);
+    }
+  }, [workflowId, storePushHistory]);
 
   const undo = useCallback(() => {
-    if (historyIndexRef.current <= 0) return;
-    historyIndexRef.current -= 1;
-    const snapshot = historyRef.current[historyIndexRef.current];
-    if (snapshot) {
-      setNodes(JSON.parse(JSON.stringify(snapshot.nodes)));
-      setEdges(JSON.parse(JSON.stringify(snapshot.edges)));
+    if (workflowId) {
+      storeUndo(workflowId);
     }
-    syncFlags();
-    setHasUnsavedChanges(true);
-  }, [syncFlags]);
+  }, [workflowId, storeUndo]);
 
   const redo = useCallback(() => {
-    if (historyIndexRef.current >= historyRef.current.length - 1) return;
-    historyIndexRef.current += 1;
-    const snapshot = historyRef.current[historyIndexRef.current];
-    if (snapshot) {
-      setNodes(JSON.parse(JSON.stringify(snapshot.nodes)));
-      setEdges(JSON.parse(JSON.stringify(snapshot.edges)));
+    if (workflowId) {
+      storeRedo(workflowId);
     }
-    syncFlags();
-    setHasUnsavedChanges(true);
-  }, [syncFlags]);
+  }, [workflowId, storeRedo]);
 
-  // ── Save to DB ──
+  // ── Manual & Auto Save ──
   const saveToDb = useCallback(async () => {
     if (!workflowId) return;
-    setIsSaving(true);
     try {
-      // Read current state
-      const currentNodes = nodes;
-      const currentEdges = edges;
-
-      // Strip runtime-only data before saving (result, rowCount, etc.)
-      const cleanNodes = currentNodes.map((n) => ({
-        ...n,
-        data: {
-          ...n.data,
-          result: undefined,
-          rowCount: undefined,
-          error: undefined,
-          inputColumns: undefined,
-          leftColumns: undefined,
-          rightColumns: undefined,
-        },
-      }));
-
-      await saveWorkflow(workflowId, cleanNodes, currentEdges);
-
-      // If this is a desk block editor, sync its fields
-      if (deskBlockId) {
-        await syncBlockFieldsFromWorkflow(workflowId);
-      }
-
-      setHasUnsavedChanges(false);
+      await saveWorkflowToDb(workflowId);
       toast.success("Workflow saved");
     } catch (err) {
-      console.error("Failed to save workflow:", err);
+      console.error("Save workflow error:", err);
       toast.error("Failed to save workflow");
-    } finally {
-      setIsSaving(false);
     }
-  }, [workflowId, nodes, edges]);
+  }, [workflowId, saveWorkflowToDb]);
 
-  // ── Auto-save (debounced 5 seconds after last change) ──
+  const hasUnsavedChanges = workflowId
+    ? (storeWorkflow?.hasUnsavedChanges ?? false)
+    : localHasUnsavedChanges;
+
+  const isSaving = workflowId
+    ? (storeWorkflow?.isSaving ?? false)
+    : localIsSaving;
+
+  // Debounced auto-save (4s after change)
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (!hasUnsavedChanges || !workflowId) return;
 
@@ -218,21 +197,47 @@ export const EditorWorkFlowContextProvider = ({
     }
 
     saveTimerRef.current = setTimeout(() => {
-      saveToDb();
-    }, 5000);
+      saveWorkflowToDb(workflowId).catch(() => {});
+    }, 4000);
 
     return () => {
       if (saveTimerRef.current) {
         clearTimeout(saveTimerRef.current);
       }
     };
-  }, [hasUnsavedChanges, workflowId, saveToDb]);
+  }, [hasUnsavedChanges, workflowId, saveWorkflowToDb]);
 
-  // ── Graph execution (placeholder, delegated to nodeExecutions) ──
-  const runGraph = useCallback(() => {
-    // This is imported and called from resizable.tsx — kept as a trigger
-    // The actual execution is done via executeWorkflow in nodeExecutions.ts
-  }, []);
+  // Save on unmount: if user navigates away with unsaved changes, immediately persist
+  useEffect(() => {
+    return () => {
+      if (workflowId) {
+        const state = useWorkflowEditorStore.getState().workflows[workflowId];
+        if (state?.hasUnsavedChanges) {
+          saveWorkflowToDb(workflowId).catch(() => {});
+        }
+      }
+    };
+  }, [workflowId, saveWorkflowToDb]);
+
+  // Placeholder graph execution trigger
+  const runGraph = useCallback(() => {}, []);
+
+  // Compute active nodes and edges
+  const nodes = workflowId
+    ? (storeWorkflow?.nodes ?? (initialNodes.length > 0 ? initialNodes : []))
+    : localNodes;
+
+  const edges = workflowId
+    ? (storeWorkflow?.edges ?? (initialEdges.length > 0 ? initialEdges : []))
+    : localEdges;
+
+  const canUndo = workflowId
+    ? (storeWorkflow?.canUndo ?? false)
+    : localCanUndo;
+
+  const canRedo = workflowId
+    ? (storeWorkflow?.canRedo ?? false)
+    : localCanRedo;
 
   return (
     <EditorWorkFlowContext.Provider
@@ -251,7 +256,7 @@ export const EditorWorkFlowContextProvider = ({
         isSaving,
         hasUnsavedChanges,
         workflowId: workflowId ?? null,
-        deskBlockId: deskBlockId ?? null,
+        deskBlockId: deskBlockId ?? (storeWorkflow?.deskBlockId ?? null),
         permission,
         isReadOnly,
       }}

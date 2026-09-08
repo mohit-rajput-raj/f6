@@ -3,6 +3,10 @@ import { Suspense } from "react";
 import { ErrorBoundary } from "react-error-boundary";
 import { getWorkFlow } from "../../../editor/_actions/editor.service";
 import { supabase } from "@repo/db";
+import { auth } from "@repo/auth";
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
+import { getSharedDeskAccess } from "../../desk-share-actions";
 
 type Props = {
     params: Promise<{
@@ -15,6 +19,19 @@ type Props = {
 const Page = async ({ params }: Props) => {
     const resolvedParams = await params;
     const editorId = resolvedParams.editorid;
+    const dashId = resolvedParams.dashid;
+    const project = resolvedParams.project;
+
+    // Viewers cannot open the editor
+    const session = await auth.api.getSession({
+        headers: await headers(),
+    });
+    if (session?.user?.email && dashId) {
+        const access = await getSharedDeskAccess(dashId, session.user.email);
+        if (access.isGuest && access.permission === "viewer") {
+            redirect(`/${project}/dash/${dashId}/desk`);
+        }
+    }
 
     if (!editorId) {
         return <div className="p-10 text-red-600">Invalid editor ID</div>;

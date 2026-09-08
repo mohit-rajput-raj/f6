@@ -56,6 +56,8 @@ interface DeskState {
   projectWorkflowId: string | null;
   isLoading: boolean;
   isGuest: boolean;
+  permission: "editor" | "viewer";
+  isViewer: boolean;
   // masterSheetPreview: Dataset | null;
 
   // OCR state (kept from old store)
@@ -67,6 +69,7 @@ interface DeskState {
   setProjectWorkflowId: (id: string) => void;
   setIsLoading: (v: boolean) => void;
   setIsGuest: (v: boolean) => void;
+  setDeskAccess: (access: { isOwner: boolean; isGuest: boolean; permission: "editor" | "viewer" }) => void;
 
   addBlock: (block: DeskBlockState) => void;
   removeBlock: (blockId: string) => void;
@@ -124,10 +127,10 @@ interface DeskState {
 
   // ─── Master Sheet & AI Merged Preview ───
   masterSheetPreview: Dataset | null;
-  mergedPreview: (Dataset & { updates?: any[]; alignment?: any; sheetName?: string; targetPath?: string }) | null;
+  mergedPreview: (Dataset & { updates?: any[]; alignment?: any; dataStartRow?: number; groupColumns?: any[]; sheetName?: string; targetPath?: string }) | null;
   activeMasterSheetData: any | null;
   setMasterSheetPreview: (data: Dataset | null) => void;
-  setMergedPreview: (data: (Dataset & { updates?: any[]; alignment?: any; sheetName?: string; targetPath?: string }) | null) => void;
+  setMergedPreview: (data: (Dataset & { updates?: any[]; alignment?: any; dataStartRow?: number; groupColumns?: any[]; sheetName?: string; targetPath?: string }) | null) => void;
   setDeskMasterSheetData: (data: any) => void;
 
   // ─── OCR Actions ───
@@ -153,6 +156,8 @@ export const useDeskStore = create<DeskState>()((set, get) => ({
   projectWorkflowId: null,
   isLoading: true,
   isGuest: false,
+  permission: "editor",
+  isViewer: false,
   masterSheetPreview: null,
   mergedPreview: null,
   activeMasterSheetData: null,
@@ -164,6 +169,12 @@ export const useDeskStore = create<DeskState>()((set, get) => ({
   setProjectWorkflowId: (id) => set({ projectWorkflowId: id }),
   setIsLoading: (v) => set({ isLoading: v }),
   setIsGuest: (v) => set({ isGuest: v }),
+  setDeskAccess: (access) =>
+    set({
+      isGuest: access.isGuest,
+      permission: access.permission,
+      isViewer: access.permission === "viewer",
+    }),
 
   addBlock: (block) => set((s) => ({ blocks: [...s.blocks, block] })),
   removeBlock: (blockId) =>

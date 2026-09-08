@@ -18,6 +18,7 @@ import { ActionBarNodeDemo } from "./nodes/BaseNode-action-bar";
 import { ContextMenuDemo } from "./ContextMenu";
 import { useUIStore } from "@/stores/ui.store";
 import { useEditorWorkFlow } from "@/context/WorkFlowContextProvider";
+import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 import { OutputNode } from "./nodes/output-node";
 import { InputFileNode } from "./nodes/input-nodes/inputfile";
 import { InputImage } from "./nodes/input-nodes/input-image";
@@ -83,6 +84,7 @@ import { ActionButtonNode } from "./nodes/input-nodes/action-button-node";
 import { AISchemaAlignNode } from "./nodes/calcy-nodes/ai-schema-align-node";
 import { DynamicMasterSheetNode } from "./nodes/calcy-nodes/dynamic-mastersheet-node";
 import { UpdatedMergedPreviewNode } from "./nodes/output-nodes/updated-merged-preview-node";
+import { AnalyticsStackNode } from "./nodes/output-nodes/analytics-stack-node";
 
 const Flow = ({ handleRuns }: { handleRuns: () => void }) => {
   const nodeTypess = useMemo(
@@ -167,17 +169,46 @@ const Flow = ({ handleRuns }: { handleRuns: () => void }) => {
       AISchemaAlignNode: AISchemaAlignNode,
       DynamicMasterSheetNode: DynamicMasterSheetNode,
       UpdatedMergedPreviewNode: UpdatedMergedPreviewNode,
+      AnalyticsStackNode: AnalyticsStackNode,
     }),
     []
   );
 
   const debouncedRun = debounce(handleRuns, 600);
   const { minimapOpen, setSelectedNodeId } = useUIStore();
-  const { edges, nodes, setEdges, setNodes, pushHistory, deskBlockId, isReadOnly } =
+  const { edges, nodes, setEdges, setNodes, pushHistory, deskBlockId, isReadOnly, workflowId } =
     useEditorWorkFlow();
   const [reactFlowInstance, setReactFlowInstance] =
     useState<ReactFlowInstance>();
   const pathname = usePathname();
+
+  const cachedViewport = useWorkflowEditorStore(
+    useCallback(
+      (s) => (workflowId ? s.workflows[workflowId]?.viewport : undefined),
+      [workflowId]
+    )
+  );
+  const setStoreViewport = useWorkflowEditorStore((s) => s.setViewport);
+
+  const onMoveEnd = useCallback(
+    (_event: any, viewport: any) => {
+      if (workflowId && viewport) {
+        setStoreViewport(workflowId, viewport);
+      }
+    },
+    [workflowId, setStoreViewport]
+  );
+
+  // Auto-fit view when nodes become available if no prior viewport exists
+  const prevCountRef = React.useRef(nodes.length);
+  useEffect(() => {
+    if (prevCountRef.current === 0 && nodes.length > 0 && reactFlowInstance && !cachedViewport) {
+      setTimeout(() => {
+        reactFlowInstance.fitView({ padding: 0.2 });
+      }, 50);
+    }
+    prevCountRef.current = nodes.length;
+  }, [nodes.length, reactFlowInstance, cachedViewport]);
 
   const onDragOver = useCallback((event: any) => {
     if (isReadOnly) return;
@@ -298,7 +329,9 @@ const Flow = ({ handleRuns }: { handleRuns: () => void }) => {
           onInit={setReactFlowInstance}
           onNodeDragStop={onNodeDragStop}
           onNodeClick={onNodeClick}
-          fitView
+          defaultViewport={cachedViewport}
+          fitView={!cachedViewport}
+          onMoveEnd={onMoveEnd}
           minZoom={0.2}
           maxZoom={3}
           nodesDraggable={!isReadOnly}

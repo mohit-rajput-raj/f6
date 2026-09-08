@@ -1,16 +1,25 @@
 "use client"
 
 import React, { useRef, useEffect, useState } from "react"
-import { Table2, Search, RefreshCw, Save, Upload, Lock, Download, Check } from "lucide-react"
+import { Table2, Search, RefreshCw, Save, Upload, Lock, Download, Check, BookmarkPlus, Loader2 } from "lucide-react"
 import { useDeskStore, type Dataset } from "@/stores/desk-store"
 import { useMasterSheetStore } from "@/stores/master-sheet-store"
 import { Badge } from "@repo/ui/components/ui/badge"
 import { Input } from "@repo/ui/components/ui/input"
 import { useSession } from "@/lib/auth-client"
 import { useParams } from "next/navigation"
+import { toast } from "sonner"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@repo/ui/components/ui/dialog"
 import {
   getMasterSheets,
   upsertMasterSheetByName,
+  createMasterSheet,
   checkIsDeskOwner,
 } from "@/app/[project]/dash/[dashid]/(documents)/data-library/master-sheet-actions"
 import dynamic from "next/dynamic"
@@ -20,7 +29,14 @@ const SpreadsheetComponent = dynamic(
   { ssr: false }
 )
 
-import { openSheetInSyncfusion, extractSyncfusionSaveData, unwrapSyncfusionJson, extractSyncfusionInstanceData } from "@/lib/sheet-utils"
+import {
+  openSheetInSyncfusion,
+  extractSyncfusionSaveData,
+  unwrapSyncfusionJson,
+  extractSyncfusionInstanceData,
+  extractSingleSheetSnapshot,
+  countSheetRowsCols,
+} from "@/lib/sheet-utils"
 
 function colLetter(idx: number): string {
   let result = ""
@@ -36,6 +52,7 @@ export function MasterSheetPanel() {
   const masterSheetPreview = useDeskStore((s) => s.masterSheetPreview)
   const setMasterSheetPreview = useDeskStore((s) => s.setMasterSheetPreview)
   const blocks = useDeskStore((s) => s.blocks)
+  const isViewer = useDeskStore((s) => s.isViewer)
   const spreadsheetRef = useRef<any>(null)
   const ssInstanceRef = useRef<any>(null)
   const dataLoadedRef = useRef(false)
@@ -47,6 +64,9 @@ export function MasterSheetPanel() {
   const [isSaving, setIsSaving] = useState(false)
   const [saveSuccess, setSaveSuccess] = useState(false)
   const [exportSuccess, setExportSuccess] = useState(false)
+  const [isSaveLibraryOpen, setIsSaveLibraryOpen] = useState(false)
+  const [librarySheetName, setLibrarySheetName] = useState("")
+  const [isSavingToLibrary, setIsSavingToLibrary] = useState(false)
 
   const { data: session } = useSession()
   const userId = session?.user?.id
@@ -95,6 +115,12 @@ export function MasterSheetPanel() {
             setDbSheetJson(mainSheet.data)
             useDeskStore.getState().setDeskMasterSheetData(mainSheet.data)
             useMasterSheetStore.getState().setSheetData(name, mainSheet.data)
+
+            // Load persisted sheet histories from metadata
+            const metadata = mainSheet.metadata as any
+            if (metadata?.sheetHistories && typeof metadata.sheetHistories === "object") {
+              useMasterSheetStore.getState().setSheetHistories(metadata.sheetHistories)
+            }
           }
         }
       } catch (err) {
@@ -144,6 +170,85 @@ export function MasterSheetPanel() {
     return () => clearTimeout(timer)
   }, [deskMasterSheetData, isMounted])
 
+  // ── Helper: Sync all sheet tabs from the Syncfusion instance ──
+  const syncSheetTabs = (ss: any) => {
+    if (!ss || !Array.isArray(ss.sheets)) return
+    const tabNames = ss.sheets.map((s: any) => s.name || `Sheet${(s.index ?? 0) + 1}`)
+    useMasterSheetStore.getState().setAllSheetTabs(tabNames)
+  }
+
+  // ── Syncfusion actionComplete handler — detects tab lifecycle events ──
+  const handleActionComplete = (args: any) => {
+    const ss = getSsInstance()
+    if (!ss || !args) return
+
+    const action = args.action || args.eventArgs?.action || ""
+
+    switch (action) {
+      case "gotoSheet": {
+        // User switched tabs
+        const activeSheet = typeof ss.getActiveSheet === "function" ? ss.getActiveSheet() : null
+        const activeTabName = activeSheet?.name || ss.sheets?.[ss.activeSheetIndex || 0]?.name || "Sheet1"
+        useMasterSheetStore.getState().setActiveSheetTab(activeTabName)
+        syncSheetTabs(ss)
+        break
+      }
+      case "duplicateSheet": {
+        // A sheet was duplicated — sync tabs and duplicate history
+        syncSheetTabs(ss)
+        const sheets = ss.sheets || []
+        // The new duplicate is typically the last sheet or near the source
+        // We detect it by finding a sheet name not in allSheetTabs
+        const currentTabs = useMasterSheetStore.getState().allSheetTabs
+        const newTabNames = sheets.map((s: any) => s.name)
+        const addedTab = newTabNames.find((name: string) => !currentTabs.includes(name))
+        if (addedTab) {
+          // Try to infer source from the duplicate name pattern "Sheet1 (2)" -> "Sheet1"
+          const match = addedTab.match(/^(.+?)\s*\(\d+\)$/)
+          const sourceTab = match ? match[1].trim() : currentTabs[0] || "Sheet1"
+          useMasterSheetStore.getState().duplicateSheetHistory(sourceTab, addedTab)
+          useMasterSheetStore.getState().setAllSheetTabs(newTabNames)
+        }
+        break
+      }
+      case "removeSheet": {
+        // A sheet was deleted — sync tabs and delete history
+        const currentTabs = useMasterSheetStore.getState().allSheetTabs
+        const newTabNames = (ss.sheets || []).map((s: any) => s.name)
+        const removedTab = currentTabs.find((name: string) => !newTabNames.includes(name))
+        if (removedTab) {
+          useMasterSheetStore.getState().deleteSheetHistory(removedTab)
+        }
+        syncSheetTabs(ss)
+        // Update active tab
+        const activeSheet = typeof ss.getActiveSheet === "function" ? ss.getActiveSheet() : null
+        if (activeSheet) {
+          useMasterSheetStore.getState().setActiveSheetTab(activeSheet.name)
+        }
+        break
+      }
+      case "renameSheet": {
+        // A sheet was renamed — sync tabs and rename history
+        const currentTabs = useMasterSheetStore.getState().allSheetTabs
+        const newTabNames = (ss.sheets || []).map((s: any) => s.name)
+        const oldName = currentTabs.find((name: string) => !newTabNames.includes(name))
+        const newName = newTabNames.find((name: string) => !currentTabs.includes(name))
+        if (oldName && newName) {
+          useMasterSheetStore.getState().renameSheetHistory(oldName, newName)
+        }
+        syncSheetTabs(ss)
+        break
+      }
+      case "insertSheet": {
+        // A new sheet was added
+        syncSheetTabs(ss)
+        break
+      }
+      default:
+        break
+    }
+  }
+
   // Callback when Syncfusion spreadsheet is fully created and ready (microSheetAgent pattern)
   const onSpreadsheetCreated = () => {
     const ss = spreadsheetRef.current
@@ -153,17 +258,31 @@ export function MasterSheetPanel() {
       (window as any).__masterSheetSpreadsheet = ss
     }
 
+    // Initialize sheet tabs from Syncfusion
+    syncSheetTabs(ss)
+    const activeSheet = typeof ss.getActiveSheet === "function" ? ss.getActiveSheet() : null
+    if (activeSheet?.name) {
+      useMasterSheetStore.getState().setActiveSheetTab(activeSheet.name)
+    }
+
     // If DB data already loaded, render it now
     const targetData = deskMasterSheetData || dbSheetJson
     if (targetData && !dataLoadedRef.current) {
       openSheetInSyncfusion(ss, targetData)
       dataLoadedRef.current = true
+
+      // Re-sync tabs after data load (delayed to let Syncfusion finish rendering)
+      setTimeout(() => syncSheetTabs(ss), 300)
     }
   }
 
   // Save current spreadsheet data back to DB as full Syncfusion workbook state (matching microSheetAgent pattern)
   const handleSaveSheet = async () => {
     if (!userId) return
+    if (isViewer) {
+      toast.error("Viewers cannot modify this sheet")
+      return
+    }
     const ss = getSsInstance()
     if (!ss) {
       alert("Spreadsheet is not ready yet.")
@@ -172,6 +291,23 @@ export function MasterSheetPanel() {
 
     setIsSaving(true)
     try {
+      // ── Pre-Save Snapshot: capture the current active sheet before saving ──
+      const activeTabName = useMasterSheetStore.getState().activeSheetTab || "Sheet1"
+      const snapshotData = extractSingleSheetSnapshot(ss, activeTabName)
+      if (snapshotData) {
+        const dims = countSheetRowsCols(snapshotData)
+        useMasterSheetStore.getState().addSheetSnapshot(activeTabName, {
+          sheetName: activeTabName,
+          timestamp: Date.now(),
+          action: "Pre-Save Snapshot",
+          changeSummary: `Snapshot before save`,
+          data: snapshotData,
+          rowCount: dims.rowCount,
+          colCount: dims.colCount,
+          savedBy: userEmail || userId,
+        })
+      }
+
       let sheetData: any = null
 
       if (typeof ss.saveAsJson === "function") {
@@ -187,10 +323,15 @@ export function MasterSheetPanel() {
         sheetData = extractSyncfusionInstanceData(ss) || dbSheetJson
       }
 
+      // ── Persist sheetHistories in metadata ──
+      const currentHistories = useMasterSheetStore.getState().sheetHistories
+      const metadata = { sheetHistories: currentHistories }
+
       await upsertMasterSheetByName({
         userId,
         name: sheetName || "Master Sheet",
         data: sheetData,
+        metadata,
         dashid,
       })
 
@@ -202,6 +343,71 @@ export function MasterSheetPanel() {
       alert("Failed to save MasterSheet.")
     } finally {
       setIsSaving(false)
+    }
+  }
+
+  // Save current sheet state to Sheet Library as a new standalone entry
+  const handleSaveToLibrary = async () => {
+    if (!userId) {
+      toast.error("Please log in to save to Sheet Library")
+      return
+    }
+    if (isViewer) {
+      toast.error("Viewers cannot save to Sheet Library")
+      return
+    }
+    const ss = getSsInstance()
+    if (!ss) {
+      toast.error("Spreadsheet is not ready yet.")
+      return
+    }
+    const targetName = librarySheetName.trim() || `${sheetName || "Master Sheet"} (Library)`
+
+    setIsSavingToLibrary(true)
+    try {
+      let sheetData: any = null
+      if (typeof ss.saveAsJson === "function") {
+        try {
+          const res: any = await ss.saveAsJson()
+          sheetData = res?.jsonObject || res
+        } catch (e) {
+          console.warn("saveAsJson warning:", e)
+        }
+      }
+
+      if (!sheetData || (typeof sheetData === "object" && Object.keys(sheetData).length === 0)) {
+        sheetData = extractSyncfusionInstanceData(ss) || dbSheetJson
+      }
+
+      const activeTabName = useMasterSheetStore.getState().activeSheetTab || "Sheet1"
+      const snapshotData = extractSingleSheetSnapshot(ss, activeTabName)
+      const dims = snapshotData ? countSheetRowsCols(snapshotData) : { rowCount: 0, colCount: 0 }
+      const currentHistories = useMasterSheetStore.getState().sheetHistories
+
+      const metadata = {
+        sheetHistories: currentHistories,
+        rowCount: dims.rowCount,
+        colCount: dims.colCount,
+        activeSheetTab: activeTabName,
+        savedAt: new Date().toISOString(),
+        savedBy: userEmail || userId,
+      }
+
+      await createMasterSheet({
+        userId,
+        name: targetName,
+        data: sheetData,
+        metadata,
+        dashid,
+      })
+
+      toast.success(`Saved "${targetName}" to Sheet Library!`)
+      setIsSaveLibraryOpen(false)
+    } catch (err: any) {
+      console.error("Failed to save to sheet library:", err)
+      toast.error("Failed to save to Sheet Library: " + (err?.message || "Unknown error"))
+    } finally {
+      setIsSavingToLibrary(false)
     }
   }
 
@@ -396,23 +602,40 @@ export function MasterSheetPanel() {
             )}
           </button>
 
-          {/* Save Sheet Button */}
-          <button
-            onClick={handleSaveSheet}
-            disabled={isSaving}
-            className="px-2.5 py-1 rounded-md text-xs font-medium bg-zinc-100 hover:bg-white text-zinc-950 flex items-center gap-1.5 shadow-sm transition-colors cursor-pointer"
-          >
-            {saveSuccess ? (
-              "✓ Saved"
-            ) : isSaving ? (
-              "Saving..."
-            ) : (
-              <>
-                <Save className="size-3.5 text-zinc-900" />
-                Save Sheet
-              </>
-            )}
-          </button>
+          {/* Save Sheet Button — hidden for viewers */}
+          {!isViewer && (
+            <button
+              onClick={handleSaveSheet}
+              disabled={isSaving}
+              className="px-2.5 py-1 rounded-md text-xs font-medium bg-zinc-100 hover:bg-white text-zinc-950 flex items-center gap-1.5 shadow-sm transition-colors cursor-pointer"
+            >
+              {saveSuccess ? (
+                "✓ Saved"
+              ) : isSaving ? (
+                "Saving..."
+              ) : (
+                <>
+                  <Save className="size-3.5 text-zinc-900" />
+                  Save Sheet
+                </>
+              )}
+            </button>
+          )}
+
+          {/* Save to Sheet Library Button (Right of Save Button) — hidden for viewers */}
+          {!isViewer && (
+            <button
+              onClick={() => {
+                setLibrarySheetName(`${sheetName || "Master Sheet"} (Library)`)
+                setIsSaveLibraryOpen(true)
+              }}
+              title="Save current sheet to Sheet Library"
+              className="px-2.5 py-1 rounded-md text-xs font-medium bg-violet-600 hover:bg-violet-500 text-white flex items-center gap-1.5 shadow-sm transition-colors cursor-pointer"
+            >
+              <BookmarkPlus className="size-3.5 text-white" />
+              Save to Library
+            </button>
+          )}
         </div>
 
         {/* Master Sheet ID input */}
@@ -433,6 +656,7 @@ export function MasterSheetPanel() {
           <SpreadsheetComponent
             ref={spreadsheetRef}
             created={onSpreadsheetCreated}
+            actionComplete={handleActionComplete}
             className="w-full h-full"
             height="100%"
             width="100%"
@@ -448,6 +672,68 @@ export function MasterSheetPanel() {
           </div>
         )}
       </div>
+
+      {/* Save to Sheet Library Dialog */}
+      <Dialog open={isSaveLibraryOpen} onOpenChange={setIsSaveLibraryOpen}>
+        <DialogContent className="max-w-md bg-zinc-950 border-zinc-800 text-zinc-100 p-6">
+          <DialogHeader>
+            <DialogTitle className="text-base font-semibold flex items-center gap-2">
+              <BookmarkPlus className="size-5 text-violet-400" />
+              Save to Sheet Library
+            </DialogTitle>
+            <DialogDescription className="text-xs text-zinc-400">
+              Save the current spreadsheet state as a new entry in your desk&apos;s Sheet Library.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-3">
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-zinc-300">Sheet Name</label>
+              <Input
+                value={librarySheetName}
+                onChange={(e) => setLibrarySheetName(e.target.value)}
+                placeholder="e.g. Q3 Performance MasterSheet"
+                className="bg-zinc-900 border-zinc-800 text-zinc-200 text-xs h-9 focus-visible:ring-violet-500"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !isSavingToLibrary) {
+                    e.preventDefault()
+                    handleSaveToLibrary()
+                  }
+                }}
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end gap-2 pt-2 border-t border-zinc-800/80">
+            <button
+              type="button"
+              onClick={() => setIsSaveLibraryOpen(false)}
+              className="px-3 py-1.5 rounded-md text-xs font-medium text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900 border border-zinc-800 transition-colors cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleSaveToLibrary}
+              disabled={isSavingToLibrary || !librarySheetName.trim()}
+              className="px-3 py-1.5 rounded-md text-xs font-medium bg-violet-600 hover:bg-violet-500 disabled:opacity-50 disabled:cursor-not-allowed text-white flex items-center gap-1.5 shadow-sm transition-colors cursor-pointer"
+            >
+              {isSavingToLibrary ? (
+                <>
+                  <Loader2 className="size-3.5 animate-spin" />
+                  Saving to Library...
+                </>
+              ) : (
+                <>
+                  <Check className="size-3.5" />
+                  Save to Library
+                </>
+              )}
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
