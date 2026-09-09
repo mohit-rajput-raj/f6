@@ -1501,6 +1501,245 @@ export const executeWorkflow = async (
           break;
         }
 
+        case "SaveFileNode": {
+          const dataEdge = incomingEdges.find(
+            (e: any) => e.targetHandle === "data" || e.targetHandle === "in"
+          ) || incomingEdges.find(
+            (e: any) =>
+              e.targetHandle !== "file-name" &&
+              e.targetHandle !== "fileName" &&
+              e.targetHandle !== "folder-name" &&
+              e.targetHandle !== "folderName"
+          );
+
+          const fileNameEdge = incomingEdges.find(
+            (e: any) => e.targetHandle === "file-name" || e.targetHandle === "fileName"
+          );
+
+          const folderNameEdge = incomingEdges.find(
+            (e: any) => e.targetHandle === "folder-name" || e.targetHandle === "folderName"
+          );
+
+          const saveDs: Dataset = dataEdge
+            ? (runtimeData.get(`${dataEdge.source}__${dataEdge.sourceHandle}`) ?? runtimeData.get(dataEdge.source) ?? inputValue ?? { columns: [], data: [] })
+            : (inputValue ?? { columns: [], data: [] });
+
+          outputValue = saveDs;
+
+          // Helper to extract string from dynamic edge
+          const resolveEdgeText = async (edge?: any): Promise<string> => {
+            if (!edge) return "";
+            const raw = runtimeData.get(`${edge.source}__${edge.sourceHandle}`) ?? runtimeData.get(edge.source);
+            if (typeof raw === "string" && raw.trim().length > 0) return raw.trim();
+            if (raw && typeof raw === "object") {
+              if (typeof raw.text === "string" && raw.text.trim()) return raw.text.trim();
+              if (typeof raw.value === "string" && raw.value.trim()) return raw.value.trim();
+            }
+            try {
+              const srcNode = nodes.find((n) => n.id === edge.source);
+              if (srcNode?.type === "DeskTextInputNode") {
+                const { useDeskStore } = await import("@/stores/desk-store");
+                const store = useDeskStore.getState();
+                const deskBlockId = srcNode.data?.deskBlockId;
+                const deskInputId = srcNode.data?.deskInputId || srcNode.id;
+                let input = deskBlockId ? store.getTextInputById(deskBlockId, deskInputId) : null;
+                if (!input) {
+                  for (const b of store.blocks) {
+                    const found = b.textInputs?.find((t) => t.id === deskInputId || t.id === srcNode.id);
+                    if (found) { input = found; break; }
+                  }
+                }
+                if (input?.value?.trim()) return input.value.trim();
+                if (srcNode.data?.value?.trim()) return String(srcNode.data.value).trim();
+              }
+            } catch {}
+            return "";
+          };
+
+          const dynamicFileName = await resolveEdgeText(fileNameEdge);
+          const dynamicFolderName = await resolveEdgeText(folderNameEdge);
+
+          const resolvedFileName = (dynamicFileName || nodeData?.fileName || "output_file.csv").trim();
+          const resolvedFolderName = (dynamicFolderName || nodeData?.folderName || "").trim();
+          const targetFolderId = nodeData?.folderId && nodeData.folderId !== "unfiled" ? nodeData.folderId : null;
+
+          const autoSave = nodeData?.autoSave !== false;
+
+          // Auto-save if enabled, dataset is valid and has columns
+          if (autoSave && saveDs && Array.isArray(saveDs.columns) && saveDs.columns.length > 0) {
+            try {
+              const currentDashid = typeof window !== "undefined"
+                ? window.location.pathname.split("/dash/")[1]?.split("/")[0]
+                : undefined;
+
+              if (currentDashid) {
+                const { createOrOverwriteWorkspaceFile } = await import(
+                  "@/app/[project]/dash/[dashid]/files/_actions/files-actions"
+                );
+                const effectiveUserId = userId || "system";
+                const res = await createOrOverwriteWorkspaceFile({
+                  dashid: currentDashid,
+                  userId: effectiveUserId,
+                  folderPath: resolvedFolderName || "",
+                  fileName: resolvedFileName.endsWith(".csv") ? resolvedFileName : `${resolvedFileName}.csv`,
+                  data: saveDs,
+                  fileType: "csv",
+                  metadata: {
+                    rowCount: saveDs.data?.length ?? 0,
+                    colCount: saveDs.columns.length,
+                    sourceNodeId: currentId,
+                  },
+                });
+
+                setNodes((nds) =>
+                  nds.map((node) =>
+                    node.id === currentId
+                      ? {
+                          ...node,
+                          data: {
+                            ...node.data,
+                            result: saveDs,
+                            text: saveDs,
+                            rowCount: saveDs.data?.length ?? 0,
+                            lastSavedAt: new Date().toLocaleTimeString(),
+                            wasOverwritten: res.overwritten,
+                            dynamicFileName,
+                            dynamicFolderName,
+                          },
+                        }
+                      : node
+                  )
+                );
+
+                try {
+                  const { toast } = await import("sonner");
+                  toast.success(
+                    res.overwritten
+                      ? `[Files] Overwrote "${resolvedFileName}"`
+                      : `[Files] Saved "${resolvedFileName}"`
+                  );
+                } catch {}
+              }
+            } catch (saveErr) {
+              console.error("SaveFileNode execution save error:", saveErr);
+            }
+          } else if (!autoSave && saveDs) {
+            // Auto-save disabled: update node state without writing to disk
+            setNodes((nds) =>
+              nds.map((node) =>
+                node.id === currentId
+                  ? {
+                      ...node,
+                      data: {
+                        ...node.data,
+                        result: saveDs,
+                        text: saveDs,
+                        rowCount: saveDs.data?.length ?? 0,
+                        dynamicFileName,
+                        dynamicFolderName,
+                      },
+                    }
+                  : node
+              )
+            );
+          }
+          break;
+        }
+
+        case "GetFileNode": {
+          const fileNameEdge = incomingEdges.find(
+            (e: any) => e.targetHandle === "file-name" || e.targetHandle === "fileName"
+          );
+          const folderNameEdge = incomingEdges.find(
+            (e: any) => e.targetHandle === "folder-name" || e.targetHandle === "folderName"
+          );
+
+          const resolveEdgeText = async (edge?: any): Promise<string> => {
+            if (!edge) return "";
+            const raw = runtimeData.get(`${edge.source}__${edge.sourceHandle}`) ?? runtimeData.get(edge.source);
+            if (typeof raw === "string" && raw.trim().length > 0) return raw.trim();
+            if (raw && typeof raw === "object") {
+              if (typeof raw.text === "string" && raw.text.trim()) return raw.text.trim();
+              if (typeof raw.value === "string" && raw.value.trim()) return raw.value.trim();
+            }
+            try {
+              const srcNode = nodes.find((n) => n.id === edge.source);
+              if (srcNode?.type === "DeskTextInputNode") {
+                const { useDeskStore } = await import("@/stores/desk-store");
+                const store = useDeskStore.getState();
+                const deskBlockId = srcNode.data?.deskBlockId;
+                const deskInputId = srcNode.data?.deskInputId || srcNode.id;
+                let input = deskBlockId ? store.getTextInputById(deskBlockId, deskInputId) : null;
+                if (!input) {
+                  for (const b of store.blocks) {
+                    const found = b.textInputs?.find((t) => t.id === deskInputId || t.id === srcNode.id);
+                    if (found) { input = found; break; }
+                  }
+                }
+                if (input?.value?.trim()) return input.value.trim();
+                if (srcNode.data?.value?.trim()) return String(srcNode.data.value).trim();
+              }
+            } catch {}
+            return "";
+          };
+
+          const dynamicFileName = await resolveEdgeText(fileNameEdge);
+          const dynamicFolderName = await resolveEdgeText(folderNameEdge);
+
+          const resolvedFileName = (dynamicFileName || nodeData?.fileName || "").trim();
+          const resolvedFolderName = (dynamicFolderName || nodeData?.folderName || "").trim();
+          const selectedFolderId = nodeData?.folderId && nodeData.folderId !== "unfiled" ? nodeData.folderId : null;
+
+          let loadedDataset = nodeData?.text || nodeData?.result || null;
+
+          if (resolvedFileName) {
+            try {
+              const currentDashid = typeof window !== "undefined"
+                ? window.location.pathname.split("/dash/")[1]?.split("/")[0]
+                : undefined;
+
+              if (currentDashid) {
+                const { getWorkspaceFileByPath } = await import(
+                  "@/app/[project]/dash/[dashid]/files/_actions/files-actions"
+                );
+                const fileRec = await getWorkspaceFileByPath({
+                  dashid: currentDashid,
+                  folderPath: resolvedFolderName || "",
+                  fileName: resolvedFileName,
+                });
+
+                if (fileRec?.data) {
+                  loadedDataset = fileRec.data;
+                  setNodes((nds) =>
+                    nds.map((node) =>
+                      node.id === currentId
+                        ? {
+                            ...node,
+                            data: {
+                              ...node.data,
+                              text: loadedDataset,
+                              result: loadedDataset,
+                              columns: loadedDataset.columns || [],
+                              rowCount: loadedDataset.data?.length ?? 0,
+                              fileName: fileRec.name,
+                              dynamicFileName,
+                              dynamicFolderName,
+                            },
+                          }
+                        : node
+                    )
+                  );
+                }
+              }
+            } catch (loadErr) {
+              console.error("GetFileNode execution load error:", loadErr);
+            }
+          }
+
+          outputValue = loadedDataset || { columns: [], data: [] };
+          break;
+        }
+
         default:
           outputValue = inputValue;
           break;
@@ -1876,6 +2115,14 @@ async function executeInnerWorkflow(
           outputValue = applyDynamicBlockConcat(dbcExistingData, dbcBlocksInner, dbcKc);
           break;
         }
+
+        case "SaveFileNode":
+          outputValue = inputValue;
+          break;
+
+        case "GetFileNode":
+          outputValue = nodeData?.text || nodeData?.result || { columns: [], data: [] };
+          break;
 
         default:
           outputValue = inputValue;

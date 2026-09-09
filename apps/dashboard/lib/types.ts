@@ -163,6 +163,8 @@ export type EditorCanvasTypes =
   | 'DynamicMasterSheetNode'
   | 'UpdatedMergedPreviewNode'
   | 'AnalyticsStackNode'
+  | 'SaveFileNode'
+  | 'GetFileNode'
   | 'Email'
   | 'Condition'
   | 'AI'

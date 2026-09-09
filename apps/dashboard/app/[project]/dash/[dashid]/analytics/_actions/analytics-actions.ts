@@ -48,9 +48,8 @@ export async function saveOrMergeAnalyticsStack({
 
   // 1. Check if stack with this name already exists in this workflow
   let query = supabase
-    .from("data_library_file")
+    .from("analytics_stack")
     .select("*")
-    .eq("fileType", "analytics_stack")
     .eq("name", cleanName);
 
   if (validWorkflowId) {
@@ -314,7 +313,7 @@ export async function saveOrMergeAnalyticsStack({
   if (existing) {
     // Update existing record
     const { data: updated, error } = await supabase
-      .from("data_library_file")
+      .from("analytics_stack")
       .update({
         data: finalData,
         metadata,
@@ -329,13 +328,12 @@ export async function saveOrMergeAnalyticsStack({
   } else {
     // Insert new record
     const { data: inserted, error } = await supabase
-      .from("data_library_file")
+      .from("analytics_stack")
       .insert({
         userId,
         workflowId: validWorkflowId,
         name: cleanName,
         description: `Analytics stack table with ${colCount} columns and ${rowCount} rows`,
-        fileType: "analytics_stack",
         data: finalData,
         metadata,
       })
@@ -354,9 +352,8 @@ export async function getAnalyticsStacks(dashid?: string, userId?: string) {
   const validWorkflowId = dashid && isValidUuid(dashid.trim()) ? dashid.trim() : null;
 
   let query = supabase
-    .from("data_library_file")
-    .select("id, name, description, fileType, data, metadata, createdAt, updatedAt, workflowId")
-    .eq("fileType", "analytics_stack")
+    .from("analytics_stack")
+    .select("id, name, description, data, metadata, createdAt, updatedAt, workflowId")
     .order("updatedAt", { ascending: false });
 
   if (validWorkflowId) {
@@ -380,7 +377,7 @@ export async function getAnalyticsStacks(dashid?: string, userId?: string) {
 export async function deleteAnalyticsStack(id: string, userId?: string) {
   if (!isValidUuid(id)) throw new Error("Invalid id");
   const { data, error } = await supabase
-    .from("data_library_file")
+    .from("analytics_stack")
     .delete()
     .eq("id", id)
     .select()
@@ -398,13 +395,12 @@ export async function savePinnedChart(dashid: string, userId: string, chartConfi
   const name = chartConfig.title || "Custom Analytics Chart";
 
   const { data, error } = await supabase
-    .from("data_library_file")
+    .from("analytics_chart")
     .insert({
       userId,
       workflowId: validWorkflowId,
       name,
       description: chartConfig.description || "Pinned analytics graph",
-      fileType: "analytics_chart",
       data: chartConfig,
       metadata: {
         chartType: chartConfig.chartType,
@@ -426,9 +422,8 @@ export async function getPinnedCharts(dashid?: string, userId?: string) {
   const validWorkflowId = dashid && isValidUuid(dashid.trim()) ? dashid.trim() : null;
 
   let query = supabase
-    .from("data_library_file")
-    .select("id, name, description, fileType, data, metadata, createdAt, updatedAt")
-    .eq("fileType", "analytics_chart")
+    .from("analytics_chart")
+    .select("id, name, description, data, metadata, createdAt, updatedAt")
     .order("createdAt", { ascending: false });
 
   if (validWorkflowId) {
@@ -447,7 +442,7 @@ export async function getPinnedCharts(dashid?: string, userId?: string) {
 export async function deletePinnedChart(id: string) {
   if (!isValidUuid(id)) return false;
   const { error } = await supabase
-    .from("data_library_file")
+    .from("analytics_chart")
     .delete()
     .eq("id", id);
   return !error;
