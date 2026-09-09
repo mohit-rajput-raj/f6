@@ -98,6 +98,7 @@ model Workflow {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  fileFolders      FileFolder[]
   dataLibraryFiles DataLibraryFile[]
   deskBlocks       DeskBlock[]       @relation("ProjectBlocks")
   blockEditor      DeskBlock?        @relation("BlockEditor")
@@ -108,10 +109,30 @@ model Workflow {
   @@map("workflow")
 }
 
-model DataLibraryFile {
-  id          String  @id @default(uuid()) @db.Uuid
+model FileFolder {
+  id          String   @id @default(uuid()) @db.Uuid
   userId      String
-  workflowId  String? @db.Uuid
+  workflowId  String   @db.Uuid
+  name        String
+  description String?
+  color       String?  @default("indigo")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workflow Workflow          @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  files    DataLibraryFile[]
+
+  @@unique([workflowId, name])
+  @@index([workflowId])
+  @@index([userId])
+  @@map("file_folder")
+}
+
+model DataLibraryFile {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String
+  workflowId  String?  @db.Uuid
+  folderId    String?  @db.Uuid
   name        String
   description String?
   fileType    String
@@ -121,11 +142,13 @@ model DataLibraryFile {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  workflow Workflow? @relation(fields: [workflowId], references: [id], onDelete: SetNull)
+  user     User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workflow Workflow?   @relation(fields: [workflowId], references: [id], onDelete: SetNull)
+  folder   FileFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
 
   @@index([userId])
   @@index([workflowId])
+  @@index([folderId])
   @@map("data_library_file")
 }
 

@@ -164,6 +164,12 @@ const nodes = [
         description: "Import from Data Library",
       },
       {
+        title: "Get from Files",
+        type: "GetFileNode",
+        icon: <IconFileImport />,
+        description: "Load dataset from Files folder",
+      },
+      {
         title: "Text Value",
         type: "TextValueNode",
         icon: <IconTypography />,
@@ -403,6 +409,12 @@ const nodes = [
         type: "AnalyticsStackNode",
         icon: <IconChartBar />,
         description: "Stack tables for Analytics with optional dynamic name from Desk Text Input",
+      },
+      {
+        title: "Save to Files",
+        type: "SaveFileNode",
+        icon: <IconFileExport />,
+        description: "Save or overwrite dataset in Files folders",
       },
     ]
   }

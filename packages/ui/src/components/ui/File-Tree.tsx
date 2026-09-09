@@ -48,6 +48,8 @@ type Direction = "rtl" | "ltr" | undefined
 
 type TreeViewProps = {
   initialSelectedId?: string
+  selectedId?: string
+  onSelectChange?: (id: string) => void
   indicator?: boolean
   elements?: TreeViewElement[]
   initialExpandedItems?: string[]
@@ -61,6 +63,8 @@ const Tree = forwardRef<HTMLDivElement, TreeViewProps>(
       className,
       elements,
       initialSelectedId,
+      selectedId: controlledSelectedId,
+      onSelectChange,
       initialExpandedItems,
       children,
       indicator = true,
@@ -71,16 +75,18 @@ const Tree = forwardRef<HTMLDivElement, TreeViewProps>(
     },
     ref
   ) => {
-    const [selectedId, setSelectedId] = useState<string | undefined>(
+    const [internalSelectedId, setInternalSelectedId] = useState<string | undefined>(
       initialSelectedId
     )
+    const selectedId = controlledSelectedId !== undefined ? controlledSelectedId : internalSelectedId
     const [expandedItems, setExpandedItems] = useState<string[] | undefined>(
       initialExpandedItems
     )
 
     const selectItem = useCallback((id: string) => {
-      setSelectedId(id)
-    }, [])
+      setInternalSelectedId(id)
+      onSelectChange?.(id)
+    }, [onSelectChange])
 
     const handleExpand = useCallback((id: string) => {
       setExpandedItems((prev) => {
@@ -162,9 +168,12 @@ const Tree = forwardRef<HTMLDivElement, TreeViewProps>(
               defaultValue={expandedItems}
               value={expandedItems}
               className="flex flex-col gap-1"
-              onValueChange={(value) =>
-                setExpandedItems((prev) => [...(prev ?? []), value[0]])
-              }
+              onValueChange={(val) => {
+                const item = val[0]
+                if (item) {
+                  setExpandedItems((prev) => [...(prev ?? []), item])
+                }
+              }}
               dir={dir as Direction}
             >
               {children}
@@ -230,7 +239,11 @@ const Folder = forwardRef<
       setExpandedItems,
       openIcon,
       closeIcon,
+      selectedId,
+      selectItem,
     } = useTree()
+
+    const isSelected = isSelect ?? selectedId === value
 
     return (
       <AccordionPrimitive.Item
@@ -240,21 +253,25 @@ const Folder = forwardRef<
       >
         <AccordionPrimitive.Trigger
           className={cn(
-            `flex items-center gap-1 rounded-md text-sm`,
+            `flex items-center gap-1.5 rounded-md text-sm px-2 py-1 duration-150 w-full text-left`,
             className,
             {
-              "bg-muted rounded-md": isSelect && isSelectable,
+              "bg-primary/15 text-primary font-medium": isSelected && isSelectable,
+              "hover:bg-muted/70": !isSelected && isSelectable,
               "cursor-pointer": isSelectable,
               "cursor-not-allowed opacity-50": !isSelectable,
             }
           )}
           disabled={!isSelectable}
-          onClick={() => handleExpand(value)}
+          onClick={() => {
+            handleExpand(value)
+            selectItem(value)
+          }}
         >
           {expandedItems?.includes(value)
-            ? (openIcon ?? <FolderOpenIcon className="size-4" />)
-            : (closeIcon ?? <FolderIcon className="size-4" />)}
-          <span>{element}</span>
+            ? (openIcon ?? <FolderOpenIcon className="size-4 text-amber-500 shrink-0" />)
+            : (closeIcon ?? <FolderIcon className="size-4 text-amber-500 shrink-0" />)}
+          <span className="truncate">{element}</span>
         </AccordionPrimitive.Trigger>
         <AccordionPrimitive.Content className="data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down relative h-full overflow-hidden text-sm">
           {element && indicator && <TreeIndicator aria-hidden="true" />}
@@ -264,8 +281,11 @@ const Folder = forwardRef<
             className="ml-5 flex flex-col gap-1 py-1 rtl:mr-5"
             defaultValue={expandedItems}
             value={expandedItems}
-            onValueChange={(value) => {
-              setExpandedItems?.((prev) => [...(prev ?? []), value[0]])
+            onValueChange={(val) => {
+              const item = val[0]
+              if (item) {
+                setExpandedItems?.((prev) => [...(prev ?? []), item])
+              }
             }}
           >
             {children}

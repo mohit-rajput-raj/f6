@@ -129,11 +129,11 @@ const data = {
     //   url: "/editor",
     //   icon: IconChartTreemap,
     // },
-    {
-      title: "Lifecycle",
-      url: "/lifecycle",
-      icon: IconListDetails,
-    },
+    // {
+    //   title: "Lifecycle",
+    //   url: "/lifecycle",
+    //   icon: IconListDetails,
+    // },
     {
       title: "Analytics",
       url: "/analytics",

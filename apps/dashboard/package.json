@@ -9,8 +9,11 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@base-ui/react": "^1.8.0",
     "@dnd-kit/modifiers": "^9.0.0",
     "@handsontable/react": "^16.2.0",
+    "@headless-tree/core": "^1.7.0",
+    "@headless-tree/react": "^1.7.0",
     "@hookform/resolvers": "^5.2.2",
     "@orpc/client": "^1.13.4",
     "@orpc/server": "^1.13.4",
