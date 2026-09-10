@@ -94,15 +94,14 @@ export default function Home() {
       <Header />
 
       {/* ─── Hero Section (MNC Enterprise Grade) ─── */}
-      <section className="relative pt-32 pb-16 sm:pt-38 sm:pb-24 overflow-hidden border-b border-zinc-800/80">
-        {/* Subtle grid pattern background */}
+      {/* <section className="relative pt-32 pb-16 sm:pt-38 sm:pb-24 overflow-hidden border-b border-zinc-800/80">
+       
         <div className="absolute inset-0 z-0 bg-[radial-gradient(#27272a_1px,transparent_1px)] [background-size:24px_24px] opacity-35 [mask-image:radial-gradient(ellipse_65%_50%_at_50%_20%,black_70%,transparent_100%)]" />
 
-        {/* Subtle ambient light glow */}
         <div className="absolute top-20 left-1/2 -translate-x-1/2 w-[680px] h-[280px] bg-primary/10 blur-[140px] rounded-full pointer-events-none -z-10" />
 
         <div className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 text-center space-y-7">
-          {/* Release Eyebrow Pill */}
+  
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-medium border border-zinc-800 bg-zinc-900/90 text-zinc-300 shadow-sm hover:border-zinc-700 transition-colors cursor-pointer">
             <span className="flex size-2 rounded-full bg-primary animate-pulse" />
             <span className="font-semibold text-zinc-100 font-mono">ENTERPRISE v2.4</span>
@@ -111,19 +110,19 @@ export default function Home() {
             <ArrowRight className="size-3 text-primary ml-0.5" />
           </div>
 
-          {/* Master MNC Headline */}
+        
           <h1 className="text-4xl sm:text-6xl lg:text-7xl font-extrabold tracking-tight text-white max-w-4xl mx-auto leading-[1.08]">
             Automate complex spreadsheets with deterministic visual DAGs.
           </h1>
 
-          {/* Subtitle */}
+          
           <p className="max-w-3xl mx-auto text-base sm:text-lg text-zinc-400 leading-relaxed font-normal">
             Eliminate broken VLOOKUP formulas, repetitive copy-pasting, and fragile macros. UNIXL delivers
             deterministic multi-sheet reconciliation, automated time-series expansion, and audited data governance—backed
             by dedicated PostgreSQL row-level security.
           </p>
 
-          {/* Action CTAs */}
+          
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
             <Link href="/auth/sign-in">
               <Button size="lg" className="h-11 px-7 text-sm font-semibold gap-2 shadow-sm cursor-pointer">
@@ -157,7 +156,7 @@ export default function Home() {
             </Button>
           </div>
 
-          {/* Enterprise Trust Telemetry Points */}
+          
           <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2.5 pt-4 text-xs text-zinc-400 font-mono">
             <span className="flex items-center gap-1.5">
               <CheckCircle2 className="size-3.5 text-primary" />
@@ -177,8 +176,107 @@ export default function Home() {
             </span>
           </div>
         </div>
-      </section>
+      </section> */}
+      <section className="relative pt-32 pb-16 sm:pt-38 sm:pb-24 overflow-hidden border-b border-zinc-800/80 bg-zinc-950">
+  {/* Background Image Container with Overlay Gradients */}
+  <div className="absolute inset-0 z-0 select-none pointer-events-none overflow-hidden">
+    {/* Earth Horizon High-Res Aesthetic Image */}
+    <img
+      src="https://images.unsplash.com/photo-1649047198250-a8c29163c3eb?q=80&w=735&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D"
+      alt="Earth horizon background"
+      className="w-full h-full object-cover object-center opacity-100 scale-105"
+    />
 
+    {/* Top/Bottom Dark Fade Gradients for smooth blending */}
+    <div className="absolute inset-0 bg-gradient-to-b from-zinc-950 via-zinc-950/60 to-zinc-950" />
+    
+    {/* Radial Overlay to focus text readability in the center */}
+    <div className="absolute inset-0 " />
+  </div>
+
+  {/* Subtle grid pattern background */}
+  <div className="absolute inset-0 z-[1] bg-[radial-gradient(#27272a_1px,transparent_1px)] [background-size:24px_24px] opacity-25 [mask-image:radial-gradient(ellipse_65%_50%_at_50%_20%,black_70%,transparent_100%)] pointer-events-none" />
+
+  {/* Subtle ambient light glow */}
+  <div className="absolute top-20 left-1/2 -translate-x-1/2 w-[680px] h-[280px] bg-primary/15 blur-[140px] rounded-full pointer-events-none z-[1]" />
+
+  <div className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 text-center space-y-7">
+    {/* Release Eyebrow Pill */}
+    <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-medium border border-zinc-800 bg-zinc-900/90 text-zinc-300 shadow-sm hover:border-zinc-700 transition-colors cursor-pointer backdrop-blur-sm">
+      <span className="flex size-2 rounded-full bg-primary animate-pulse" />
+      <span className="font-semibold text-zinc-100 font-mono">ENTERPRISE v2.4</span>
+      <span className="text-zinc-600">/</span>
+      <span className="text-zinc-400">Visual DAG Spreadsheet Orchestration Engine</span>
+      <ArrowRight className="size-3 text-primary ml-0.5" />
+    </div>
+
+    {/* Master MNC Headline */}
+    <h1 className="text-4xl sm:text-6xl lg:text-7xl font-extrabold tracking-tight text-zinc-300 max-w-4xl mx-auto leading-[1.08]">
+      Automate complex spreadsheets with deterministic visual DAGs.
+    </h1>
+
+    {/* Subtitle */}
+    <p className="max-w-3xl mx-auto text-base sm:text-lg text-zinc-400 leading-relaxed font-normal">
+      Eliminate broken VLOOKUP formulas, repetitive copy-pasting, and fragile macros. UNIXL delivers
+      deterministic multi-sheet reconciliation, automated time-series expansion, and audited data governance—backed
+      by dedicated PostgreSQL row-level security.
+    </p>
+
+    {/* Action CTAs */}
+    <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+      <Link href="/auth/sign-in">
+        <Button size="lg" className="h-11 px-7 text-sm font-semibold gap-2 shadow-sm cursor-pointer">
+          <span>Deploy Free Workspace</span>
+          <ArrowRight className="size-4" />
+        </Button>
+      </Link>
+
+      <a href="#interactive-showcase">
+        <Button
+          variant="outline"
+          size="lg"
+          className="h-11 px-6 text-sm font-medium gap-2 border-zinc-800 bg-zinc-900/70 hover:bg-zinc-800 hover:text-white cursor-pointer backdrop-blur-sm"
+        >
+          <Play className="size-3.5 fill-current opacity-70" />
+          <span>Explore Interactive Studio</span>
+        </Button>
+      </a>
+
+      <Button
+        variant="outline"
+        size="lg"
+        onClick={() => {
+          setImageModalOpen(true);
+          handleResetZoom();
+        }}
+        className="h-11 px-5 text-sm font-medium gap-2 border-zinc-800 bg-zinc-900/40 hover:bg-zinc-800 text-zinc-300 hover:text-white cursor-pointer backdrop-blur-sm"
+      >
+        <Maximize2 className="size-3.5 text-primary" />
+        <span>Inspect Blueprint</span>
+      </Button>
+    </div>
+
+    {/* Enterprise Trust Telemetry Points */}
+    <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2.5 pt-4 text-xs text-zinc-400 font-mono">
+      <span className="flex items-center gap-1.5">
+        <CheckCircle2 className="size-3.5 text-primary" />
+        Zero-token static schema discovery
+      </span>
+      <span className="flex items-center gap-1.5">
+        <CheckCircle2 className="size-3.5 text-primary" />
+        SOC 2 Type II & HIPAA compliant
+      </span>
+      <span className="flex items-center gap-1.5">
+        <CheckCircle2 className="size-3.5 text-primary" />
+        High-precision Syncfusion engine
+      </span>
+      <span className="flex items-center gap-1.5">
+        <CheckCircle2 className="size-3.5 text-primary" />
+        Managed Cloud or Self-Hosted
+      </span>
+    </div>
+  </div>
+</section>
       {/* ─── Enterprise Brand Trust Bar (Fortune 500 Style) ─── */}
       <section className="py-8 border-b border-zinc-800/80 bg-zinc-900/40">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
