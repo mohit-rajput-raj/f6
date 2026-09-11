@@ -96,9 +96,26 @@ export const executeWorkflow = async (
 
         case "InputFileNode":
         case "SpreadsheetInputNode":
-        case "DataLibraryInputNode": {
+        case "DataLibraryInputNode":
+        case "TabInputNode": {
           // All store parsed data in data.text as { columns, data }
-          const fileData = nodeData?.text;
+          let fileData = nodeData?.text;
+          if (currentNode.type === "TabInputNode" && (!fileData || !fileData.columns || fileData.columns.length === 0)) {
+            try {
+              const { useDeskStore } = await import("@/stores/desk-store");
+              const store = useDeskStore.getState();
+              const deskBlockId = nodeData?.deskBlockId;
+              const incoming = store.getIncomingDataForTab(deskBlockId);
+              const matched = nodeData?.selectedDatasetId
+                ? incoming.find((i) => i.id === nodeData.selectedDatasetId)
+                : incoming[0];
+              if (matched?.data) {
+                fileData = matched.data;
+              }
+            } catch (e) {
+              console.warn("Could not load incoming tab data fallback:", e);
+            }
+          }
           if (fileData && typeof fileData === "object" && fileData.columns) {
             outputValue = fileData as Dataset;
           } else {
@@ -824,37 +841,43 @@ export const executeWorkflow = async (
           const ds: Dataset = inputValue ?? { columns: [], data: [] };
           outputValue = ds;
           const previewEnabled = nodeData?.previewEnabled !== false; // default true
-          const targetTabName = nodeData?.targetTabName?.trim();
-          const targetSheetName = nodeData?.targetSheetName?.trim();
+          const passToNextTab = Boolean(nodeData?.passToNextTab);
+          const targetTabName = passToNextTab ? nodeData?.targetTabName?.trim() : "";
 
-          if (previewEnabled && ds && ds.columns && ds.columns.length > 0) {
-            try {
-              const { useDeskStore } = await import("@/stores/desk-store");
-              const deskBlockId = nodeData?.deskBlockId;
-              if (deskBlockId) {
-                useDeskStore.getState().setBlockOutput(deskBlockId, ds);
-                if (targetTabName) {
-                  useDeskStore.getState().setTabOutput(deskBlockId, targetTabName, ds);
-                }
-              }
+          try {
+            const { useDeskStore } = await import("@/stores/desk-store");
+            const deskBlockId = nodeData?.deskBlockId;
+            const store = useDeskStore.getState();
 
-              // If a target sub-sheet name is specified (e.g. Sheet1, Sheet2), push to MasterSheet store with that sheetName
-              if (targetSheetName) {
-                const { useMasterSheetStore } = await import("@/stores/master-sheet-store");
-                useMasterSheetStore.getState().pushData({
-                  masterSheetName: targetSheetName,
-                  sheetName: targetSheetName,
-                  data: ds,
-                  blockCodenames: [],
-                  pushedBy: 'workflow',
-                  pushedByName: nodeData?.previewName || 'Output Preview',
-                  pushedAt: Date.now(),
-                  sourceNodeId: currentId,
-                });
+            if (deskBlockId) {
+              if (previewEnabled && ds && ds.columns && ds.columns.length > 0) {
+                store.setBlockOutput(deskBlockId, ds);
+              } else {
+                store.setBlockOutput(deskBlockId, null);
               }
-            } catch (e) {
-              console.warn("Could not push to desk/master-sheet store:", e);
             }
+
+            // Pass data to targeted tab/block as an incoming dataset only if passToNextTab is enabled
+            if (passToNextTab && targetTabName && ds && ds.columns && ds.columns.length > 0) {
+              const sourceBlock = store.blocks.find((b) => b.id === deskBlockId);
+              const fromTabName = sourceBlock?.name || "Tab";
+              const outputName = nodeData?.previewName || "Preview Output";
+
+              store.addIncomingTabData(targetTabName, {
+                id: `${currentId}_${outputName}`,
+                name: outputName,
+                fromTabName,
+                fromBlockId: deskBlockId,
+                targetTabName,
+                data: ds,
+              });
+
+              if (deskBlockId) {
+                store.setTabOutput(deskBlockId, targetTabName, ds);
+              }
+            }
+          } catch (e) {
+            console.warn("Could not push to desk store:", e);
           }
           break;
         }

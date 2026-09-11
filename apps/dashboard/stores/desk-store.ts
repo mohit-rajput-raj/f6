@@ -32,6 +32,16 @@ export interface ActionButton {
   triggered: boolean;
 }
 
+export interface IncomingTabData {
+  id: string;
+  name: string;
+  fromTabName: string;
+  fromBlockId?: string;
+  targetTabName: string;
+  data: Dataset;
+  updatedAt: number;
+}
+
 export interface DeskBlockState {
   id: string;
   name: string;
@@ -109,6 +119,10 @@ interface DeskState {
   // ─── Per-block Output Preview ───
   setBlockOutput: (blockId: string, data: Dataset | null) => void;
   setTabOutput: (blockId: string, tabIdOrName: string, data: Dataset | null) => void;
+  incomingDataByTab: Record<string, IncomingTabData[]>;
+  addIncomingTabData: (targetTabIdentifier: string, item: Omit<IncomingTabData, 'updatedAt'>) => void;
+  getIncomingDataForTab: (tabIdOrName?: string) => IncomingTabData[];
+  clearIncomingDataForTab: (tabIdOrName: string, id?: string) => void;
 
   // ─── Per-block Checkbox Actions ───
   addCheckboxField: (blockId: string, field: CheckboxField) => void;
@@ -163,6 +177,7 @@ export const useDeskStore = create<DeskState>()((set, get) => ({
   activeMasterSheetData: null,
   ocrResult: null,
   isOcrProcessing: false,
+  incomingDataByTab: {},
 
   // ─── Top-level setters ─────────────────────────────────────
   setBlocks: (blocks) => set({ blocks }),
@@ -271,6 +286,7 @@ export const useDeskStore = create<DeskState>()((set, get) => ({
     set((s) => ({
       blocks: mapBlock(s.blocks, blockId, (b) => ({
         ...b,
+        outputPreview: null,
         sheets: b.sheets.map((sh) =>
           sh.id === sheetId ? { ...sh, data } : sh,
         ),
@@ -281,6 +297,7 @@ export const useDeskStore = create<DeskState>()((set, get) => ({
     set((s) => ({
       blocks: mapBlock(s.blocks, blockId, (b) => ({
         ...b,
+        outputPreview: null,
         sheets: b.sheets.map((sh) =>
           sh.id === sheetId ? { ...sh, data: null } : sh,
         ),
@@ -328,6 +345,99 @@ export const useDeskStore = create<DeskState>()((set, get) => ({
         };
       }),
     })),
+
+  addIncomingTabData: (targetTabIdentifier, item) => {
+    if (!targetTabIdentifier) return;
+    const cleanTarget = targetTabIdentifier.trim();
+    const key = cleanTarget.toLowerCase();
+    const newItem: IncomingTabData = { ...item, updatedAt: Date.now() };
+
+    set((state) => {
+      const existingList = state.incomingDataByTab[key] || [];
+      const filtered = existingList.filter(
+        (e) => e.id !== newItem.id && !(e.name === newItem.name && e.fromTabName === newItem.fromTabName)
+      );
+      const updatedList = [newItem, ...filtered];
+
+      const matchedBlock = state.blocks.find(
+        (b) => b.id.toLowerCase() === key || b.name.toLowerCase() === key
+      );
+
+      const nextMap = {
+        ...state.incomingDataByTab,
+        [key]: updatedList,
+        [cleanTarget]: updatedList,
+      };
+
+      if (matchedBlock) {
+        nextMap[matchedBlock.id] = updatedList;
+        nextMap[matchedBlock.name.toLowerCase()] = updatedList;
+      }
+
+      return { incomingDataByTab: nextMap };
+    });
+  },
+
+  getIncomingDataForTab: (tabIdOrName) => {
+    if (!tabIdOrName) return [];
+    const state = get();
+    const clean = tabIdOrName.trim();
+    const key = clean.toLowerCase();
+
+    const results: IncomingTabData[] = [];
+    const seenIds = new Set<string>();
+
+    const addItems = (list?: IncomingTabData[]) => {
+      if (!list) return;
+      for (const item of list) {
+        if (!seenIds.has(item.id)) {
+          seenIds.add(item.id);
+          results.push(item);
+        }
+      }
+    };
+
+    // Direct key matches
+    addItems(state.incomingDataByTab[key]);
+    addItems(state.incomingDataByTab[clean]);
+
+    // Check if tabIdOrName matches any block ID or block name
+    const block = state.blocks.find((b) => b.id === clean || b.name.toLowerCase() === key);
+    if (block) {
+      addItems(state.incomingDataByTab[block.id]);
+      addItems(state.incomingDataByTab[block.name.toLowerCase()]);
+      addItems(state.incomingDataByTab[block.name]);
+    }
+
+    return results;
+  },
+
+  clearIncomingDataForTab: (tabIdOrName, id) => {
+    const clean = tabIdOrName.trim();
+    const key = clean.toLowerCase();
+    set((state) => {
+      const matchedBlock = state.blocks.find(
+        (b) => b.id.toLowerCase() === key || b.name.toLowerCase() === key || b.id === clean || b.name === clean
+      );
+
+      const filterList = (list?: IncomingTabData[]) => {
+        if (!list) return [];
+        return id ? list.filter((i) => i.id !== id) : [];
+      };
+
+      const nextMap = { ...state.incomingDataByTab };
+      nextMap[key] = filterList(state.incomingDataByTab[key]);
+      nextMap[clean] = filterList(state.incomingDataByTab[clean]);
+
+      if (matchedBlock) {
+        nextMap[matchedBlock.id] = filterList(state.incomingDataByTab[matchedBlock.id]);
+        nextMap[matchedBlock.name.toLowerCase()] = filterList(state.incomingDataByTab[matchedBlock.name.toLowerCase()]);
+        nextMap[matchedBlock.name] = filterList(state.incomingDataByTab[matchedBlock.name]);
+      }
+
+      return { incomingDataByTab: nextMap };
+    });
+  },
 
   // ─── Checkbox Actions ──────────────────────────────────────
   addCheckboxField: (blockId, field) =>
