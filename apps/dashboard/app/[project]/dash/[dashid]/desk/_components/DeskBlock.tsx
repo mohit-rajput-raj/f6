@@ -1,15 +1,15 @@
 "use client"
 
-import React, { useCallback, useEffect, useRef, useState } from "react"
+import React, { useCallback, useEffect, useRef, useState, useMemo } from "react"
 import {
   Play, Settings, FileUp, Table2, Eye, ChevronDown,
-  Loader2, CheckSquare, Trash2, Edit2, Download, Plus, Pencil,
+  Loader2, CheckSquare, Trash2, Edit2, Download, Plus, Pencil, Inbox,
 } from "lucide-react"
 import { Input } from "@repo/ui/components/ui/input"
 import { Button } from "@/components/ui/components"
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@repo/ui/components/ui/resizable"
 import { Badge } from "@repo/ui/components/ui/badge"
-import { useDeskStore, type DeskBlockState, type Dataset } from "@/stores/desk-store"
+import { useDeskStore, type DeskBlockState, type Dataset, type IncomingTabData } from "@/stores/desk-store"
 import { toast } from "sonner"
 import { useRouter, usePathname } from "next/navigation"
 import dynamic from "next/dynamic"
@@ -137,19 +137,39 @@ export function DeskBlock({
     updateSheetData,
     updateSheetName,
     toggleCheckbox,
+    setBlockOutput,
     isViewer,
   } = useDeskStore()
 
   // ─── Active preview tab state ──────────────────────────────
   const [activePreviewTab, setActivePreviewTab] = useState<string>("output_preview")
 
+  const incomingDataByTab = useDeskStore((s) => s.incomingDataByTab)
+  const incomingDatasets: IncomingTabData[] = useMemo(() => {
+    if (!activeChild) return []
+    return useDeskStore.getState().getIncomingDataForTab(activeChild.id)
+  }, [incomingDataByTab, activeChild?.id, activeChild?.name])
+
   const outputPreviewData = activeChild?.outputPreview ?? null
   const activeSheet = activeChild?.sheets.find((s) => s.id === activePreviewTab)
+  const activeIncoming = incomingDatasets.find((inc: IncomingTabData) => `incoming_${inc.id}` === activePreviewTab)
 
   const previewData: Dataset | null =
     activePreviewTab === "output_preview"
       ? outputPreviewData
-      : (activeSheet?.data ?? null)
+      : activeIncoming
+        ? activeIncoming.data
+        : (activeSheet?.data ?? null)
+
+  const spreadsheetKey = useMemo(() => {
+    const id = activeChild?.id || "tab"
+    const tab = activePreviewTab
+    const rows = previewData?.data?.length ?? 0
+    const cols = previewData?.columns?.length ?? 0
+    const firstCell = String(previewData?.data?.[0]?.[0] ?? "")
+    const updated = activeIncoming?.updatedAt ?? 0
+    return `${id}_${tab}_${rows}_${cols}_${firstCell}_${updated}`
+  }, [activeChild?.id, activePreviewTab, previewData, activeIncoming?.updatedAt])
 
   // Auto-select output_preview if it has data, or fallback to first sheet with data
   useEffect(() => {
@@ -199,28 +219,32 @@ export function DeskBlock({
   const handleSheetFileUpload = useCallback((blockId: string, sheetId: string, e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
+    const inputEl = e.target
     const reader = new FileReader()
     reader.onload = () => {
       const text = reader.result as string
       const parsed = parseCSV(text)
       if (parsed.columns.length > 0) {
         updateSheetData(blockId, sheetId, parsed)
+        setBlockOutput(blockId, null) // reset old output preview since new data was uploaded
         setActivePreviewTab(sheetId)
         toast.success(`Loaded ${parsed.data.length} rows`)
       } else {
         toast.error("Could not parse file — ensure it's a valid CSV")
       }
+      inputEl.value = "" // allow re-uploading the same file
     }
     reader.readAsText(file)
-  }, [updateSheetData])
+  }, [updateSheetData, setBlockOutput])
 
   // ─── Load previous BigBlock output into a sheet ────────────
   const handleLoadPreviousIntoSheet = useCallback((blockId: string, sheetId: string) => {
     if (!previousBlockOutput) return
     updateSheetData(blockId, sheetId, previousBlockOutput)
+    setBlockOutput(blockId, null) // reset old output preview
     setActivePreviewTab(sheetId)
     toast.success(`Loaded ${previousBlockOutput.data.length} rows from previous BigBlock`)
-  }, [previousBlockOutput, updateSheetData])
+  }, [previousBlockOutput, updateSheetData, setBlockOutput])
 
   // ─── Navigate to child block's editor ──────────────────────
   const openEditor = useCallback((child: DeskBlockState) => {
@@ -270,9 +294,9 @@ export function DeskBlock({
     // 2. Clear & updateCell fallback
     if (typeof ss.updateCell === "function") {
       try {
-        // Clear previous grid area (50 rows x 30 cols)
-        for (let r = 0; r < 50; r++) {
-          for (let c = 0; c < 30; c++) {
+        // Clear previous grid area (up to 200 rows x 50 cols)
+        for (let r = 0; r < 200; r++) {
+          for (let c = 0; c < 50; c++) {
             const addr = `${colLetter(c)}${r + 1}`
             ss.updateCell({ value: "" }, addr)
           }
@@ -530,6 +554,90 @@ export function DeskBlock({
                   </div>
                 )}
 
+                {/* Incoming Datasets from Other Tabs */}
+                {incomingDatasets.length > 0 && (
+                  <div className="p-3 border-b bg-muted/20">
+                    <h4 className="font-semibold text-xs flex items-center gap-1.5 mb-2 text-foreground">
+                      <Inbox className="size-3.5 text-primary" />
+                      Received from Tabs
+                      <Badge variant="secondary" className="text-[9px]">
+                        {incomingDatasets.length}
+                      </Badge>
+                    </h4>
+                    <div className="space-y-1.5">
+                      {incomingDatasets.map((item: IncomingTabData, i: number) => (
+                        <div
+                          key={`${item.id}-${i}`}
+                          className={`rounded-lg border p-2 bg-background space-y-1.5 cursor-pointer transition-all ${
+                            activePreviewTab === `incoming_${item.id}`
+                              ? "ring-1 ring-ring border-border shadow-sm"
+                              : "border-border hover:border-ring/50"
+                          }`}
+                          onClick={() => setActivePreviewTab(`incoming_${item.id}`)}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-semibold text-foreground truncate max-w-[140px]" title={item.name}>
+                              {item.name}
+                            </span>
+                            <div className="flex items-center gap-1">
+                              {activeChild.sheets.length > 0 && !isGuest && (
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-5 text-[10px] px-1.5 gap-1 text-muted-foreground hover:text-foreground"
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      <Download className="size-2.5" />
+                                      Load
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end">
+                                    {activeChild.sheets.map((sheet) => (
+                                      <DropdownMenuItem
+                                        key={sheet.id}
+                                        className="cursor-pointer text-xs"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          updateSheetData(activeChild.id, sheet.id, item.data);
+                                          setBlockOutput(activeChild.id, null);
+                                          setActivePreviewTab(sheet.id);
+                                          toast.success(`Loaded "${item.name}" into "${sheet.name}"`);
+                                        }}
+                                      >
+                                        📊 {sheet.name}
+                                      </DropdownMenuItem>
+                                    ))}
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              )}
+                              {!isGuest && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    useDeskStore.getState().clearIncomingDataForTab(activeChild.id, item.id);
+                                    useDeskStore.getState().clearIncomingDataForTab(activeChild.name, item.id);
+                                    toast.info("Removed incoming dataset");
+                                  }}
+                                  className="text-muted-foreground hover:text-red-500 p-0.5 rounded transition"
+                                  title="Clear dataset"
+                                >
+                                  <Trash2 className="size-3" />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                            <span>From: <strong className="text-foreground">{item.fromTabName}</strong></span>
+                            <span>{item.data.data.length}r × {item.data.columns.length}c</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {/* Text Inputs Section */}
                 <div className="p-3 border-b">
                   <h4 className="font-semibold text-xs flex items-center gap-1.5 mb-2">
@@ -724,6 +832,23 @@ export function DeskBlock({
                         )}
                       </button>
                     ))}
+
+                    {/* Incoming Tab Datasets */}
+                    {incomingDatasets.map((item: IncomingTabData, i: number) => (
+                      <button
+                        key={`${item.id}-${i}`}
+                        onClick={() => setActivePreviewTab(`incoming_${item.id}`)}
+                        className={`text-[10px] px-2.5 py-1 rounded-md transition-all whitespace-nowrap font-medium flex items-center gap-1 ${
+                          activePreviewTab === `incoming_${item.id}`
+                            ? "bg-secondary text-secondary-foreground border border-border shadow-sm font-semibold"
+                            : "bg-background text-muted-foreground hover:text-foreground hover:bg-muted border border-border"
+                        }`}
+                      >
+                        <Inbox className="size-2.5" />
+                        {item.name || item.fromTabName}
+                        <span className="ml-0.5 opacity-60">({item.data.data.length}r)</span>
+                      </button>
+                    ))}
                   </div>
 
                   {previewData && previewData.columns && (
@@ -737,6 +862,7 @@ export function DeskBlock({
                   <ErrorBoundary fallback={<div className="flex items-center justify-center h-full text-xs text-muted-foreground">Loading spreadsheet view...</div>}>
                     <div className={`w-full h-full ${previewData && previewData.columns && previewData.columns.length > 0 ? "block" : "hidden"}`}>
                       <SpreadsheetComponent
+                        key={spreadsheetKey}
                         ref={spreadsheetRef}
                         created={onSpreadsheetCreated}
                         className="w-full h-full"

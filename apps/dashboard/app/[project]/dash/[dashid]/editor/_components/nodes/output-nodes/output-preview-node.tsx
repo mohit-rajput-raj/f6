@@ -1,6 +1,6 @@
 'use client';
 
-import { memo, useCallback } from 'react';
+import { memo, useCallback, useMemo, useEffect } from 'react';
 import { Handle, Position, useReactFlow } from '@xyflow/react';
 import { Eye, EyeOff, Table2 } from 'lucide-react';
 import {
@@ -11,6 +11,8 @@ import { IconTrash } from "@tabler/icons-react";
 import { useDeleteNode } from "../settings/triggers";
 import { Badge } from "@repo/ui/components/ui/badge";
 import { Input } from "@repo/ui/components/ui/input";
+import { useDeskStore } from "@/stores/desk-store";
+import { useEditorWorkFlow } from "@/context/WorkFlowContextProvider";
 
 interface Dataset {
   columns: string[];
@@ -19,15 +21,30 @@ interface Dataset {
 
 /**
  * OutputPreviewNode — terminal node that pushes data to the desk panel's
- * Syncfusion spreadsheet preview.
+ * Syncfusion spreadsheet preview, and forwards datasets to target tabs.
  *
  * data.result = { columns, data } — set by the execution engine
  * data.previewEnabled = boolean — toggle preview on/off (default true)
  * data.previewName = string — label shown in the desk preview tab
+ * data.targetTabName = string — name/id of the target tab to forward dataset to
  */
 export const OutputPreviewNode = memo(({ id, data }: { id: string; data: any }) => {
   const { setNodes } = useReactFlow();
   const handleDelete = useDeleteNode();
+  const { deskBlockId: contextBlockId } = useEditorWorkFlow();
+  const deskBlockId: string = data.deskBlockId || contextBlockId || '';
+
+  // Ensure deskBlockId is kept on node data
+  useEffect(() => {
+    if (!data.deskBlockId && contextBlockId) {
+      setNodes((nds) =>
+        nds.map((n) =>
+          n.id === id ? { ...n, data: { ...n.data, deskBlockId: contextBlockId } } : n
+        )
+      );
+    }
+  }, [id, data.deskBlockId, contextBlockId, setNodes]);
+
   const result: Dataset | null = data.result ?? null;
   const previewEnabled: boolean = data.previewEnabled !== false; // default true
   const previewName: string = data.previewName || 'Preview';
@@ -42,8 +59,27 @@ export const OutputPreviewNode = memo(({ id, data }: { id: string; data: any }) 
     );
   }, [id, setNodes, previewEnabled]);
 
+  const passToNextTab: boolean = data.passToNextTab ?? false;
   const targetTabName: string = data.targetTabName || '';
-  const targetSheetName: string = data.targetSheetName || '';
+
+  const togglePassToNextTab = useCallback(() => {
+    setNodes(nds =>
+      nds.map(n =>
+        n.id === id
+          ? { ...n, data: { ...n.data, passToNextTab: !passToNextTab } }
+          : n
+      )
+    );
+  }, [id, setNodes, passToNextTab]);
+
+  const blocks = useDeskStore((s) => s.blocks);
+  // Get other tabs excluding current tab
+  const otherTabs = useMemo(() => {
+    return blocks
+      .filter((b) => b.parentId !== null && b.id !== deskBlockId && b.name)
+      .map((b) => ({ id: b.id, name: b.name.trim() }))
+      .filter((b, idx, arr) => arr.findIndex((x) => x.name === b.name) === idx);
+  }, [blocks, deskBlockId]);
 
   const updateField = useCallback((field: string, value: string) => {
     setNodes(nds =>
@@ -99,26 +135,61 @@ export const OutputPreviewNode = memo(({ id, data }: { id: string; data: any }) 
             />
           </div>
 
-          {/* Target Next Tab & Target Sub-Sheet Name */}
-          <div className="grid grid-cols-2 gap-1.5 pt-1 border-t">
-            <div>
-              <label className="text-[9px] text-muted-foreground font-medium">Target Next Tab</label>
-              <Input
-                value={targetTabName}
-                onChange={(e) => updateField('targetTabName', e.target.value)}
-                className="h-5 text-[10px] nodrag bg-zinc-900 border-zinc-800"
-                placeholder="e.g. Tab 2 (Auto)"
-              />
+          {/* Option: Pass Data to Next Block / Tab */}
+          <div className="space-y-2 pt-1 border-t border-border">
+            <div className="flex items-center justify-between">
+              <label className="text-[10px] text-muted-foreground font-medium flex items-center gap-1.5">
+                <span>Pass Data to Next Tab</span>
+              </label>
+
+              {/* Toggle switch for passing data */}
+              <button
+                type="button"
+                onClick={togglePassToNextTab}
+                className={`relative inline-flex h-4 w-7 items-center rounded-full transition-colors focus:outline-none nodrag cursor-pointer ${
+                  passToNextTab ? 'bg-purple-600' : 'bg-zinc-700'
+                }`}
+                title={passToNextTab ? 'Passing to next tab enabled' : 'Preview only — no forwarding'}
+              >
+                <span
+                  className={`inline-block h-2.5 w-2.5 transform rounded-full bg-white transition-transform ${
+                    passToNextTab ? 'translate-x-3.5' : 'translate-x-0.5'
+                  }`}
+                />
+              </button>
             </div>
-            <div>
-              <label className="text-[9px] text-muted-foreground font-medium">Target Sheet Tab</label>
-              <Input
-                value={targetSheetName}
-                onChange={(e) => updateField('targetSheetName', e.target.value)}
-                className="h-5 text-[10px] nodrag bg-zinc-900 border-zinc-800"
-                placeholder="e.g. Sheet1, Sheet2"
-              />
-            </div>
+
+            {passToNextTab ? (
+              <div className="space-y-1.5">
+                {otherTabs.length > 0 ? (
+                  <>
+                    <select
+                      value={targetTabName}
+                      onChange={(e) => updateField('targetTabName', e.target.value)}
+                      className="w-full h-7 text-xs rounded border border-zinc-700 bg-zinc-900 px-2 text-zinc-100 focus:outline-none focus:ring-1 focus:ring-purple-500 nodrag cursor-pointer"
+                    >
+                      <option value="">Select target tab...</option>
+                      {otherTabs.map((tab) => (
+                        <option key={tab.id} value={tab.name}>
+                          → {tab.name}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-[9px] text-muted-foreground">
+                      Forwards dataset to <strong>{targetTabName || 'selected tab'}</strong>&apos;s incoming array.
+                    </p>
+                  </>
+                ) : (
+                  <div className="rounded border border-dashed border-zinc-700 bg-zinc-900/50 p-2 text-center text-[10px] text-zinc-400">
+                    No other block or tab exists in Desk. Add another tab to enable forwarding.
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p className="text-[9px] text-zinc-400 italic">
+                Preview only — data will only be displayed in this tab&apos;s Desk panel.
+              </p>
+            )}
           </div>
 
           {!previewEnabled && (
@@ -194,8 +265,9 @@ export const OutputPreviewNode = memo(({ id, data }: { id: string; data: any }) 
           )}
         </BaseNodeContent>
 
-        {/* Input handle only — NO output handle (terminal node) */}
+        {/* Input and Output handles */}
         <Handle type="target" position={Position.Left} id="in" className="w-3 h-3 bg-purple-600" />
+        <Handle type="source" position={Position.Right} id="out" className="w-3 h-3 bg-purple-600" />
       </BaseNode>
     </>
   );

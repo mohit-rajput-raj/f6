@@ -134,6 +134,7 @@ import {
   IconEye,
   IconForms,
   IconTableImport,
+  IconInbox,
   IconDatabase,
   IconSparkles,
 } from "@tabler/icons-react";
@@ -192,6 +193,12 @@ const nodes = [
         type: "DeskSheetNode",
         icon: <IconTableImport />,
         description: "Sheet data from Desk panel",
+      },
+      {
+        title: "Tab Input",
+        type: "TabInputNode",
+        icon: <IconInbox />,
+        description: "Receive dataset from another tab / Output Preview",
       },
       {
         title: "MasterSheet Library",

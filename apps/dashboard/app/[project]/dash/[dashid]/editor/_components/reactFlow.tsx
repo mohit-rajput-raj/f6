@@ -72,6 +72,7 @@ import { TextValueNode } from "./nodes/input-nodes/text-value-node";
 import { NumberValueNode } from "./nodes/input-nodes/number-value-node";
 import { DeskTextInputNode } from "./nodes/input-nodes/desk-text-input-node";
 import { DeskSheetNode } from "./nodes/input-nodes/desk-sheet-node";
+import { TabInputNode } from "./nodes/input-nodes/tab-input-node";
 import { OutputPreviewNode } from "./nodes/output-nodes/output-preview-node";
 import { TrueFalseNode } from "./nodes/input-nodes/true-false-node";
 import { BlockOutputSenderNode } from "./nodes/output-nodes/block-output-sender-node";
@@ -219,6 +220,7 @@ const Flow = ({ handleRuns }: { handleRuns?: () => void } = {}) => {
       // Desk panel nodes
       DeskTextInputNode: DeskTextInputNode,
       DeskSheetNode: DeskSheetNode,
+      TabInputNode: TabInputNode,
       OutputPreviewNode: OutputPreviewNode,
       TrueFalseNode: TrueFalseNode,
       BlockOutputSenderNode: BlockOutputSenderNode,
@@ -526,7 +528,7 @@ const Flow = ({ handleRuns }: { handleRuns?: () => void } = {}) => {
       let extraData: any = {};
 
       // Auto-inject deskBlockId for desk-type nodes
-      const deskNodeTypes = ["DeskTextInputNode", "DeskSheetNode", "OutputPreviewNode", "TrueFalseNode", "BlockOutputSenderNode", "MasterSheetPreviewNode"];
+      const deskNodeTypes = ["DeskTextInputNode", "DeskSheetNode", "TabInputNode", "OutputPreviewNode", "TrueFalseNode", "BlockOutputSenderNode", "MasterSheetPreviewNode"];
       if (deskBlockId && deskNodeTypes.includes(type)) {
         extraData.deskBlockId = deskBlockId;
       }

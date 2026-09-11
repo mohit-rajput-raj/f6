@@ -135,6 +135,7 @@ export type EditorCanvasTypes =
   | 'RenameColumnNode'
   | 'SelectColumnsNode'
   | 'SpreadsheetInputNode'
+  | 'TabInputNode'
   | 'DataLibraryInputNode'
   | 'CountNode'
   | 'UnionMergeNode'

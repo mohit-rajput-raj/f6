@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useCallback, useRef, useEffect } from "react"
+import React, { useState, useCallback, useRef, useEffect, useMemo } from "react"
 import {
   Plus, Camera, X,
   Settings2, Loader2, ArrowDown,
@@ -8,13 +8,13 @@ import {
 import { Button } from "@/components/ui/components"
 import { toast } from "sonner"
 import { useSession } from "@/lib/auth-client"
-import { useDeskStore } from "@/stores/desk-store"
+import { useDeskStore, type DeskBlockState } from "@/stores/desk-store"
+import { useQuery } from "@tanstack/react-query"
 import { scanTableImage } from "./ocr-actions"
 import {
   getSharedDeskAccess,
 } from "./desk-share-actions"
 import {
-  getDeskBlocks,
   createDeskBlock,
   initializeDefaultDesk,
   updateDeskBlockInputs,
@@ -40,25 +40,24 @@ export default function DeskPage() {
   const params = useParams()
   const dashid = params?.dashid as string
 
-  const {
-    blocks,
-    isLoading,
-    isGuest,
-    isViewer,
-    ocrResult,
-    isOcrProcessing,
-    setBlocks,
-    setProjectWorkflowId,
-    setIsLoading,
-    setIsGuest,
-    setDeskAccess,
-    addBlock,
-    removeBlock,
-    setBlockOutput,
-    setBlockExecuting,
-    setOcrResult,
-    setOcrProcessing,
-  } = useDeskStore()
+  // ─── Granular Zustand selectors (prevents full re-render on every store change) ───
+  const blocks = useDeskStore((s) => s.blocks)
+  const isLoading = useDeskStore((s) => s.isLoading)
+  const isGuest = useDeskStore((s) => s.isGuest)
+  const isViewer = useDeskStore((s) => s.isViewer)
+  const ocrResult = useDeskStore((s) => s.ocrResult)
+  const isOcrProcessing = useDeskStore((s) => s.isOcrProcessing)
+
+  // Actions (stable references — never cause re-renders)
+  const setBlocks = useDeskStore((s) => s.setBlocks)
+  const setProjectWorkflowId = useDeskStore((s) => s.setProjectWorkflowId)
+  const setIsLoading = useDeskStore((s) => s.setIsLoading)
+  const setDeskAccess = useDeskStore((s) => s.setDeskAccess)
+  const addBlock = useDeskStore((s) => s.addBlock)
+  const setBlockOutput = useDeskStore((s) => s.setBlockOutput)
+  const setBlockExecuting = useDeskStore((s) => s.setBlockExecuting)
+  const setOcrResult = useDeskStore((s) => s.setOcrResult)
+  const setOcrProcessing = useDeskStore((s) => s.setOcrProcessing)
 
   const [isAddingBlock, setIsAddingBlock] = useState(false)
 
@@ -72,42 +71,44 @@ export default function DeskPage() {
   const router = useRouter()
   const pathname = usePathname()
 
-  // ─── Load blocks from DB on mount ─────────────────────────
+  // ─── Load blocks from DB on mount (cached with TanStack Query) ─────
+  const { data: _deskData, isLoading: isDeskQueryLoading } = useQuery({
+    queryKey: ['desk-load', dashid, userId],
+    queryFn: async () => {
+      setProjectWorkflowId(dashid)
+
+      // Parallel fetch: access check + blocks initialization
+      const [access, dbBlocks] = await Promise.all([
+        userEmail ? getSharedDeskAccess(dashid, userEmail) : null,
+        initializeDefaultDesk(dashid, userId!),
+      ])
+
+      if (access) setDeskAccess(access)
+
+      const mappedBlocks = dbBlocks.map((b) => ({
+        ...b,
+        actionButtons: [] as any[],
+        isExecuting: false,
+      }))
+      setBlocks(mappedBlocks)
+
+      return { access, blocks: mappedBlocks }
+    },
+    enabled: !!dashid && !!userId,
+    staleTime: 5 * 60 * 1000,    // don't refetch for 5 min
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+  })
+
+  // Sync TanStack Query loading state with our store's isLoading
   useEffect(() => {
-    if (!dashid || !userId) return
+    setIsLoading(isDeskQueryLoading)
+  }, [isDeskQueryLoading, setIsLoading])
 
-    const loadDesk = async () => {
-      setIsLoading(true)
-      try {
-        setProjectWorkflowId(dashid)
-
-        // Check viewer/editor permission for this desk
-        if (userEmail) {
-          const access = await getSharedDeskAccess(dashid, userEmail)
-          setDeskAccess(access)
-        }
-
-        const dbBlocks = await initializeDefaultDesk(dashid, userId)
-        setBlocks(
-          dbBlocks.map((b) => ({
-            ...b,
-            actionButtons: [],
-            isExecuting: false,
-          }))
-        )
-      } catch (err) {
-        console.error("Failed to load desk blocks:", err)
-        toast.error("Failed to load desk")
-      } finally {
-        setIsLoading(false)
-      }
-    }
-
-    loadDesk()
-  }, [dashid, userId])
-
-  // ─── Auto-save block state to DB (debounced) ──────────────
+  // ─── Auto-save block state to DB (debounced, targeted) ────
   const saveTimerRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
+  const isInitialLoadRef = useRef(true)
+  const prevBlockSnapshotRef = useRef<Record<string, string>>({})
 
   const debouncedSaveBlock = useCallback(
     (blockId: string) => {
@@ -131,10 +132,37 @@ export default function DeskPage() {
     []
   )
 
-  // Watch blocks for changes and trigger save
+  // Watch blocks for changes and trigger save — ONLY for blocks that actually changed
   useEffect(() => {
+    // Skip saving on initial load (blocks just came from DB, no changes)
+    if (isInitialLoadRef.current) {
+      // Snapshot current blocks state so we can diff later
+      const snapshot: Record<string, string> = {}
+      blocks.forEach((block) => {
+        snapshot[block.id] = JSON.stringify({
+          textInputs: block.textInputs,
+          sheets: block.sheets,
+          checkboxFields: block.checkboxFields,
+        })
+      })
+      prevBlockSnapshotRef.current = snapshot
+      isInitialLoadRef.current = false
+      return
+    }
+
+    // Only save blocks whose saveable fields actually changed
     blocks.forEach((block) => {
-      debouncedSaveBlock(block.id)
+      const currentKey = JSON.stringify({
+        textInputs: block.textInputs,
+        sheets: block.sheets,
+        checkboxFields: block.checkboxFields,
+      })
+      const prevKey = prevBlockSnapshotRef.current[block.id]
+
+      if (currentKey !== prevKey) {
+        prevBlockSnapshotRef.current[block.id] = currentKey
+        debouncedSaveBlock(block.id)
+      }
     })
   }, [blocks, debouncedSaveBlock])
 
@@ -172,6 +200,12 @@ export default function DeskPage() {
       if (!block) return
 
       setBlockExecuting(blockId, true)
+      // Immediately reset previous output preview so old data doesn't linger while executing
+      setBlockOutput(blockId, null)
+      if (block.parentId) {
+        setBlockOutput(block.parentId, null)
+      }
+
       try {
         // Load the block's editor workflow
         const workflow = await getWorkFlow(block.editorWorkflowId)
@@ -227,6 +261,14 @@ export default function DeskPage() {
             setBlockOutput(block.parentId, outputData)
             useDeskStore.getState().setTabOutput(block.parentId, block.name, outputData)
             await updateDeskBlockOutput(block.parentId, outputData)
+          }
+        } else {
+          setBlockOutput(blockId, null)
+          await updateDeskBlockOutput(blockId, null)
+          if (block.parentId) {
+            setBlockOutput(block.parentId, null)
+            useDeskStore.getState().setTabOutput(block.parentId, block.name, null)
+            await updateDeskBlockOutput(block.parentId, null)
           }
         }
 
@@ -336,21 +378,23 @@ export default function DeskPage() {
   )
 
   // Watch for triggered action buttons to auto-execute their block
+  // Only checks blocks with triggered buttons (avoids iterating all blocks every render)
+  const triggeredBlocks = useMemo(
+    () => blocks.filter((b) => b.actionButtons?.some((a) => a.triggered) && !b.isExecuting),
+    [blocks]
+  )
+
   useEffect(() => {
-    blocks.forEach((block) => {
-      if (block.actionButtons?.some(a => a.triggered) && !block.isExecuting) {
-        // Run the block execution
-        handleExecuteBlock(block.id).then(() => {
-          // Reset the triggered buttons after execution
-          block.actionButtons?.forEach(a => {
-            if (a.triggered) {
-              useDeskStore.getState().resetActionButton(block.id, a.id);
-            }
-          });
-        });
-      }
-    });
-  }, [blocks, handleExecuteBlock]);
+    triggeredBlocks.forEach((block) => {
+      handleExecuteBlock(block.id).then(() => {
+        block.actionButtons?.forEach((a) => {
+          if (a.triggered) {
+            useDeskStore.getState().resetActionButton(block.id, a.id)
+          }
+        })
+      })
+    })
+  }, [triggeredBlocks, handleExecuteBlock]);
 
   // ─── OCR Handler ──────────────────────────────────────────
   const handleOcrUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
