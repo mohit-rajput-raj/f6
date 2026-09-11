@@ -19,9 +19,10 @@ import {
   LogOut,
 } from "lucide-react";
 import { Button } from "@repo/ui/components/ui/button";
-import { Badge } from "@repo/ui/components/ui/badge";
 import { ModeToggle } from "@repo/ui/components/themes/toogle";
-
+import Image from "next/image";
+import logoSymbol from "@/public/unixl-logo-symbol-nobg.png";
+import { Badge } from "@repo/ui/components/ui/badge";
 export default function Header() {
   const router = useRouter();
   const { main_id } = useRouteAuthContextHook();
@@ -31,14 +32,29 @@ export default function Header() {
   const dashboardUrl = main_id ? `/projects/${main_id}/projects` : "/projects";
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 border-b border-border/40 bg-background/80 backdrop-blur-md transition-all">
+    <header className="fixed top-0 left-0 right-0 z-50 border-b border-border/40 bg-background/30 backdrop-blur-md transition-all">
       <div className="max-w-7xl mx-auto flex items-center justify-between px-4 sm:px-6 h-16">
         {/* Left: Brand Logo & Release Chip */}
         <div className="flex items-center gap-3">
           <Link href="/" className="flex items-center gap-2 group">
-            <div className="w-8 h-8 rounded-lg bg-zinc-900 border border-zinc-700/80 flex items-center justify-center text-primary shadow-sm group-hover:border-primary/60 transition-colors">
-              <Layers className="size-4 text-primary" />
-            </div>
+            {/* <div className="relative w-8 h-8 rounded-lg bg-zinc-900 border border-zinc-700/80 flex items-center justify-center text-primary shadow-sm group-hover:border-primary/60 transition-colors overflow-hidden p-1"> */}
+            {/* Option A: Using imported asset */}
+            {/* <Image
+                src={logoSymbol}
+                alt="UNIXL Logo"
+                className="object-contain w-full h-full"
+                priority
+              /> */}
+
+            <Image
+              src="/unixl-logo-symbol-nobg.png"
+              alt="UNIXL Logo"
+              width={62}
+              height={62}
+              className="object-contain"
+              priority
+            />
+            {/* </div> */}
             <span className="font-bold text-base tracking-tight text-foreground">
               UNIXL
             </span>
@@ -78,10 +94,7 @@ export default function Header() {
           >
             Architecture
           </a>
-          <a
-            href="#faq"
-            className="hover:text-foreground transition-colors"
-          >
+          <a href="#faq" className="hover:text-foreground transition-colors">
             FAQ
           </a>
         </nav>
@@ -93,14 +106,16 @@ export default function Header() {
 
           {/* GitHub Star Pill */}
           <a
-            href="https://github.com"
+            href="https://github.com/mohit-rajput-raj/f6"
             target="_blank"
             rel="noopener noreferrer"
             className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground rounded-md border border-border/80 bg-card hover:bg-muted/60 transition-colors"
           >
             <Star className="size-3 text-amber-500 fill-amber-500" />
             <span className="font-semibold text-foreground">Star</span>
-            <span className="text-[10px] opacity-70 border-l pl-1.5 ml-0.5 border-border">1.8k</span>
+            <span className="text-[10px] opacity-70 border-l pl-1.5 ml-0.5 border-border">
+              1.8k
+            </span>
           </a>
 
           {isPending ? (
@@ -108,7 +123,10 @@ export default function Header() {
           ) : session?.user ? (
             <div className="flex items-center gap-2">
               <Link href={dashboardUrl}>
-                <Button size="sm" className="h-8 px-3 text-xs gap-1.5 shadow-sm">
+                <Button
+                  size="sm"
+                  className="h-8 px-3 text-xs gap-1.5 shadow-sm"
+                >
                   <span>Dashboard</span>
                   <ArrowRight className="size-3.5" />
                 </Button>
@@ -126,12 +144,19 @@ export default function Header() {
           ) : (
             <div className="flex items-center gap-1.5">
               <Link href="/auth/sign-in">
-                <Button variant="ghost" size="sm" className="h-8 px-3 text-xs text-muted-foreground hover:text-foreground">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 px-3 text-xs text-muted-foreground hover:text-foreground"
+                >
                   Sign in
                 </Button>
               </Link>
               <Link href="/auth/sign-in">
-                <Button size="sm" className="h-8 px-3.5 text-xs gap-1 shadow-sm">
+                <Button
+                  size="sm"
+                  className="h-8 px-3.5 text-xs gap-1 shadow-sm"
+                >
                   <span>Get Started</span>
                   <ArrowRight className="size-3" />
                 </Button>
@@ -145,7 +170,11 @@ export default function Header() {
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             className="md:hidden p-1.5 rounded-md text-muted-foreground hover:text-foreground border border-border"
           >
-            {mobileMenuOpen ? <X className="size-4" /> : <Menu className="size-4" />}
+            {mobileMenuOpen ? (
+              <X className="size-4" />
+            ) : (
+              <Menu className="size-4" />
+            )}
           </button>
         </div>
       </div>
@@ -195,4 +224,3 @@ export default function Header() {
     </header>
   );
 }
-
