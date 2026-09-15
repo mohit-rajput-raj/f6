@@ -5,12 +5,7 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQueryClient, useMutation } from "@tanstack/react-query";
-import {
-  MoreHorizontal,
-  Plus,
-  Trash2,
-  FolderPlus,
-} from "lucide-react";
+import { MoreHorizontal, Plus, Trash2, FolderPlus } from "lucide-react";
 
 import { Button } from "@repo/ui/components/ui/button";
 import {
@@ -50,7 +45,11 @@ import { Input } from "@repo/ui/components/ui/input";
 import { useRouteAuthContextHook } from "@/context/routeContext";
 import { useSession } from "@/lib/auth-client";
 import { useAllWorkFlow } from "@/app/[project]/dash/[dashid]/editor/_actions/editor.queryes";
-import { createWorkFlow, deleteWorkFlow, deleteMultipleWorkflows } from "@/app/[project]/dash/[dashid]/editor/_actions/editor.service";
+import {
+  createWorkFlow,
+  deleteWorkFlow,
+  deleteMultipleWorkflows,
+} from "@/app/[project]/dash/[dashid]/editor/_actions/editor.service";
 import { useEditorStore } from "@/stores/user.store";
 import {
   CreateWorkFlowFormProps,
@@ -70,7 +69,12 @@ export const ProjectList = () => {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const queryClient = useQueryClient();
 
-  const { data: allWorkflows = [], isLoading, refetch, isRefetching } = useAllWorkFlow(userId!);
+  const {
+    data: allWorkflows = [],
+    isLoading,
+    refetch,
+    isRefetching,
+  } = useAllWorkFlow(userId!);
 
   const deletemutation = useMutation({
     mutationFn: async ({ id, flowId }: { id: string; flowId: string }) => {
@@ -110,8 +114,9 @@ export const ProjectList = () => {
     return <p className="p-10 text-center">Loading workflows...</p>;
   }
 
-  const filtered = allWorkflows
-    .filter((wf: any) => wf.name.toLowerCase().includes(search.toLowerCase()));
+  const filtered = allWorkflows.filter((wf: any) =>
+    wf.name.toLowerCase().includes(search.toLowerCase()),
+  );
 
   const handleRoute = (id: string) => {
     if (selectMode) return; // Don't navigate while in select mode
@@ -128,7 +133,12 @@ export const ProjectList = () => {
 
   const onBatchDelete = () => {
     if (!userId || selectedIds.length === 0) return;
-    if (!confirm(`Are you sure you want to delete ${selectedIds.length} selected project(s)?`)) return;
+    if (
+      !confirm(
+        `Are you sure you want to delete ${selectedIds.length} selected project(s)?`,
+      )
+    )
+      return;
     batchDeleteMutation.mutate({ id: userId, flowIds: selectedIds });
   };
 
@@ -143,7 +153,9 @@ export const ProjectList = () => {
     setSelectedIds([]);
   };
 
-  const isAllSelected = filtered.length > 0 && filtered.every((wf: any) => selectedIds.includes(wf.id));
+  const isAllSelected =
+    filtered.length > 0 &&
+    filtered.every((wf: any) => selectedIds.includes(wf.id));
 
   const toggleSelectAll = () => {
     if (isAllSelected) {
@@ -236,10 +248,14 @@ export const ProjectList = () => {
                   <TableRow
                     key={workflow.id}
                     className={`cursor-pointer transition-colors ${
-                      isSelected ? "bg-indigo-950/30 dark:bg-indigo-950/40" : "hover:bg-muted/50"
+                      isSelected
+                        ? "bg-indigo-950/30 dark:bg-indigo-950/40"
+                        : "hover:bg-muted/50"
                     }`}
                     onClick={() =>
-                      selectMode ? toggleSelectOne(workflow.id) : handleRoute(workflow.id)
+                      selectMode
+                        ? toggleSelectOne(workflow.id)
+                        : handleRoute(workflow.id)
                     }
                   >
                     {selectMode && (
@@ -255,12 +271,21 @@ export const ProjectList = () => {
                         />
                       </TableCell>
                     )}
-                    <TableCell className="font-semibold">{workflow.name}</TableCell>
-                    <TableCell>
-                      <UserAvatarStack users={workflow.users} remainingCount={workflow.remainingCount} />
+                    <TableCell className="font-semibold">
+                      {workflow.name}
                     </TableCell>
-                    <TableCell>{new Date(workflow.createdAt).toLocaleDateString()}</TableCell>
-                    <TableCell>{new Date(workflow.updatedAt).toLocaleDateString()}</TableCell>
+                    <TableCell>
+                      <UserAvatarStack
+                        users={workflow.users}
+                        remainingCount={workflow.remainingCount}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      {new Date(workflow.createdAt).toLocaleDateString()}
+                    </TableCell>
+                    <TableCell>
+                      {new Date(workflow.updatedAt).toLocaleDateString()}
+                    </TableCell>
                     <TableCell onClick={(e) => e.stopPropagation()}>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -269,7 +294,9 @@ export const ProjectList = () => {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => handleRoute(workflow.id)}>
+                          <DropdownMenuItem
+                            onClick={() => handleRoute(workflow.id)}
+                          >
                             Edit
                           </DropdownMenuItem>
                           <DropdownMenuItem
@@ -282,7 +309,9 @@ export const ProjectList = () => {
                             disabled={deletingId === workflow.id}
                             onClick={() => onDelete(workflow.id)}
                           >
-                            {deletingId === workflow.id ? "Deleting..." : "Delete"}
+                            {deletingId === workflow.id
+                              ? "Deleting..."
+                              : "Delete"}
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
@@ -292,7 +321,10 @@ export const ProjectList = () => {
               })
             ) : (
               <TableRow>
-                <TableCell colSpan={selectMode ? 6 : 5} className="text-center py-10 text-muted-foreground">
+                <TableCell
+                  colSpan={selectMode ? 6 : 5}
+                  className="text-center py-10 text-muted-foreground"
+                >
                   No workflows found.
                 </TableCell>
               </TableRow>
@@ -319,13 +351,7 @@ export const CreateWorkFlow = () => {
   });
 
   const mutation = useMutation({
-    mutationFn: async ({
-      id,
-      name,
-    }: {
-      id: string;
-      name: string;
-    }) => {
+    mutationFn: async ({ id, name }: { id: string; name: string }) => {
       return await createWorkFlow({ id, name });
     },
     onSuccess: (newWorkflow) => {
@@ -347,7 +373,10 @@ export const CreateWorkFlow = () => {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="secondary" className="bg-primary gap-1.5 font-semibold">
+        <Button
+          variant="secondary"
+          className="bg-primary gap-1.5 font-semibold"
+        >
           <Plus className="size-4" /> Create Workflow
         </Button>
       </DialogTrigger>

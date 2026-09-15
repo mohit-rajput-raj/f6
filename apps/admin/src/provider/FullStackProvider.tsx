@@ -3,7 +3,6 @@
 import { ThemeProvider } from "@repo/ui/components/themes/theme-provider";
 import React, { useEffect } from "react";
 import { QueryProvider } from "./tanstackQueryProvider";
-// import AuthRoutesIdProvider from "@/context/routeContext";
 
 type Props = {
   children: React.ReactNode;
@@ -42,9 +41,7 @@ const FullStackProvider = (props: Props) => {
       enableSystem
       disableTransitionOnChange
     >
-      {/* <AuthRoutesIdProvider> */}
       <QueryProvider>{props.children}</QueryProvider>
-      {/* </AuthRoutesIdProvider> */}
     </ThemeProvider>
   );
 };
