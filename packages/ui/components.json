@@ -17,5 +17,8 @@
     "lib": "@repo/ui/lib",
     "hooks": "@repo/ui/hooks"
   },
-  "iconLibrary": "lucide"
+  "iconLibrary": "lucide",
+  "registries": {
+    "@aceternity": "https://ui.aceternity.com/registry/{name}.json"
+  }
 }
