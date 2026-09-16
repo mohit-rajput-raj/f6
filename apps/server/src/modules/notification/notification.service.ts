@@ -1,5 +1,5 @@
 import { supabase } from "@repo/db";
-import { webSocketManager } from "../websocket.js";
+import { webSocketManager } from "../../websocket.js";
 
 export class NotificationService {
   /**
@@ -93,4 +93,3 @@ export class NotificationService {
 }
 
 export const notificationService = new NotificationService();
-

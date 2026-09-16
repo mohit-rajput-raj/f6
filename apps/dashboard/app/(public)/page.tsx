@@ -3,7 +3,6 @@
 import React, { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import Header from "./header";
 import {
   Layers,
   Workflow,
@@ -251,9 +250,7 @@ export default function Home() {
   // 3. Map scroll progress (0 to 1) to vertical Y-axis offset (-100px translates the image upwards)
   const y = useTransform(scrollYProgress, [0, 1], ["0%", "-30%"]);
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100 selection:bg-primary/25 selection:text-primary">
-      <Header />
-
+    <>
       <HeroSection />
       {/* ─── Enterprise Brand Trust Bar (Fortune 500 Style) ─── */}
       <section className="py-8 border-b border-zinc-800/80 bg-zinc-900/40">
@@ -1882,141 +1879,6 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ─── MNC SaaS Footer ─── */}
-      <footer className="border-t border-zinc-800/80 bg-zinc-950 text-zinc-500 py-12 text-xs">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 space-y-10">
-          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-8">
-            {/* Column 1 */}
-            <div className="col-span-2 space-y-3">
-              <div className="flex items-center gap-2">
-                <div className="size-6 rounded-md bg-zinc-800 border border-zinc-700 flex items-center justify-center text-primary shadow-xs">
-                  <Layers className="size-3.5 text-primary" />
-                </div>
-                <span className="font-bold text-sm text-white tracking-tight font-mono">
-                  UNIXL
-                </span>
-              </div>
-              <p className="text-xs text-zinc-400 max-w-sm leading-relaxed">
-                The visual DAG platform for operational spreadsheet automation,
-                multi-sheet reconciliations, and time-series analytics.
-              </p>
-              <div className="flex items-center gap-2 text-[11px] font-mono text-emerald-400">
-                <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                <span>All Systems Operational (v2.4)</span>
-              </div>
-            </div>
-
-            {/* Column 2 */}
-            <div className="space-y-2.5">
-              <span className="font-bold text-zinc-300 text-xs uppercase tracking-wider font-mono">
-                Product
-              </span>
-              <ul className="space-y-2 text-xs">
-                <li>
-                  <a
-                    href="#interactive-showcase"
-                    className="hover:text-zinc-200"
-                  >
-                    Visual Studio
-                  </a>
-                </li>
-                <li>
-                  <a href="#features" className="hover:text-zinc-200">
-                    Desk Interface
-                  </a>
-                </li>
-                <li>
-                  <a href="#features" className="hover:text-zinc-200">
-                    Analytics Stacks
-                  </a>
-                </li>
-                <li>
-                  <a href="#features" className="hover:text-zinc-200">
-                    Workspace Files
-                  </a>
-                </li>
-                <li>
-                  <Link href="/help" className="hover:text-zinc-200">
-                    Tutorial Guides
-                  </Link>
-                </li>
-              </ul>
-            </div>
-
-            {/* Column 3 */}
-            <div className="space-y-2.5">
-              <span className="font-bold text-zinc-300 text-xs uppercase tracking-wider font-mono">
-                Solutions
-              </span>
-              <ul className="space-y-2 text-xs">
-                <li>
-                  <a href="#use-cases" className="hover:text-zinc-200">
-                    Education & Attendance
-                  </a>
-                </li>
-                <li>
-                  <a href="#use-cases" className="hover:text-zinc-200">
-                    Payroll & Timesheets
-                  </a>
-                </li>
-                <li>
-                  <a href="#use-cases" className="hover:text-zinc-200">
-                    Lead Deduplication
-                  </a>
-                </li>
-                <li>
-                  <a href="#use-cases" className="hover:text-zinc-200">
-                    Inventory Audits
-                  </a>
-                </li>
-              </ul>
-            </div>
-
-            {/* Column 4 */}
-            <div className="space-y-2.5">
-              <span className="font-bold text-zinc-300 text-xs uppercase tracking-wider font-mono">
-                Resources
-              </span>
-              <ul className="space-y-2 text-xs">
-                <li>
-                  <a
-                    href="https://github.com"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="hover:text-zinc-200 flex items-center gap-1"
-                  >
-                    GitHub <ExternalLink className="size-2.5" />
-                  </a>
-                </li>
-                <li>
-                  <Link href="/help" className="hover:text-zinc-200">
-                    Documentation
-                  </Link>
-                </li>
-                <li>
-                  <a href="#faq" className="hover:text-zinc-200">
-                    Privacy Policy
-                  </a>
-                </li>
-                <li>
-                  <a href="#faq" className="hover:text-zinc-200">
-                    Terms of Service
-                  </a>
-                </li>
-              </ul>
-            </div>
-          </div>
-
-          <div className="border-t border-zinc-800/80 pt-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-[11px] text-zinc-500 font-mono">
-            <span>
-              © {new Date().getFullYear()} UNIXL Technologies Inc. All rights
-              reserved.
-            </span>
-            <span>Engineered for precision data operations.</span>
-          </div>
-        </div>
-      </footer>
-
       {/* ─── Fullscreen Blueprint Lightbox Modal ─── */}
       {imageModalOpen && (
         <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-xl flex flex-col animate-in fade-in duration-200">
@@ -2147,6 +2009,6 @@ export default function Home() {
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }

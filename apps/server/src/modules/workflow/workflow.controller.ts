@@ -1,5 +1,5 @@
 import type { Request, Response } from "express";
-import { workflowService } from "../services/workflow.service.js";
+import { workflowService } from "./workflow.service.js";
 
 export class WorkflowController {
   async list(req: Request, res: Response) {

@@ -1,5 +1,5 @@
 import type { Request, Response } from "express";
-import { notificationService } from "../services/notification.service.js";
+import { notificationService } from "./notification.service.js";
 
 export class NotificationController {
   async list(req: Request, res: Response) {

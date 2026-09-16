@@ -1,5 +1,5 @@
 import type { Request, Response } from "express";
-import { teamService } from "../services/team.service.js";
+import { teamService } from "./team.service.js";
 
 export class TeamController {
   async invite(req: Request, res: Response) {
