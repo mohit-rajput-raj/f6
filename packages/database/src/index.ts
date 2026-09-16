@@ -1,1 +1,1 @@
-export { supabase, prisma } from "./client";
+export { supabase, prisma } from "./client.js";
