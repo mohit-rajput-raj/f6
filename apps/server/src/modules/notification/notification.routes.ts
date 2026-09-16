@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { asyncHandler } from "../middlewares/error-handler.js";
-import { notificationController } from "../controllers/notification.controller.js";
+import { asyncHandler } from "../../middlewares/error-handler.js";
+import { notificationController } from "./notification.controller.js";
 
 const router: Router = Router();
 

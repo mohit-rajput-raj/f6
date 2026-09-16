@@ -1,5 +1,5 @@
 import type { Request, Response } from "express";
-import { deskService } from "../services/desk.service.js";
+import { deskService } from "./desk.service.js";
 
 export class DeskController {
   async getBlocks(req: Request, res: Response) {

@@ -70,33 +70,39 @@ export default function Header() {
 
         {/* Center: Clean SaaS Nav Items */}
         <nav className="hidden md:flex items-center gap-6 text-xs font-medium text-muted-foreground">
-          <a
-            href="#canvas-preview"
+          <Link
+            href="/#canvas-preview"
             className="hover:text-foreground transition-colors"
           >
             Interactive Canvas
-          </a>
-          <a
-            href="#features"
+          </Link>
+          <Link
+            href="/#features"
             className="hover:text-foreground transition-colors"
           >
             Capabilities
-          </a>
-          <a
-            href="#use-cases"
+          </Link>
+          <Link
+            href="/#use-cases"
             className="hover:text-foreground transition-colors"
           >
             Solutions
-          </a>
-          <a
-            href="#architecture"
+          </Link>
+          <Link
+            href="/#architecture"
             className="hover:text-foreground transition-colors"
           >
             Architecture
-          </a>
-          <a href="#faq" className="hover:text-foreground transition-colors">
+          </Link>
+          <Link
+            href="/pricing"
+            className="hover:text-foreground transition-colors font-semibold text-foreground/90"
+          >
+            Pricing
+          </Link>
+          <Link href="/#faq" className="hover:text-foreground transition-colors">
             FAQ
-          </a>
+          </Link>
         </nav>
 
         {/* Right: Actions & Auth */}
@@ -183,41 +189,48 @@ export default function Header() {
       {mobileMenuOpen && (
         <div className="md:hidden border-b border-border bg-background px-4 py-4 space-y-3">
           <nav className="flex flex-col gap-2.5 text-xs font-medium text-muted-foreground">
-            <a
-              href="#canvas-preview"
+            <Link
+              href="/#canvas-preview"
               onClick={() => setMobileMenuOpen(false)}
               className="py-1 hover:text-foreground"
             >
               Interactive Canvas
-            </a>
-            <a
-              href="#features"
+            </Link>
+            <Link
+              href="/#features"
               onClick={() => setMobileMenuOpen(false)}
               className="py-1 hover:text-foreground"
             >
               Capabilities
-            </a>
-            <a
-              href="#use-cases"
+            </Link>
+            <Link
+              href="/#use-cases"
               onClick={() => setMobileMenuOpen(false)}
               className="py-1 hover:text-foreground"
             >
               Solutions
-            </a>
-            <a
-              href="#architecture"
+            </Link>
+            <Link
+              href="/#architecture"
               onClick={() => setMobileMenuOpen(false)}
               className="py-1 hover:text-foreground"
             >
               Architecture
-            </a>
-            <a
-              href="#faq"
+            </Link>
+            <Link
+              href="/pricing"
+              onClick={() => setMobileMenuOpen(false)}
+              className="py-1 hover:text-foreground font-semibold text-foreground"
+            >
+              Pricing
+            </Link>
+            <Link
+              href="/#faq"
               onClick={() => setMobileMenuOpen(false)}
               className="py-1 hover:text-foreground"
             >
               FAQ
-            </a>
+            </Link>
           </nav>
         </div>
       )}

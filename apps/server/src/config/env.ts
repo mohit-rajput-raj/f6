@@ -5,4 +5,6 @@ export const config = {
   port: process.env.PORT || 3000,
   corsOrigin: process.env.CORS_ORIGIN || "*",
   pypServerUrl: process.env.PYP_SERVER_URL || "http://localhost:8000",
+  razorpayKeyId: process.env.RAZORPAY_KEY_ID,
+  razorpayKeySecrete: process.env.RAZORPAY_KEY_SECRET,
 };

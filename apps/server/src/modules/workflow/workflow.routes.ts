@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { asyncHandler } from "../middlewares/error-handler.js";
-import { workflowController } from "../controllers/workflow.controller.js";
+import { asyncHandler } from "../../middlewares/error-handler.js";
+import { workflowController } from "./workflow.controller.js";
 
 const router: Router = Router();
 
