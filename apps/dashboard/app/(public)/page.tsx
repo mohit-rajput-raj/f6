@@ -251,7 +251,10 @@ export default function Home() {
   const y = useTransform(scrollYProgress, [0, 1], ["0%", "-30%"]);
   return (
     <>
-      <HeroSection />
+      <HeroSection
+        setImageModalOpen={setImageModalOpen}
+        handleResetZoom={handleResetZoom}
+      />
       {/* ─── Enterprise Brand Trust Bar (Fortune 500 Style) ─── */}
       <section className="py-8 border-b border-zinc-800/80 bg-zinc-900/40">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">

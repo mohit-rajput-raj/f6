@@ -7,12 +7,33 @@ datasource db {
   provider = "postgresql"
 }
 
+enum Role {
+  USER
+  ADMIN
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  CANCELED
+  PAST_DUE
+  INCOMPLETE
+  TRIALING
+}
+
+enum LogLevel {
+  INFO
+  WARN
+  ERROR
+  FATAL
+}
+
 model User {
   id            String   @id
   name          String
   email         String
   emailVerified Boolean  @default(false)
   image         String?
+  role          Role     @default(USER)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -20,11 +41,14 @@ model User {
   openaiApiKey String?
   claudeApiKey String?
 
-  sessions         Session[]
-  accounts         Account[]
-  workflows        Workflow[]
-  dataLibraryFiles DataLibraryFile[]
-  masterSheets     MasterSheet[]
+  sessions           Session[]
+  accounts           Account[]
+  workflows          Workflow[]
+  dataLibraryFiles   DataLibraryFile[]
+  masterSheets       MasterSheet[]
+  subscriptions      Subscription[]
+  auditLogs          AuditLog[]
+  systemUsageMetrics SystemUsageMetric[]
 
   @@unique([email])
   @@map("user")
@@ -129,10 +153,10 @@ model FileFolder {
 }
 
 model DataLibraryFile {
-  id          String   @id @default(uuid()) @db.Uuid
+  id          String  @id @default(uuid()) @db.Uuid
   userId      String
-  workflowId  String?  @db.Uuid
-  folderId    String?  @db.Uuid
+  workflowId  String? @db.Uuid
+  folderId    String? @db.Uuid
   name        String
   description String?
   fileType    String
@@ -238,6 +262,25 @@ model DeskBlock {
   @@map("desk_block")
 }
 
+model CodeMapping {
+  id                String   @id @default(uuid()) @db.Uuid
+  projectWorkflowId String   @db.Uuid
+  codePath          String   // e.g. "CO24009/Lab", "CO24009/Th", "Sheet1/Name"
+  columnKeyMap      Json     // { "Total_Present": 4, "Total_Classes": 5, "Percentage": 6 }
+  mergeConfig       Json?    // { "Total_Present": { "op": "+", "sourceField": "attended" }, ... }
+  filePath          String?  // workspace folder path to auto-save data file
+  fileId            String?  @db.Uuid // reference to workspace file
+  fileName          String?  // auto-save file name
+  metadata          Json?    // extra metadata (detected headers, last merge timestamp, etc.)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([projectWorkflowId, codePath])
+  @@index([projectWorkflowId])
+  @@map("code_mapping")
+}
+
 model Notification {
   id        String   @id @default(uuid()) @db.Uuid
   userId    String
@@ -251,4 +294,105 @@ model Notification {
   @@index([userId])
   @@index([read])
   @@map("notification")
+}
+
+// ==========================================
+// NEW MODELS FOR SUBSCRIBERS / PAYMENTS
+// ==========================================
+
+model Plan {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   // e.g., "Pro", "Enterprise"
+  description String?
+  price       Float
+  currency    String   @default("USD")
+  interval    String   @default("month") // "month" | "year"
+  isActive    Boolean  @default(true)
+  features    String[] @default([])
+
+  subscriptions Subscription[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("plan")
+}
+
+model Subscription {
+  id                   String             @id @default(uuid()) @db.Uuid
+  userId               String
+  planId               String             @db.Uuid
+  stripeCustomerId     String?            @unique
+  stripeSubscriptionId String?            @unique
+  status               SubscriptionStatus @default(ACTIVE)
+  currentPeriodStart   DateTime
+  currentPeriodEnd     DateTime
+  cancelAtPeriodEnd    Boolean            @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan Plan @relation(fields: [planId], references: [id])
+
+  @@index([userId])
+  @@index([status])
+  @@map("subscription")
+}
+
+// ==========================================
+// NEW MODEL FOR LOGS
+// ==========================================
+
+model AuditLog {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String?  // Nullable if system-level event
+  action    String   // e.g., "USER_BANNED", "WORKFLOW_EXECUTED", "API_KEY_UPDATED"
+  entity    String   // e.g., "User", "Workflow", "System"
+  entityId  String?
+  level     LogLevel @default(INFO)
+  details   Json?    // Context payload (request IP, parameters, stack trace)
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([action])
+  @@index([level])
+  @@index([createdAt])
+  @@map("audit_log")
+}
+
+// ==========================================
+// NEW MODEL FOR ANALYTICAL USAGE TRACKING
+// ==========================================
+
+model SystemUsageMetric {
+  id             String   @id @default(uuid()) @db.Uuid
+  userId         String?
+  metricName     String   // e.g., "api_call", "tokens_used", "workflow_run"
+  count          Int      @default(1)
+  metadata       Json?    // e.g., { provider: "openai", tokens: 450 }
+  timestamp      DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([metricName])
+  @@index([timestamp])
+  @@map("system_usage_metric")
+}
+
+// ==========================================
+// NEW MODEL FOR GLOBAL APP SETTINGS
+// ==========================================
+
+model SystemSetting {
+  id          String   @id @default(uuid()) @db.Uuid
+  key         String   @unique // e.g., "MAINTENANCE_MODE", "DEFAULT_MAX_WORKFLOWS"
+  value       Json     // Stored value (boolean, string, object, number)
+  description String?
+  updatedAt   DateTime @updatedAt
+
+  @@map("system_setting")
 }

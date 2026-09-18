@@ -3,7 +3,8 @@
 import { supabase } from "@repo/db";
 import Papa from "papaparse";
 
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function isValidUuid(id?: string | null): boolean {
   return typeof id === "string" && UUID_REGEX.test(id.trim());
@@ -52,7 +53,10 @@ function normalizePath(path?: string | null): string {
 /**
  * Get folder metadata by path (e.g. "A/B/C")
  */
-export async function getFolderByPath(dashid: string, path: string): Promise<WorkspaceFolderItem | null> {
+export async function getFolderByPath(
+  dashid: string,
+  path: string,
+): Promise<WorkspaceFolderItem | null> {
   if (!isValidUuid(dashid)) return null;
   const cleanPath = normalizePath(path);
   if (!cleanPath) return null;
@@ -71,7 +75,10 @@ export async function getFolderByPath(dashid: string, path: string): Promise<Wor
 /**
  * Fetch direct child subfolders for a given parent path ("" for root)
  */
-export async function getSubfolders(dashid: string, parentPath: string = ""): Promise<WorkspaceFolderItem[]> {
+export async function getSubfolders(
+  dashid: string,
+  parentPath: string = "",
+): Promise<WorkspaceFolderItem[]> {
   if (!isValidUuid(dashid)) return [];
   const cleanParentPath = normalizePath(parentPath);
 
@@ -123,7 +130,8 @@ export async function getSubfolders(dashid: string, parentPath: string = ""): Pr
   if (allWorkspaceFolders) {
     allWorkspaceFolders.forEach((f: any) => {
       if (f.parentId) {
-        subfolderCountMap[f.parentId] = (subfolderCountMap[f.parentId] || 0) + 1;
+        subfolderCountMap[f.parentId] =
+          (subfolderCountMap[f.parentId] || 0) + 1;
       }
     });
   }
@@ -138,7 +146,9 @@ export async function getSubfolders(dashid: string, parentPath: string = ""): Pr
 /**
  * Fetch all folders in a project (flat list with path for dropdowns)
  */
-export async function getAllFoldersFlat(dashid: string): Promise<WorkspaceFolderItem[]> {
+export async function getAllFoldersFlat(
+  dashid: string,
+): Promise<WorkspaceFolderItem[]> {
   if (!isValidUuid(dashid)) return [];
 
   const { data, error } = await supabase
@@ -157,13 +167,18 @@ export async function getAllFoldersFlat(dashid: string): Promise<WorkspaceFolder
 /**
  * Fetch files located directly in the folder at folderPath ("" for root)
  */
-export async function getFilesInFolder(dashid: string, folderPath: string = ""): Promise<WorkspaceFileItem[]> {
+export async function getFilesInFolder(
+  dashid: string,
+  folderPath: string = "",
+): Promise<WorkspaceFileItem[]> {
   if (!isValidUuid(dashid)) return [];
   const cleanPath = normalizePath(folderPath);
 
   const { data, error } = await supabase
     .from("workspace_file")
-    .select("*")
+    .select(
+      "id, workflowId, userId, folderId, folderPath, name, fileType, createdAt, updatedAt",
+    )
     .eq("workflowId", dashid)
     .eq("folderPath", cleanPath)
     .order("updatedAt", { ascending: false });
@@ -198,12 +213,15 @@ export async function createNestedFolder({
   if (!cleanName) throw new Error("Folder name cannot be empty");
 
   const cleanParentPath = normalizePath(parentPath);
-  const fullPath = cleanParentPath ? `${cleanParentPath}/${cleanName}` : cleanName;
+  const fullPath = cleanParentPath
+    ? `${cleanParentPath}/${cleanName}`
+    : cleanName;
 
   let parentId: string | null = null;
   if (cleanParentPath) {
     const parentFolder = await getFolderByPath(dashid, cleanParentPath);
-    if (!parentFolder) throw new Error(`Parent folder "${cleanParentPath}" does not exist`);
+    if (!parentFolder)
+      throw new Error(`Parent folder "${cleanParentPath}" does not exist`);
     parentId = parentFolder.id;
   }
 
@@ -240,7 +258,11 @@ export async function createNestedFolder({
 /**
  * Helper: Ensure all intermediate folders exist for a given path
  */
-export async function ensureFolderPathExists(dashid: string, userId: string, folderPath: string): Promise<string | null> {
+export async function ensureFolderPathExists(
+  dashid: string,
+  userId: string,
+  folderPath: string,
+): Promise<string | null> {
   const cleanPath = normalizePath(folderPath);
   if (!cleanPath) return null;
 
@@ -261,7 +283,10 @@ export async function ensureFolderPathExists(dashid: string, userId: string, fol
     if (existing) {
       currentParentId = existing.id;
     } else {
-      const { data: created, error }: { data: { id: string } | null; error: any } = await supabase
+      const {
+        data: created,
+        error,
+      }: { data: { id: string } | null; error: any } = await supabase
         .from("workspace_folder")
         .insert({
           workflowId: dashid,
@@ -319,12 +344,17 @@ export async function createOrOverwriteWorkspaceFile({
 
   // Auto-normalize CSV string into structured columns and data
   let normalizedData = data;
-  if (typeof data === "string" && (fileType === "csv" || trimmedName.toLowerCase().endsWith(".csv"))) {
+  if (
+    typeof data === "string" &&
+    (fileType === "csv" || trimmedName.toLowerCase().endsWith(".csv"))
+  ) {
     try {
       const parsed = Papa.parse(data, { header: false, skipEmptyLines: true });
       const rows = (parsed.data as string[][]) || [];
       if (rows.length > 0) {
-        const cols = rows[0].map((c, i) => (c?.trim() ? c.trim() : `Column_${i + 1}`));
+        const cols = rows[0].map((c, i) =>
+          c?.trim() ? c.trim() : `Column_${i + 1}`,
+        );
         normalizedData = {
           columns: cols,
           data: rows.slice(1),
@@ -336,8 +366,12 @@ export async function createOrOverwriteWorkspaceFile({
     }
   }
 
-  const rowCount = Array.isArray(normalizedData?.data) ? normalizedData.data.length : undefined;
-  const colCount = Array.isArray(normalizedData?.columns) ? normalizedData.columns.length : undefined;
+  const rowCount = Array.isArray(normalizedData?.data)
+    ? normalizedData.data.length
+    : undefined;
+  const colCount = Array.isArray(normalizedData?.columns)
+    ? normalizedData.columns.length
+    : undefined;
 
   const mergedMetadata = {
     rowCount: rowCount ?? metadata?.rowCount,
@@ -475,7 +509,11 @@ export async function deleteWorkspaceFile(fileId: string) {
 /**
  * Move file to another folder path
  */
-export async function moveFileToFolderPath(fileId: string, targetFolderPath: string, userId: string) {
+export async function moveFileToFolderPath(
+  fileId: string,
+  targetFolderPath: string,
+  userId: string,
+) {
   if (!isValidUuid(fileId)) throw new Error("Invalid file ID");
   const cleanTarget = normalizePath(targetFolderPath);
 
@@ -490,7 +528,11 @@ export async function moveFileToFolderPath(fileId: string, targetFolderPath: str
 
   let targetFolderId: string | null = null;
   if (cleanTarget) {
-    targetFolderId = await ensureFolderPathExists(file.workflowId, userId, cleanTarget);
+    targetFolderId = await ensureFolderPathExists(
+      file.workflowId,
+      userId,
+      cleanTarget,
+    );
   }
 
   const { data: updated, error } = await supabase
@@ -534,9 +576,13 @@ export async function importCsvFileToFolder({
     throw new Error("CSV file is empty");
   }
 
-  const columns = allRows[0].map((c, i) => (c?.trim() ? c.trim() : `Column_${i + 1}`));
+  const columns = allRows[0].map((c, i) =>
+    c?.trim() ? c.trim() : `Column_${i + 1}`,
+  );
   const data = allRows.slice(1);
-  const cleanFileName = fileName.endsWith(".csv") ? fileName : `${fileName}.csv`;
+  const cleanFileName = fileName.endsWith(".csv")
+    ? fileName
+    : `${fileName}.csv`;
 
   return await createOrOverwriteWorkspaceFile({
     dashid,
@@ -555,4 +601,26 @@ export async function importCsvFileToFolder({
       importedAt: new Date().toISOString(),
     },
   });
+}
+
+/**
+ * Fetch a single file with full data (used exclusively when opening preview or downloading)
+ */
+export async function getWorkspaceFileData(
+  fileId: string,
+): Promise<WorkspaceFileItem | null> {
+  if (!fileId) return null;
+  const { data, error } = await supabase
+    .from("workspace_file")
+    .select(
+      "id, workflowId, userId, folderId, folderPath, name, fileType, data, metadata, createdAt, updatedAt",
+    )
+    .eq("id", fileId)
+    .maybeSingle();
+
+  if (error) {
+    console.error("Error fetching workspace file data:", error);
+    return null;
+  }
+  return data || null;
 }
