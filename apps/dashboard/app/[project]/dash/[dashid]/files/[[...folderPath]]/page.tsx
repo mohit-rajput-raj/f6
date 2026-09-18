@@ -1,9 +1,16 @@
 "use client";
 
-import React, { useState, useCallback, useEffect, useRef, useMemo } from "react";
+import React, {
+  useState,
+  useCallback,
+  useEffect,
+  useRef,
+  useMemo,
+} from "react";
 import { useParams, useRouter } from "next/navigation";
 import Image from "next/image";
 import { useSession } from "@/lib/auth-client";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Folder,
   FolderPlus,
@@ -26,6 +33,7 @@ import {
   Home,
   CornerDownRight,
   Layers,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@repo/ui/components/ui/button";
 import { Input } from "@repo/ui/components/ui/input";
@@ -41,8 +49,7 @@ import { toast } from "sonner";
 import dynamic from "next/dynamic";
 import Papa from "papaparse";
 import {
-  openSheetInSyncfusion,
-  convertFlatToSyncfusionWorkbook,
+  unwrapSyncfusionJson,
   extract2DGridFromAnySheet,
 } from "@/lib/sheet-utils";
 import {
@@ -54,13 +61,17 @@ import {
   importCsvFileToFolder,
   moveFileToFolderPath,
   getAllFoldersFlat,
+  getWorkspaceFileData,
   WorkspaceFolderItem,
   WorkspaceFileItem,
 } from "../_actions/files-actions";
 
 const SpreadsheetComponent = dynamic(
-  () => import("@syncfusion/ej2-react-spreadsheet").then((m) => m.SpreadsheetComponent),
-  { ssr: false }
+  () =>
+    import("@syncfusion/ej2-react-spreadsheet").then(
+      (m) => m.SpreadsheetComponent,
+    ),
+  { ssr: false },
 );
 
 /**
@@ -72,19 +83,34 @@ const SpreadsheetComponent = dynamic(
  * - Syncfusion Workbook JSON
  */
 function normalizeFileDataToFlat(
-  fileItem: WorkspaceFileItem | null
+  fileItem: WorkspaceFileItem | null,
 ): { columns: string[]; data: any[][] } | null {
   if (!fileItem) return null;
-  const raw = fileItem.data;
+  let raw = fileItem.data;
+
+  // 0. If raw is a string, check if it's JSON string first
+  if (typeof raw === "string" && raw.trim().length > 0) {
+    const trimmed = raw.trim();
+    if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+      try {
+        raw = JSON.parse(trimmed);
+      } catch (_) {}
+    }
+  }
 
   // 1. Direct { columns: [...], data: [...] }
   if (raw && Array.isArray(raw.columns) && Array.isArray(raw.data)) {
     return { columns: raw.columns, data: raw.data };
   }
 
-  // 2. Nested { data: { columns: [...], data: [...] } }
-  if (raw?.data && Array.isArray(raw.data.columns) && Array.isArray(raw.data.data)) {
-    return { columns: raw.data.columns, data: raw.data.data };
+  // 2. Nested { data: { columns: [...], data: [...] } } or { data: [ ... ] }
+  if (raw?.data) {
+    if (Array.isArray(raw.data.columns) && Array.isArray(raw.data.data)) {
+      return { columns: raw.data.columns, data: raw.data.data };
+    }
+    if (Array.isArray(raw.data)) {
+      raw = raw.data;
+    }
   }
 
   // 3. Raw CSV string
@@ -96,7 +122,7 @@ function normalizeFileDataToFlat(
         const columns = rows[0].map((c: any, i: number) =>
           c !== undefined && c !== null && String(c).trim()
             ? String(c).trim()
-            : `Col_${i + 1}`
+            : `Col_${i + 1}`,
         );
         const data = rows.slice(1);
         return { columns, data };
@@ -110,16 +136,23 @@ function normalizeFileDataToFlat(
   if (Array.isArray(raw) && raw.length > 0) {
     const first = raw[0];
     if (first && typeof first === "object" && !Array.isArray(first)) {
-      const columns = Object.keys(first);
+      const columns: string[] =
+        Array.isArray(fileItem.metadata?.columns) &&
+        fileItem.metadata.columns.length > 0
+          ? (fileItem.metadata.columns as string[])
+          : Object.keys(first);
       const data = raw.map((item: any) =>
-        columns.map((col) =>
-          item[col] !== undefined && item[col] !== null ? item[col] : ""
-        )
+        columns.map((col: string) =>
+          item[col] !== undefined && item[col] !== null ? item[col] : "",
+        ),
       );
       return { columns, data };
     } else if (Array.isArray(first)) {
-      const columns =
-        fileItem.metadata?.columns || first.map((_: any, i: number) => `Col_${i + 1}`);
+      const columns: string[] =
+        Array.isArray(fileItem.metadata?.columns) &&
+        fileItem.metadata.columns.length > 0
+          ? (fileItem.metadata.columns as string[])
+          : first.map((_: any, i: number) => `Col_${i + 1}`);
       return { columns, data: raw };
     }
   }
@@ -157,20 +190,68 @@ export default function NestedFilesPage() {
   const rawSegments = (params?.folderPath as string[] | undefined) || [];
   const decodedSegments = useMemo(
     () => rawSegments.map((seg) => decodeURIComponent(seg)),
-    [rawSegments]
+    [rawSegments],
   );
   const currentPath = decodedSegments.join("/");
-  const currentFolderName = decodedSegments.length > 0 ? decodedSegments[decodedSegments.length - 1] : "";
+  const currentFolderName =
+    decodedSegments.length > 0
+      ? decodedSegments[decodedSegments.length - 1]
+      : "";
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const queryClient = useQueryClient();
+
   // Core state
-  const [subfolders, setSubfolders] = useState<WorkspaceFolderItem[]>([]);
-  const [files, setFiles] = useState<WorkspaceFileItem[]>([]);
-  const [flatFolders, setFlatFolders] = useState<WorkspaceFolderItem[]>([]);
-  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+
+  // TanStack Query: Folders in current path (5-minute stale time to eliminate double-fetching)
+  const {
+    data: subfolders = [],
+    isLoading: isSubfoldersLoading,
+    isFetching: isSubfoldersFetching,
+  } = useQuery({
+    queryKey: ["workspace_subfolders", dashid, currentPath],
+    queryFn: () => getSubfolders(dashid, currentPath),
+    enabled: !!dashid,
+    staleTime: 1000 * 60 * 5, // 5 minutes
+  });
+
+  // TanStack Query: Files in current path - lightweight metadata only (5-minute stale time)
+  const {
+    data: files = [],
+    isLoading: isFilesLoading,
+    isFetching: isFilesFetching,
+  } = useQuery({
+    queryKey: ["workspace_files", dashid, currentPath],
+    queryFn: () => getFilesInFolder(dashid, currentPath),
+    enabled: !!dashid,
+    staleTime: 1000 * 60 * 10, // 5 minutes
+  });
+
+  // TanStack Query: Flat folders for move modal dropdown (5-minute stale time)
+  const { data: flatFolders = [] } = useQuery({
+    queryKey: ["workspace_flat_folders", dashid],
+    queryFn: () => getAllFoldersFlat(dashid),
+    enabled: !!dashid,
+    staleTime: 1000 * 60 * 20, // 5 minutes
+  });
+
+  const loading = isSubfoldersLoading || isFilesLoading;
+
+  // Invalidate queries on mutations
+  const refreshFolderContent = useCallback(() => {
+    queryClient.invalidateQueries({
+      queryKey: ["workspace_subfolders", dashid],
+    });
+    queryClient.invalidateQueries({
+      queryKey: ["workspace_files", dashid],
+    });
+    queryClient.invalidateQueries({
+      queryKey: ["workspace_flat_folders", dashid],
+    });
+  }, [queryClient, dashid]);
 
   // Create folder dialog
   const [folderDialogOpen, setFolderDialogOpen] = useState(false);
@@ -179,38 +260,104 @@ export default function NestedFilesPage() {
   const [folderSubmitting, setFolderSubmitting] = useState(false);
 
   // Delete folder dialog
-  const [deleteFolderTarget, setDeleteFolderTarget] = useState<WorkspaceFolderItem | null>(null);
+  const [deleteFolderTarget, setDeleteFolderTarget] =
+    useState<WorkspaceFolderItem | null>(null);
   const [deletingFolder, setDeletingFolder] = useState(false);
 
   // Preview file modal & Syncfusion spreadsheet
-  const [previewFile, setPreviewFile] = useState<WorkspaceFileItem | null>(null);
+  const [previewFile, setPreviewFile] = useState<WorkspaceFileItem | null>(
+    null,
+  );
   const previewSpreadsheetRef = useRef<any>(null);
 
-  const parsedPreviewDataset = useMemo(
-    () => normalizeFileDataToFlat(previewFile),
-    [previewFile]
-  );
+  // TanStack Query: Fetch full sheet data on-demand ONCE when preview is clicked
+  const { data: previewFullFile, isLoading: isPreviewDataLoading } = useQuery({
+    queryKey: ["workspace_file_full", previewFile?.id],
+    queryFn: () =>
+      previewFile?.id ? getWorkspaceFileData(previewFile.id) : null,
+    enabled: !!previewFile?.id,
+    staleTime: 1000 * 60 * 5, // 5 minutes cache
+  });
 
-  const loadSpreadsheetData = useCallback(() => {
-    const ss = previewSpreadsheetRef.current;
-    if (!ss || !parsedPreviewDataset) return;
-    const wb = convertFlatToSyncfusionWorkbook(parsedPreviewDataset);
-    if (wb) {
-      openSheetInSyncfusion(ss, wb);
+  const parsedPreviewDataset = useMemo(() => {
+    if (!previewFullFile) return null;
+    return normalizeFileDataToFlat(previewFullFile);
+  }, [previewFullFile]);
+
+  // Compute Syncfusion SheetModel array directly from file data
+  const previewSheets = useMemo(() => {
+    if (!previewFullFile) return null;
+
+    // 1. Direct Syncfusion Workbook structure if present
+    if (previewFullFile.data) {
+      const unwrapped = unwrapSyncfusionJson(previewFullFile.data);
+      const rawSheets = unwrapped?.Workbook?.sheets || unwrapped?.sheets;
+      if (Array.isArray(rawSheets) && rawSheets.length > 0) {
+        return rawSheets;
+      }
     }
-  }, [parsedPreviewDataset]);
+
+    // 2. Build rows from parsed flat dataset
+    if (parsedPreviewDataset && parsedPreviewDataset.columns.length > 0) {
+      const headerRow = {
+        cells: parsedPreviewDataset.columns.map((col) => ({
+          value: String(col ?? ""),
+          style: {
+            fontWeight: "bold",
+            backgroundColor: "#e2e8f0",
+            color: "#0f172a",
+            textAlign: "center",
+          },
+        })),
+      };
+
+      const dataRows = (parsedPreviewDataset.data || []).map((row: any[]) => ({
+        cells: (row || []).map((val: any) => ({
+          value: val !== undefined && val !== null ? String(val) : "",
+          style: { color: "#0f172a" },
+        })),
+      }));
+
+      const sheetName =
+        (previewFile?.name || "Sheet1")
+          .replace(/\.[^/.]+$/, "")
+          .replace(/[^a-zA-Z0-9_\-\s]/g, "")
+          .substring(0, 30)
+          .trim() || "Sheet1";
+
+      const totalRows = dataRows.length + 1;
+      const totalCols = parsedPreviewDataset.columns.length;
+
+      return [
+        {
+          name: sheetName,
+          rowCount: Math.max(100, totalRows + 10),
+          colCount: Math.max(26, totalCols + 5),
+          columns: parsedPreviewDataset.columns.map((col) => {
+            const colLen = String(col || "").length;
+            return {
+              width: Math.max(100, Math.min(260, colLen * 11 + 45)),
+            };
+          }),
+          rows: [headerRow, ...dataRows],
+          showGridLines: true,
+        },
+      ];
+    }
+
+    return null;
+  }, [previewFile, previewFullFile, parsedPreviewDataset]);
 
   const onPreviewSpreadsheetCreated = useCallback(() => {
-    loadSpreadsheetData();
-  }, [loadSpreadsheetData]);
-
-  useEffect(() => {
-    if (!previewFile || !parsedPreviewDataset) return;
-    const timer = setTimeout(() => {
-      loadSpreadsheetData();
-    }, 250);
-    return () => clearTimeout(timer);
-  }, [previewFile, parsedPreviewDataset, loadSpreadsheetData]);
+    const ss = previewSpreadsheetRef.current;
+    if (ss && typeof ss.resize === "function") {
+      setTimeout(() => {
+        try {
+          ss.resize();
+        } catch (_) {}
+      }, 50);
+    }
+  }, []);
 
   // Move file modal
   const [movingFile, setMovingFile] = useState<WorkspaceFileItem | null>(null);
@@ -234,7 +381,9 @@ export default function NestedFilesPage() {
       return;
     }
     const targetSegments = decodedSegments.slice(0, index + 1);
-    const targetPath = targetSegments.map((s) => encodeURIComponent(s)).join("/");
+    const targetPath = targetSegments
+      .map((s) => encodeURIComponent(s))
+      .join("/");
     router.push(`${baseFilesUrl}/${targetPath}`);
   };
 
@@ -244,35 +393,12 @@ export default function NestedFilesPage() {
       router.push(baseFilesUrl);
     } else {
       const parentSegments = decodedSegments.slice(0, -1);
-      const parentPath = parentSegments.map((s) => encodeURIComponent(s)).join("/");
+      const parentPath = parentSegments
+        .map((s) => encodeURIComponent(s))
+        .join("/");
       router.push(`${baseFilesUrl}/${parentPath}`);
     }
   };
-
-  // Load content of current folder path
-  const loadFolderContent = useCallback(async () => {
-    if (!dashid) return;
-    setLoading(true);
-    try {
-      const [fetchedSubfolders, fetchedFiles, allFlat] = await Promise.all([
-        getSubfolders(dashid, currentPath),
-        getFilesInFolder(dashid, currentPath),
-        getAllFoldersFlat(dashid),
-      ]);
-      setSubfolders(fetchedSubfolders);
-      setFiles(fetchedFiles);
-      setFlatFolders(allFlat);
-    } catch (err) {
-      console.error("Failed to load folder content:", err);
-      toast.error("Failed to load folder contents");
-    } finally {
-      setLoading(false);
-    }
-  }, [dashid, currentPath]);
-
-  useEffect(() => {
-    loadFolderContent();
-  }, [loadFolderContent]);
 
   // Create folder inside current path
   const handleCreateFolder = async (e: React.FormEvent) => {
@@ -296,7 +422,7 @@ export default function NestedFilesPage() {
       setFolderDialogOpen(false);
       setNewFolderName("");
       setNewFolderDesc("");
-      loadFolderContent();
+      refreshFolderContent();
     } catch (err: any) {
       toast.error(err?.message || "Failed to create folder");
     } finally {
@@ -312,7 +438,7 @@ export default function NestedFilesPage() {
       await deleteFolderByPath(dashid, deleteFolderTarget.path);
       toast.success(`Deleted folder "${deleteFolderTarget.name}"`);
       setDeleteFolderTarget(null);
-      loadFolderContent();
+      refreshFolderContent();
     } catch (err: any) {
       toast.error(err?.message || "Failed to delete folder");
     } finally {
@@ -340,13 +466,17 @@ export default function NestedFilesPage() {
           });
 
           if (result.overwritten) {
-            toast.success(`Overwrote existing file: "${file.name}"`, { id: toastId });
+            toast.success(`Overwrote existing file: "${file.name}"`, {
+              id: toastId,
+            });
           } else {
             toast.success(`Imported "${file.name}"`, { id: toastId });
           }
-          loadFolderContent();
+          refreshFolderContent();
         } catch (innerErr: any) {
-          toast.error(innerErr.message || "Failed to parse CSV file", { id: toastId });
+          toast.error(innerErr.message || "Failed to parse CSV file", {
+            id: toastId,
+          });
         }
       };
       reader.readAsText(file);
@@ -358,20 +488,48 @@ export default function NestedFilesPage() {
   };
 
   // Download CSV
-  const handleDownloadFile = (fileItem: WorkspaceFileItem) => {
+  const handleDownloadFile = async (fileItem: WorkspaceFileItem) => {
+    const toastId = toast.loading(`Preparing "${fileItem.name}"...`);
     try {
+      let targetItem = fileItem;
+      if (!targetItem.data) {
+        const full = await queryClient.fetchQuery({
+          queryKey: ["workspace_file_full", fileItem.id],
+          queryFn: () => getWorkspaceFileData(fileItem.id),
+          staleTime: 1000 * 60 * 5,
+        });
+        if (full) targetItem = full;
+      }
+
       let csvContent = "";
-      if (typeof fileItem.data === "string" && (fileItem.fileType === "csv" || fileItem.name.endsWith(".csv"))) {
-        csvContent = fileItem.data;
+      if (
+        typeof targetItem.data === "string" &&
+        (targetItem.fileType === "csv" || targetItem.name.endsWith(".csv"))
+      ) {
+        csvContent = targetItem.data;
       } else {
-        const dataset = normalizeFileDataToFlat(fileItem);
-        if (!dataset || !Array.isArray(dataset.columns) || dataset.columns.length === 0) {
-          toast.error("File data is not in spreadsheet format");
+        const dataset = normalizeFileDataToFlat(targetItem);
+        if (
+          !dataset ||
+          !Array.isArray(dataset.columns) ||
+          dataset.columns.length === 0
+        ) {
+          toast.error("File data is not in spreadsheet format", {
+            id: toastId,
+          });
           return;
         }
-        const headerRow = dataset.columns.map((c) => `"${String(c ?? "").replace(/"/g, '""')}"`).join(",");
+        const headerRow = dataset.columns
+          .map((c) => `"${String(c ?? "").replace(/"/g, '""')}"`)
+          .join(",");
         const dataRows = (dataset.data || []).map((row: any[]) =>
-          row.map((val) => (val === null || val === undefined ? "" : `"${String(val).replace(/"/g, '""')}"`)).join(",")
+          row
+            .map((val) =>
+              val === null || val === undefined
+                ? ""
+                : `"${String(val).replace(/"/g, '""')}"`,
+            )
+            .join(","),
         );
         csvContent = [headerRow, ...dataRows].join("\n");
       }
@@ -380,13 +538,16 @@ export default function NestedFilesPage() {
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.setAttribute("download", fileItem.name.endsWith(".csv") ? fileItem.name : `${fileItem.name}.csv`);
+      link.setAttribute(
+        "download",
+        fileItem.name.endsWith(".csv") ? fileItem.name : `${fileItem.name}.csv`,
+      );
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      toast.success("Download started");
+      toast.success("Download started", { id: toastId });
     } catch {
-      toast.error("Failed to download CSV");
+      toast.error("Failed to download CSV", { id: toastId });
     }
   };
 
@@ -397,7 +558,7 @@ export default function NestedFilesPage() {
       await moveFileToFolderPath(movingFile.id, targetMovePath, userId);
       toast.success("File moved successfully");
       setMovingFile(null);
-      loadFolderContent();
+      refreshFolderContent();
     } catch (err: any) {
       toast.error(err?.message || "Failed to move file");
     }
@@ -409,7 +570,7 @@ export default function NestedFilesPage() {
     try {
       await deleteWorkspaceFile(fileId);
       toast.success(`Deleted "${fileName}"`);
-      loadFolderContent();
+      refreshFolderContent();
     } catch (err: any) {
       toast.error(err?.message || "Failed to delete file");
     }
@@ -417,11 +578,11 @@ export default function NestedFilesPage() {
 
   // Filtering
   const filteredSubfolders = subfolders.filter((f) =>
-    f.name.toLowerCase().includes(searchQuery.toLowerCase())
+    f.name.toLowerCase().includes(searchQuery.toLowerCase()),
   );
 
   const filteredFiles = files.filter((f) =>
-    f.name.toLowerCase().includes(searchQuery.toLowerCase())
+    f.name.toLowerCase().includes(searchQuery.toLowerCase()),
   );
 
   return (
@@ -552,10 +713,17 @@ export default function NestedFilesPage() {
               <div className="h-5 w-[1px] bg-border" />
               <div className="flex items-center gap-2.5">
                 <div className="relative h-6 w-6 shrink-0">
-                  <Image src="/pngwing.com.png" alt="Folder" fill className="object-contain" />
+                  <Image
+                    src="/pngwing.com.png"
+                    alt="Folder"
+                    fill
+                    className="object-contain"
+                  />
                 </div>
                 <div>
-                  <h2 className="text-base font-bold tracking-tight">{currentFolderName}</h2>
+                  <h2 className="text-base font-bold tracking-tight">
+                    {currentFolderName}
+                  </h2>
                   <p className="text-xs text-muted-foreground font-mono">
                     /{currentPath}
                   </p>
@@ -565,13 +733,15 @@ export default function NestedFilesPage() {
 
             <div className="flex items-center gap-2">
               <Button
-                onClick={loadFolderContent}
+                onClick={refreshFolderContent}
                 variant="ghost"
                 size="icon"
                 className="h-8 w-8"
                 title="Refresh"
               >
-                <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+                <RefreshCw
+                  className={`h-4 w-4 ${isSubfoldersFetching || isFilesFetching ? "animate-spin" : ""}`}
+                />
               </Button>
             </div>
           </div>
@@ -597,11 +767,19 @@ export default function NestedFilesPage() {
                 decodedSegments.length === 0 ? (
                   <div className="rounded-xl border border-dashed p-8 text-center bg-card/20">
                     <div className="mx-auto relative h-16 w-16 mb-2">
-                      <Image src="/pngwing.com.png" alt="Folder" fill className="object-contain opacity-80" />
+                      <Image
+                        src="/pngwing.com.png"
+                        alt="Folder"
+                        fill
+                        className="object-contain opacity-80"
+                      />
                     </div>
-                    <h4 className="font-semibold text-sm">No folders created yet</h4>
+                    <h4 className="font-semibold text-sm">
+                      No folders created yet
+                    </h4>
                     <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
-                      Create folders to organize data into nested directories like `A/B/C`.
+                      Create folders to organize data into nested directories
+                      like `A/B/C`.
                     </p>
                     <Button
                       onClick={() => setFolderDialogOpen(true)}
@@ -648,14 +826,19 @@ export default function NestedFilesPage() {
 
                       {/* Folder Details */}
                       <div className="mt-3 w-full">
-                        <h4 className="font-semibold text-sm truncate text-foreground group-hover:text-primary transition" title={folder.name}>
+                        <h4
+                          className="font-semibold text-sm truncate text-foreground group-hover:text-primary transition"
+                          title={folder.name}
+                        >
                           {folder.name}
                         </h4>
                         <div className="mt-1 flex items-center justify-center gap-1.5 text-[11px] text-muted-foreground">
                           {folder.subfolderCount ? (
                             <span>{folder.subfolderCount} subfolders</span>
                           ) : null}
-                          {folder.subfolderCount && folder.fileCount ? <span>•</span> : null}
+                          {folder.subfolderCount && folder.fileCount ? (
+                            <span>•</span>
+                          ) : null}
                           <span>{folder.fileCount || 0} files</span>
                         </div>
                       </div>
@@ -676,9 +859,15 @@ export default function NestedFilesPage() {
               {filteredFiles.length === 0 ? (
                 <div className="rounded-xl border border-dashed p-8 text-center bg-card/20">
                   <FileSpreadsheet className="h-10 w-10 text-muted-foreground/40 mx-auto" />
-                  <h4 className="font-semibold text-sm mt-2">No files here yet</h4>
+                  <h4 className="font-semibold text-sm mt-2">
+                    No files here yet
+                  </h4>
                   <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
-                    Import a CSV or configure a <span className="text-primary font-semibold">SaveFileNode</span> in the workflow editor with this folder path.
+                    Import a CSV or configure a{" "}
+                    <span className="text-primary font-semibold">
+                      SaveFileNode
+                    </span>{" "}
+                    in the workflow editor with this folder path.
                   </p>
                   <Button
                     onClick={() => fileInputRef.current?.click()}
@@ -693,8 +882,16 @@ export default function NestedFilesPage() {
                 /* GRID VIEW FOR FILES */
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
                   {filteredFiles.map((file) => {
-                    const rowCount = file.metadata?.rowCount ?? (Array.isArray(file.data?.data) ? file.data.data.length : null);
-                    const colCount = file.metadata?.colCount ?? (Array.isArray(file.data?.columns) ? file.data.columns.length : (file.metadata?.columns?.length || null));
+                    const rowCount =
+                      file.metadata?.rowCount ??
+                      (Array.isArray(file.data?.data)
+                        ? file.data.data.length
+                        : null);
+                    const colCount =
+                      file.metadata?.colCount ??
+                      (Array.isArray(file.data?.columns)
+                        ? file.data.columns.length
+                        : file.metadata?.columns?.length || null);
 
                     return (
                       <div
@@ -714,11 +911,16 @@ export default function NestedFilesPage() {
 
                           {/* File Details */}
                           <div className="mt-3">
-                            <h4 className="font-semibold text-sm truncate" title={file.name}>
+                            <h4
+                              className="font-semibold text-sm truncate"
+                              title={file.name}
+                            >
                               {file.name}
                             </h4>
                             <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                              {rowCount !== null && <span>{rowCount} rows</span>}
+                              {rowCount !== null && (
+                                <span>{rowCount} rows</span>
+                              )}
                               {colCount !== null && (
                                 <>
                                   <span>•</span>
@@ -761,7 +963,9 @@ export default function NestedFilesPage() {
                               <FolderInput className="h-4 w-4" />
                             </button>
                             <button
-                              onClick={() => handleDeleteFile(file.id, file.name)}
+                              onClick={() =>
+                                handleDeleteFile(file.id, file.name)
+                              }
                               className="rounded p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition"
                               title="Delete File"
                             >
@@ -787,14 +991,27 @@ export default function NestedFilesPage() {
                     </thead>
                     <tbody className="divide-y">
                       {filteredFiles.map((file) => {
-                        const rowCount = file.metadata?.rowCount ?? (Array.isArray(file.data?.data) ? file.data.data.length : null);
-                        const colCount = file.metadata?.colCount ?? (Array.isArray(file.data?.columns) ? file.data.columns.length : (file.metadata?.columns?.length || null));
+                        const rowCount =
+                          file.metadata?.rowCount ??
+                          (Array.isArray(file.data?.data)
+                            ? file.data.data.length
+                            : null);
+                        const colCount =
+                          file.metadata?.colCount ??
+                          (Array.isArray(file.data?.columns)
+                            ? file.data.columns.length
+                            : file.metadata?.columns?.length || null);
 
                         return (
-                          <tr key={file.id} className="hover:bg-muted/30 transition">
+                          <tr
+                            key={file.id}
+                            className="hover:bg-muted/30 transition"
+                          >
                             <td className="px-4 py-3 font-medium flex items-center gap-2">
                               <FileSpreadsheet className="h-4 w-4 text-emerald-500 shrink-0" />
-                              <span className="truncate max-w-xs">{file.name}</span>
+                              <span className="truncate max-w-xs">
+                                {file.name}
+                              </span>
                             </td>
                             <td className="px-4 py-3 text-muted-foreground text-xs">
                               {rowCount !== null && `${rowCount} rows`}
@@ -830,7 +1047,9 @@ export default function NestedFilesPage() {
                                   <FolderInput className="h-4 w-4" />
                                 </button>
                                 <button
-                                  onClick={() => handleDeleteFile(file.id, file.name)}
+                                  onClick={() =>
+                                    handleDeleteFile(file.id, file.name)
+                                  }
                                   className="rounded p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition"
                                   title="Delete File"
                                 >
@@ -856,14 +1075,20 @@ export default function NestedFilesPage() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <div className="relative h-5 w-5">
-                <Image src="/pngwing.com.png" alt="Folder" fill className="object-contain" />
+                <Image
+                  src="/pngwing.com.png"
+                  alt="Folder"
+                  fill
+                  className="object-contain"
+                />
               </div>
               <span>Create Folder</span>
             </DialogTitle>
             <DialogDescription>
               {currentPath ? (
                 <>
-                  Creating inside: <code className="text-primary font-mono">/{currentPath}</code>
+                  Creating inside:{" "}
+                  <code className="text-primary font-mono">/{currentPath}</code>
                 </>
               ) : (
                 "Creating folder at root directory."
@@ -873,7 +1098,9 @@ export default function NestedFilesPage() {
 
           <form onSubmit={handleCreateFolder} className="space-y-4 py-2">
             <div>
-              <label className="text-xs font-semibold uppercase text-muted-foreground">Folder Name</label>
+              <label className="text-xs font-semibold uppercase text-muted-foreground">
+                Folder Name
+              </label>
               <Input
                 type="text"
                 placeholder="e.g. Attendance, Sem_1, Section_A"
@@ -886,7 +1113,9 @@ export default function NestedFilesPage() {
             </div>
 
             <div>
-              <label className="text-xs font-semibold uppercase text-muted-foreground">Description (Optional)</label>
+              <label className="text-xs font-semibold uppercase text-muted-foreground">
+                Description (Optional)
+              </label>
               <Input
                 type="text"
                 placeholder="Brief summary of contents"
@@ -914,21 +1143,31 @@ export default function NestedFilesPage() {
       </Dialog>
 
       {/* ================= MODAL: DELETE FOLDER ================= */}
-      <Dialog open={!!deleteFolderTarget} onOpenChange={(open) => !open && setDeleteFolderTarget(null)}>
+      <Dialog
+        open={!!deleteFolderTarget}
+        onOpenChange={(open) => !open && setDeleteFolderTarget(null)}
+      >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-destructive">Delete Folder</DialogTitle>
+            <DialogTitle className="text-destructive">
+              Delete Folder
+            </DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete folder &quot;{deleteFolderTarget?.name}&quot;?
+              Are you sure you want to delete folder &quot;
+              {deleteFolderTarget?.name}&quot;?
             </DialogDescription>
           </DialogHeader>
 
           <div className="py-2 text-sm text-muted-foreground space-y-2">
             <p>
-              Path: <code className="font-mono text-foreground">/{deleteFolderTarget?.path}</code>
+              Path:{" "}
+              <code className="font-mono text-foreground">
+                /{deleteFolderTarget?.path}
+              </code>
             </p>
             <p className="text-destructive font-medium">
-              This will permanently delete this folder and all files and subfolders contained inside it.
+              This will permanently delete this folder and all files and
+              subfolders contained inside it.
             </p>
           </div>
 
@@ -954,7 +1193,10 @@ export default function NestedFilesPage() {
       </Dialog>
 
       {/* ================= MODAL: MOVE FILE ================= */}
-      <Dialog open={!!movingFile} onOpenChange={(open) => !open && setMovingFile(null)}>
+      <Dialog
+        open={!!movingFile}
+        onOpenChange={(open) => !open && setMovingFile(null)}
+      >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Move File</DialogTitle>
@@ -964,7 +1206,9 @@ export default function NestedFilesPage() {
           </DialogHeader>
 
           <div className="space-y-3 py-2">
-            <label className="text-xs font-semibold uppercase text-muted-foreground">Destination Folder</label>
+            <label className="text-xs font-semibold uppercase text-muted-foreground">
+              Destination Folder
+            </label>
             <select
               value={targetMovePath}
               onChange={(e) => setTargetMovePath(e.target.value)}
@@ -980,7 +1224,11 @@ export default function NestedFilesPage() {
           </div>
 
           <DialogFooter className="pt-4">
-            <Button type="button" variant="outline" onClick={() => setMovingFile(null)}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setMovingFile(null)}
+            >
               Cancel
             </Button>
             <Button type="button" onClick={handleMoveFile}>
@@ -991,61 +1239,97 @@ export default function NestedFilesPage() {
       </Dialog>
 
       {/* ================= MODAL: FILE PREVIEW (SYNCFUSION SPREADSHEET) ================= */}
-      <Dialog open={!!previewFile} onOpenChange={(open) => !open && setPreviewFile(null)}>
-        <DialogContent className="max-w-5xl w-[94vw] max-h-[92vh] flex flex-col p-4 sm:p-6">
+      <Dialog
+        open={!!previewFile}
+        onOpenChange={(open) => !open && setPreviewFile(null)}
+      >
+        <DialogContent className="w-[95vw] min-w-[95vw] h-[95vh] min-h-[95vh] max-w-none max-h-none flex flex-col p-4 sm:p-6">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-base font-semibold">
               <FileSpreadsheet className="h-5 w-5 text-emerald-500" />
               <span>{previewFile?.name}</span>
             </DialogTitle>
             <DialogDescription className="text-xs">
-              {parsedPreviewDataset?.data?.length || 0} rows • {parsedPreviewDataset?.columns?.length || 0} columns
+              {isPreviewDataLoading ? (
+                <span className="flex items-center gap-1.5 text-muted-foreground animate-pulse">
+                  <Loader2 className="h-3 w-3 animate-spin inline-block mr-1" />
+                  Loading sheet data...
+                </span>
+              ) : (
+                <span>
+                  {parsedPreviewDataset?.data?.length || 0} rows •{" "}
+                  {parsedPreviewDataset?.columns?.length || 0} columns
+                </span>
+              )}
             </DialogDescription>
           </DialogHeader>
 
-          <div className="flex-1 border rounded-lg overflow-hidden w-full h-[64vh] min-h-[440px] mt-2 bg-background relative">
-            {parsedPreviewDataset && parsedPreviewDataset.columns.length > 0 ? (
+          <div
+            className="flex-1 border rounded-lg overflow-hidden w-full h-full min-h-[500px] mt-2 bg-white text-zinc-900 light relative"
+            style={{ colorScheme: "light" }}
+          >
+            {isPreviewDataLoading ? (
+              <div className="flex flex-col items-center justify-center h-full p-8 text-center text-muted-foreground gap-3">
+                <Loader2 className="h-8 w-8 animate-spin text-emerald-500" />
+                <p className="font-medium text-sm text-foreground">
+                  Fetching table data...
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Loading full spreadsheet content once for preview
+                </p>
+              </div>
+            ) : previewSheets && previewSheets.length > 0 ? (
               <SpreadsheetComponent
+                key={`${previewFile?.id || "preview"}_${parsedPreviewDataset?.data?.length || 0}`}
                 ref={previewSpreadsheetRef}
                 created={onPreviewSpreadsheetCreated}
                 className="w-full h-full"
                 height="100%"
                 width="100%"
                 allowEditing={false}
-                allowOpen={true}
+                allowOpen={false}
                 allowSave={false}
                 showFormulaBar={true}
                 showRibbon={false}
-                sheets={[
-                  {
-                    name: (previewFile?.name || "Sheet1").replace(/\.[^/.]+$/, "").substring(0, 30),
-                    showGridLines: true,
-                  },
-                ]}
+                sheets={previewSheets}
               />
             ) : (
               <div className="flex flex-col items-center justify-center h-full p-8 text-center text-muted-foreground">
                 <FileSpreadsheet className="h-10 w-10 text-muted-foreground/40 mb-2" />
-                <p className="font-medium text-sm">No preview data available for this file.</p>
-                <p className="text-xs text-muted-foreground mt-1">This file might be empty or in an unsupported format.</p>
+                <p className="font-medium text-sm">
+                  No preview data available for this file.
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  This file might be empty or in an unsupported format.
+                </p>
               </div>
             )}
           </div>
 
           <DialogFooter className="mt-4 flex sm:justify-between items-center w-full">
             <div className="text-xs text-muted-foreground hidden sm:block">
-              {parsedPreviewDataset ? `${parsedPreviewDataset.data.length} rows loaded into Syncfusion sheet preview` : ""}
+              {isPreviewDataLoading ? (
+                <span>Fetching file...</span>
+              ) : parsedPreviewDataset ? (
+                `${parsedPreviewDataset.data.length} rows loaded into Syncfusion sheet preview`
+              ) : (
+                ""
+              )}
             </div>
             <div className="flex gap-2">
               <Button
                 variant="outline"
+                disabled={isPreviewDataLoading}
                 onClick={() => previewFile && handleDownloadFile(previewFile)}
                 className="gap-1.5 cursor-pointer"
               >
                 <Download className="h-4 w-4" />
                 <span>Download CSV</span>
               </Button>
-              <Button onClick={() => setPreviewFile(null)} className="cursor-pointer">
+              <Button
+                onClick={() => setPreviewFile(null)}
+                className="cursor-pointer"
+              >
                 Close
               </Button>
             </div>

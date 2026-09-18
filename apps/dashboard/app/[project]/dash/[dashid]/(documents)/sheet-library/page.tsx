@@ -1,11 +1,11 @@
-'use client';
+"use client";
 
-import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { useSession } from '@/lib/auth-client';
+import React, { useState, useCallback, useEffect, useRef } from "react";
+import { useSession } from "@/lib/auth-client";
 import {
   getMasterSheets,
   deleteMasterSheet,
-} from '../data-library/master-sheet-actions';
+} from "../data-library/master-sheet-actions";
 import {
   Database,
   Trash2,
@@ -20,35 +20,38 @@ import {
   Loader2,
   ChevronDown,
   FileCode,
-} from 'lucide-react';
-import { Button } from '@repo/ui/components/ui/button';
-import { Input } from '@repo/ui/components/ui/input';
+} from "lucide-react";
+import { Button } from "@repo/ui/components/ui/button";
+import { Input } from "@repo/ui/components/ui/input";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogDescription,
-} from '@repo/ui/components/ui/dialog';
+} from "@repo/ui/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@repo/ui/components/ui/dropdown-menu';
-import dynamic from 'next/dynamic';
-import { toast } from 'sonner';
-import { useMasterSheetStore } from '@/stores/master-sheet-store';
+} from "@repo/ui/components/ui/dropdown-menu";
+import dynamic from "next/dynamic";
+import { toast } from "sonner";
+import { useMasterSheetStore } from "@/stores/master-sheet-store";
 import {
   openSheetInSyncfusion,
   exportSheetToExcel,
   exportSheetToCsv,
   exportSheetToJson,
-} from '@/lib/sheet-utils';
+} from "@/lib/sheet-utils";
 
 const SpreadsheetComponent = dynamic(
-  () => import('@syncfusion/ej2-react-spreadsheet').then((m) => m.SpreadsheetComponent),
-  { ssr: false }
+  () =>
+    import("@syncfusion/ej2-react-spreadsheet").then(
+      (m) => m.SpreadsheetComponent,
+    ),
+  { ssr: false },
 );
 
 interface MasterSheetItem {
@@ -60,7 +63,7 @@ interface MasterSheetItem {
   updatedAt: string;
 }
 
-import { useParams } from 'next/navigation';
+import { useParams } from "next/navigation";
 
 const SheetLibrary = () => {
   const params = useParams();
@@ -71,12 +74,15 @@ const SheetLibrary = () => {
 
   const [sheets, setSheets] = useState<MasterSheetItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [searchTerm, setSearchTerm] = useState("");
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [previewSheet, setPreviewSheet] = useState<string | null>(null);
-  const [selectedSheetForPreview, setSelectedSheetForPreview] = useState<MasterSheetItem | null>(null);
+  const [selectedSheetForPreview, setSelectedSheetForPreview] =
+    useState<MasterSheetItem | null>(null);
   const [deletingSheetId, setDeletingSheetId] = useState<string | null>(null);
-  const [downloadingSheetId, setDownloadingSheetId] = useState<string | null>(null);
+  const [downloadingSheetId, setDownloadingSheetId] = useState<string | null>(
+    null,
+  );
   const previewSpreadsheetRef = useRef<any>(null);
 
   // Fetch sheets from DB for this desk (dashid)
@@ -84,11 +90,15 @@ const SheetLibrary = () => {
     if (!dashid && !userId) return;
     setLoading(true);
     try {
-      const result = await getMasterSheets(dashid, userId, userEmail || undefined);
+      const result = await getMasterSheets(
+        dashid,
+        userId,
+        userEmail || undefined,
+      );
       setSheets(result as any);
     } catch (err) {
-      console.error('Failed to fetch sheets:', err);
-      toast.error('Failed to load sheet library');
+      console.error("Failed to fetch sheets:", err);
+      toast.error("Failed to load sheet library");
     } finally {
       setLoading(false);
     }
@@ -97,7 +107,6 @@ const SheetLibrary = () => {
   useEffect(() => {
     fetchSheets();
   }, [fetchSheets]);
-
 
   // Delete handler
   const handleDelete = async (sheetId: string, sheetName: string) => {
@@ -116,8 +125,8 @@ const SheetLibrary = () => {
       // Also remove from store
       useMasterSheetStore.getState().removeSheet(sheetName);
     } catch (err) {
-      console.error('Delete failed:', err);
-      toast.error('Delete failed');
+      console.error("Delete failed:", err);
+      toast.error("Delete failed");
     } finally {
       setDeletingSheetId(null);
     }
@@ -131,11 +140,11 @@ const SheetLibrary = () => {
       if (success) {
         toast.success(`Downloaded "${sheet.name}.xlsx"`);
       } else {
-        toast.error('Failed to export Excel file');
+        toast.error("Failed to export Excel file");
       }
     } catch (err: any) {
-      console.error('Excel download error:', err);
-      toast.error('Excel export failed: ' + (err?.message || 'Unknown error'));
+      console.error("Excel download error:", err);
+      toast.error("Excel export failed: " + (err?.message || "Unknown error"));
     } finally {
       setDownloadingSheetId(null);
     }
@@ -146,7 +155,7 @@ const SheetLibrary = () => {
     if (success) {
       toast.success(`Downloaded "${sheet.name}.csv"`);
     } else {
-      toast.error('No data to export');
+      toast.error("No data to export");
     }
   };
 
@@ -155,7 +164,7 @@ const SheetLibrary = () => {
     if (success) {
       toast.success(`Downloaded "${sheet.name}.json"`);
     } else {
-      toast.error('Failed to export JSON');
+      toast.error("Failed to export JSON");
     }
   };
 
@@ -167,7 +176,7 @@ const SheetLibrary = () => {
       return;
     }
     if (!sheet.data) {
-      toast.error('No data to preview');
+      toast.error("No data to preview");
       return;
     }
     setPreviewSheet(sheet.id);
@@ -191,15 +200,19 @@ const SheetLibrary = () => {
     return () => clearTimeout(timer);
   }, [selectedSheetForPreview]);
 
-  const [filterTab, setFilterTab] = useState<'all' | 'personal' | 'shared'>('all');
+  const [filterTab, setFilterTab] = useState<"all" | "personal" | "shared">(
+    "all",
+  );
 
   // Filtered sheets by tab + search
   const filteredSheets = sheets.filter((s: any) => {
-    const matchesSearch = s.name.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = s.name
+      .toLowerCase()
+      .includes(searchTerm.toLowerCase());
     if (!matchesSearch) return false;
 
-    if (filterTab === 'personal') return s.isOwner !== false;
-    if (filterTab === 'shared') return s.isOwner === false;
+    if (filterTab === "personal") return s.isOwner !== false;
+    if (filterTab === "shared") return s.isOwner === false;
     return true;
   });
 
@@ -209,7 +222,9 @@ const SheetLibrary = () => {
   if (!userId) {
     return (
       <div className="flex items-center justify-center h-[60vh]">
-        <p className="text-muted-foreground">Please log in to access the Sheet Library.</p>
+        <p className="text-muted-foreground">
+          Please log in to access the Sheet Library.
+        </p>
       </div>
     );
   }
@@ -225,7 +240,8 @@ const SheetLibrary = () => {
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Sheet Library</h1>
             <p className="text-sm text-muted-foreground">
-              {sheets.length} master sheet{sheets.length !== 1 ? 's' : ''} across personal & shared desks
+              {sheets.length} master sheet{sheets.length !== 1 ? "s" : ""}{" "}
+              across personal & shared desks
             </p>
           </div>
         </div>
@@ -234,14 +250,14 @@ const SheetLibrary = () => {
           {/* View toggle */}
           <div className="flex border rounded-lg overflow-hidden">
             <button
-              onClick={() => setViewMode('grid')}
-              className={`p-2 transition ${viewMode === 'grid' ? 'bg-muted' : 'hover:bg-muted/50'}`}
+              onClick={() => setViewMode("grid")}
+              className={`p-2 transition ${viewMode === "grid" ? "bg-muted" : "hover:bg-muted/50"}`}
             >
               <Grid3X3 className="size-4" />
             </button>
             <button
-              onClick={() => setViewMode('list')}
-              className={`p-2 transition ${viewMode === 'list' ? 'bg-muted' : 'hover:bg-muted/50'}`}
+              onClick={() => setViewMode("list")}
+              className={`p-2 transition ${viewMode === "list" ? "bg-muted" : "hover:bg-muted/50"}`}
             >
               <List className="size-4" />
             </button>
@@ -254,20 +270,20 @@ const SheetLibrary = () => {
         {/* Category Tabs */}
         <div className="flex items-center gap-1 p-1 bg-muted rounded-lg text-xs font-medium">
           <button
-            onClick={() => setFilterTab('all')}
-            className={`px-3 py-1.5 rounded-md transition ${filterTab === 'all' ? 'bg-background text-foreground shadow-sm font-semibold' : 'text-muted-foreground hover:text-foreground'}`}
+            onClick={() => setFilterTab("all")}
+            className={`px-3 py-1.5 rounded-md transition ${filterTab === "all" ? "bg-background text-foreground shadow-sm font-semibold" : "text-muted-foreground hover:text-foreground"}`}
           >
             All Sheets ({sheets.length})
           </button>
           <button
-            onClick={() => setFilterTab('personal')}
-            className={`px-3 py-1.5 rounded-md transition ${filterTab === 'personal' ? 'bg-background text-foreground shadow-sm font-semibold' : 'text-muted-foreground hover:text-foreground'}`}
+            onClick={() => setFilterTab("personal")}
+            className={`px-3 py-1.5 rounded-md transition ${filterTab === "personal" ? "bg-background text-foreground shadow-sm font-semibold" : "text-muted-foreground hover:text-foreground"}`}
           >
             Personal Desk Sheets ({personalCount})
           </button>
           <button
-            onClick={() => setFilterTab('shared')}
-            className={`px-3 py-1.5 rounded-md transition ${filterTab === 'shared' ? 'bg-background text-foreground shadow-sm font-semibold' : 'text-muted-foreground hover:text-foreground'}`}
+            onClick={() => setFilterTab("shared")}
+            className={`px-3 py-1.5 rounded-md transition ${filterTab === "shared" ? "bg-background text-foreground shadow-sm font-semibold" : "text-muted-foreground hover:text-foreground"}`}
           >
             Shared Desk Sheets ({sharedCount})
           </button>
@@ -298,18 +314,24 @@ const SheetLibrary = () => {
           <FolderOpen className="size-12 opacity-40" />
           <div className="text-center">
             <p className="text-lg font-medium mb-1">
-              {searchTerm ? 'No sheets match your search' : 'No sheets found in this category'}
+              {searchTerm
+                ? "No sheets match your search"
+                : "No sheets found in this category"}
             </p>
             <p className="text-sm">
-              {searchTerm ? 'Try a different search term' : 'Create a project or get invited to a desk to see master sheets here.'}
+              {searchTerm
+                ? "Try a different search term"
+                : "Create a project or get invited to a desk to see master sheets here."}
             </p>
           </div>
         </div>
-      ) : viewMode === 'grid' ? (
+      ) : viewMode === "grid" ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {filteredSheets.map((sheet: any) => {
             const meta = sheet.metadata as any;
-            const blockCount = meta?.blocks ? Object.keys(meta.blocks).length : 0;
+            const blockCount = meta?.blocks
+              ? Object.keys(meta.blocks).length
+              : 0;
             const isOwner = sheet.isOwner !== false;
 
             return (
@@ -321,12 +343,16 @@ const SheetLibrary = () => {
                   <div className="p-2 rounded-lg bg-violet-50 dark:bg-violet-950">
                     <FileSpreadsheet className="size-5 text-violet-600" />
                   </div>
-                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${isOwner ? 'bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800' : 'bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'}`}>
-                    {isOwner ? 'Personal Desk' : 'Shared Desk'}
+                  <span
+                    className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${isOwner ? "bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800" : "bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800"}`}
+                  >
+                    {isOwner ? "Personal Desk" : "Shared Desk"}
                   </span>
                 </div>
 
-                <h3 className="font-semibold text-sm truncate mb-1">{sheet.name}</h3>
+                <h3 className="font-semibold text-sm truncate mb-1">
+                  {sheet.name}
+                </h3>
 
                 <div className="flex items-center gap-2 text-xs text-muted-foreground mb-3">
                   {meta?.rowCount !== undefined && (
@@ -341,10 +367,10 @@ const SheetLibrary = () => {
                 </div>
 
                 <div className="text-[10px] text-muted-foreground mb-3">
-                  {new Date(sheet.updatedAt).toLocaleDateString('en-US', {
-                    month: 'short',
-                    day: 'numeric',
-                    year: 'numeric',
+                  {new Date(sheet.updatedAt).toLocaleDateString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                    year: "numeric",
                   })}
                 </div>
 
@@ -435,26 +461,39 @@ const SheetLibrary = () => {
             <tbody>
               {filteredSheets.map((sheet) => {
                 const meta = sheet.metadata as any;
-                const blockCount = meta?.blocks ? Object.keys(meta.blocks).length : 0;
+                const blockCount = meta?.blocks
+                  ? Object.keys(meta.blocks).length
+                  : 0;
 
                 return (
-                  <tr key={sheet.id} className="border-b hover:bg-muted/30 transition">
+                  <tr
+                    key={sheet.id}
+                    className="border-b hover:bg-muted/30 transition"
+                  >
                     <td className="px-4 py-2.5 flex items-center gap-2">
                       <FileSpreadsheet className="size-4 text-violet-600 flex-shrink-0" />
-                      <span className="truncate max-w-[200px]">{sheet.name}</span>
+                      <span className="truncate max-w-[200px]">
+                        {sheet.name}
+                      </span>
                     </td>
                     <td className="px-4 py-2.5 text-xs text-muted-foreground">
                       {blockCount} blocks
                     </td>
                     <td className="px-4 py-2.5 text-xs text-muted-foreground">
-                      {meta?.rowCount ?? '?'} rows × {meta?.colCount ?? '?'} cols
+                      {meta?.rowCount ?? "?"} rows × {meta?.colCount ?? "?"}{" "}
+                      cols
                     </td>
                     <td className="px-4 py-2.5 text-xs text-muted-foreground">
                       {new Date(sheet.updatedAt).toLocaleDateString()}
                     </td>
                     <td className="px-4 py-2.5 text-right">
                       <div className="flex justify-end gap-1">
-                        <Button variant="ghost" size="sm" className="h-7" onClick={() => handlePreview(sheet)}>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7"
+                          onClick={() => handlePreview(sheet)}
+                        >
                           <Eye className="size-3" />
                         </Button>
 
@@ -538,10 +577,11 @@ const SheetLibrary = () => {
             <div>
               <DialogTitle className="text-lg font-bold flex items-center gap-2">
                 <FileSpreadsheet className="size-5 text-violet-600" />
-                {selectedSheetForPreview?.name || 'Sheet Preview'}
+                {selectedSheetForPreview?.name || "Sheet Preview"}
               </DialogTitle>
               <DialogDescription className="text-xs text-muted-foreground mt-1">
-                Full Syncfusion spreadsheet preview with templates, formatting, and formulas
+                Full Syncfusion spreadsheet preview with templates, formatting,
+                and formulas
               </DialogDescription>
             </div>
             {selectedSheetForPreview && (
@@ -565,7 +605,9 @@ const SheetLibrary = () => {
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-52">
                     <DropdownMenuItem
-                      onClick={() => handleDownloadExcel(selectedSheetForPreview)}
+                      onClick={() =>
+                        handleDownloadExcel(selectedSheetForPreview)
+                      }
                       className="text-xs flex items-center gap-2 cursor-pointer font-semibold text-emerald-700 dark:text-emerald-400"
                     >
                       <FileSpreadsheet className="size-3.5 text-emerald-600" />
@@ -579,7 +621,9 @@ const SheetLibrary = () => {
                       <span>CSV (.csv) — Plain Data</span>
                     </DropdownMenuItem>
                     <DropdownMenuItem
-                      onClick={() => handleDownloadJson(selectedSheetForPreview)}
+                      onClick={() =>
+                        handleDownloadJson(selectedSheetForPreview)
+                      }
                       className="text-xs flex items-center gap-2 cursor-pointer"
                     >
                       <FileCode className="size-3.5 text-amber-500" />
@@ -604,7 +648,7 @@ const SheetLibrary = () => {
                 allowSave={false}
                 showFormulaBar={true}
                 showRibbon={false}
-                sheets={[{ name: 'Sheet1', showGridLines: true }]}
+                sheets={[{ name: "Sheet1", showGridLines: true }]}
               />
             ) : (
               <div className="py-8 text-center text-sm text-muted-foreground">

@@ -716,3 +716,348 @@ def dynamic_align_schema(req: DynamicAlignmentRequest) -> dict:
         model=req.model or "gemini-2.5-flash",
         custom_prompt=hardcoded_prompt
     )
+
+
+# ─── Generic Alignment (Any Spreadsheet Type) ───────────────────────
+
+
+class GenericAlignmentRequest(BaseModel):
+    master_grid: List[List[Any]]
+    csv_string: str
+    target_column_path: str                           # e.g. "CO24009/Lab", "Sheet1", "Name"
+    column_key_map: Optional[Dict[str, int]] = None   # pre-existing mapping from DB
+    merge_config: Optional[Dict[str, Any]] = None     # merge operations per column key
+    custom_prompt: Optional[str] = None
+    sheet_name: Optional[str] = "Sheet1"
+    provider: Optional[str] = "gemini"
+    api_key: Optional[str] = None
+    model: Optional[str] = "gemini-2.5-flash"
+
+
+def detect_code_paths_from_grid(master_grid: List[List[Any]]) -> List[Dict[str, Any]]:
+    """
+    Detect all unique code paths from master grid headers.
+    Returns a list of { codePath, columns: [{col_idx, header, full_path}] }
+    """
+    if not master_grid or len(master_grid) == 0:
+        return []
+
+    data_start_row, col_paths, _, _ = extract_header_tree(master_grid)
+
+    # Group columns by their prefix path (all but last segment)
+    groups: Dict[str, List[Dict[str, Any]]] = {}
+
+    for col_idx, path in col_paths.items():
+        if not path or len(path) == 0:
+            continue
+
+        if len(path) >= 2:
+            # Hierarchical header: code path is everything except the leaf
+            code_path = "/".join(path[:-1])
+            leaf_header = path[-1]
+        else:
+            # Single-row header: code path is the header itself
+            code_path = "__flat__"
+            leaf_header = path[0]
+
+        if code_path not in groups:
+            groups[code_path] = []
+
+        groups[code_path].append({
+            "col_idx": col_idx,
+            "header": leaf_header,
+            "full_path": path,
+        })
+
+    result = []
+    for code_path, columns in groups.items():
+        result.append({
+            "codePath": code_path,
+            "columns": columns,
+            "isFlat": code_path == "__flat__",
+        })
+
+    return result
+
+
+def suggest_column_keys(
+    matched_columns: List[Dict[str, Any]],
+    csv_headers: List[str],
+) -> Dict[int, str]:
+    """
+    For each matched master grid column, suggest a stable key name
+    by normalizing the leaf header into a snake_case identifier.
+    """
+    suggested: Dict[int, str] = {}
+
+    for col_info in matched_columns:
+        col_idx = col_info["col_idx"]
+        header = str(col_info.get("header", f"Col_{col_idx + 1}"))
+        # Convert to snake_case: "Total Class" → "Total_Class", "Percentage" → "Percentage"
+        key = re.sub(r'[^a-zA-Z0-9]+', '_', header).strip('_')
+        if not key:
+            key = f"Col_{col_idx + 1}"
+        suggested[col_idx] = key
+
+    return suggested
+
+
+def apply_merge_operations(
+    existing_val: Any,
+    incoming_val: Any,
+    op: str,
+) -> Any:
+    """Apply a merge operation between existing and incoming values."""
+    def to_num(v: Any) -> float:
+        try:
+            if isinstance(v, (int, float)):
+                return float(v)
+            nums = re.findall(r'[-+]?\d*\.?\d+', str(v))
+            return float(nums[0]) if nums else 0.0
+        except Exception:
+            return 0.0
+
+    if op == "replace":
+        return incoming_val
+    elif op == "+":
+        return to_num(existing_val) + to_num(incoming_val)
+    elif op == "-":
+        return to_num(existing_val) - to_num(incoming_val)
+    elif op == "*":
+        return to_num(existing_val) * to_num(incoming_val)
+    elif op == "/":
+        divisor = to_num(incoming_val)
+        if divisor == 0:
+            return to_num(existing_val)
+        return to_num(existing_val) / divisor
+    else:
+        return incoming_val
+
+
+def generic_align_and_compute(
+    master_grid: List[List[Any]],
+    csv_headers: List[str],
+    csv_rows: List[Dict[str, str]],
+    target_path: str,
+    column_key_map: Optional[Dict[str, int]] = None,
+    merge_config: Optional[Dict[str, Any]] = None,
+    provider: str = "gemini",
+    api_key: Optional[str] = None,
+    model: Optional[str] = None,
+    custom_prompt: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Generic schema alignment that works with any spreadsheet type.
+    Uses code paths for deterministic column mapping.
+    Falls back to LLM/heuristics if no pre-existing column_key_map.
+    """
+    # 1. Extract header tree from master grid
+    data_start_row, col_paths, master_enroll_col, master_name_col = extract_header_tree(master_grid)
+
+    # 2. Detect all code paths and resolve target group
+    all_code_paths = detect_code_paths_from_grid(master_grid)
+    matched_group_columns = resolve_group_columns(col_paths, target_path)
+
+    # 3. If we have a pre-existing column_key_map, use it deterministically
+    if column_key_map and len(column_key_map) > 0:
+        # Deterministic mode: column_key_map maps key names to master col indices
+        # We just need to find the key column in CSV (enrollment/ID)
+        enroll_csv_col = None
+        for col in csv_headers:
+            col_lower = col.lower()
+            if any(kw in col_lower for kw in ["enroll", "roll", "reg", "id", "no"]):
+                enroll_csv_col = col
+                break
+        if not enroll_csv_col:
+            enroll_csv_col = csv_headers[0]
+
+        # Build CSV index map
+        csv_map: Dict[str, Dict[str, str]] = {}
+        for row in csv_rows:
+            raw_id = row.get(enroll_csv_col)
+            if raw_id:
+                csv_map[clean_id(raw_id)] = row
+
+        # Build suggested keys from matched columns
+        suggested_keys = suggest_column_keys(matched_group_columns, csv_headers) if matched_group_columns else {}
+
+        # Generate updates using deterministic mapping
+        updates = []
+        for r_idx in range(data_start_row, len(master_grid)):
+            row = master_grid[r_idx]
+            if len(row) <= master_enroll_col:
+                continue
+
+            enroll_val = row[master_enroll_col]
+            if not enroll_val or str(enroll_val).strip() == "":
+                continue
+
+            clean_enroll = clean_id(enroll_val)
+            csv_student_row = csv_map.get(clean_enroll)
+
+            if csv_student_row:
+                cell_updates: Dict[int, Any] = {}
+
+                for key_name, col_idx in column_key_map.items():
+                    # Find matching CSV column for this key
+                    csv_col_match = None
+                    key_norm = normalize_token(key_name)
+
+                    for csv_col in csv_headers:
+                        if normalize_token(csv_col) == key_norm:
+                            csv_col_match = csv_col
+                            break
+
+                    if not csv_col_match:
+                        # Try fuzzy match
+                        for csv_col in csv_headers:
+                            csv_norm = normalize_token(csv_col)
+                            if key_norm in csv_norm or csv_norm in key_norm:
+                                csv_col_match = csv_col
+                                break
+
+                    if csv_col_match:
+                        incoming_val = csv_student_row.get(csv_col_match, "")
+                        existing_val = row[col_idx] if col_idx < len(row) else ""
+
+                        # Apply merge operation if configured
+                        if merge_config and key_name in merge_config:
+                            op = merge_config[key_name].get("op", "replace")
+                            new_val = apply_merge_operations(existing_val, incoming_val, op)
+                        else:
+                            new_val = incoming_val
+
+                        cell_updates[col_idx] = new_val
+
+                if cell_updates:
+                    name_val = ""
+                    if master_name_col is not None and master_name_col < len(row):
+                        name_val = str(row[master_name_col] or "")
+
+                    updates.append({
+                        "row_idx": r_idx,
+                        "enrollment": str(enroll_val),
+                        "enrollment_col_idx": master_enroll_col,
+                        "name_col_idx": master_name_col,
+                        "student_name": name_val or str(enroll_val),
+                        "cell_updates": cell_updates,
+                    })
+
+        # Auto-populate if no master rows matched
+        if not updates and csv_rows:
+            for idx, row_csv in enumerate(csv_rows):
+                r_idx = data_start_row + idx
+                enroll_val = row_csv.get(enroll_csv_col, f"ID_{idx+1}")
+                cell_updates = {}
+
+                for key_name, col_idx in column_key_map.items():
+                    key_norm = normalize_token(key_name)
+                    for csv_col in csv_headers:
+                        if normalize_token(csv_col) == key_norm or key_norm in normalize_token(csv_col):
+                            cell_updates[col_idx] = row_csv.get(csv_col, "")
+                            break
+
+                updates.append({
+                    "row_idx": r_idx,
+                    "enrollment": str(enroll_val),
+                    "enrollment_col_idx": master_enroll_col,
+                    "name_col_idx": master_name_col,
+                    "student_name": str(enroll_val),
+                    "cell_updates": cell_updates,
+                    "auto_populated": True,
+                })
+
+        # Build output columns from key map
+        output_columns = ["S.No", "Enrollment"]
+        for key_name in column_key_map.keys():
+            output_columns.append(key_name)
+
+        output_data = []
+        for i, upd in enumerate(updates):
+            row_out = [i + 1, upd["enrollment"]]
+            for key_name, col_idx in column_key_map.items():
+                val = upd["cell_updates"].get(col_idx, "")
+                row_out.append(val)
+            output_data.append(row_out)
+
+        return {
+            "success": True,
+            "mode": "deterministic",
+            "updates": updates,
+            "columns": output_columns,
+            "data": output_data,
+            "data_start_row": data_start_row,
+            "column_key_map": column_key_map,
+            "suggested_keys": suggested_keys,
+            "detected_codes": [cp["codePath"] for cp in all_code_paths],
+            "group_columns": [{"col_idx": g["col_idx"], "header": g["header"], "full_path": g.get("full_path", [])} for g in matched_group_columns],
+        }
+
+    # 4. No pre-existing map: fall back to LLM/heuristic alignment
+    # Use the existing dynamic alignment for attendance-style sheets
+    path_parts = [p.strip() for p in target_path.replace(":", "/").split("/") if p.strip()]
+    target_subject = path_parts[0] if len(path_parts) > 0 else "General"
+    target_component = path_parts[1] if len(path_parts) > 1 else "General"
+
+    result = align_and_compute_updates(
+        master_grid=master_grid,
+        csv_headers=csv_headers,
+        csv_rows=csv_rows,
+        target_subject=target_subject,
+        target_component=target_component,
+        target_path=target_path,
+        provider=provider,
+        api_key=api_key,
+        model=model,
+        custom_prompt=custom_prompt,
+    )
+
+    # Enhance result with suggested keys and detected codes
+    suggested_keys = suggest_column_keys(matched_group_columns, csv_headers)
+
+    # Build column_key_map from alignment result for flat sheets
+    auto_key_map: Dict[str, int] = {}
+    if matched_group_columns:
+        for col_info in matched_group_columns:
+            key = re.sub(r'[^a-zA-Z0-9]+', '_', str(col_info["header"])).strip('_')
+            auto_key_map[key] = col_info["col_idx"]
+    elif result.get("alignment"):
+        aln = result["alignment"]
+        if isinstance(aln, dict):
+            auto_key_map["Total_Classes"] = aln.get("master_total_col_idx", 3)
+            auto_key_map["Total_Attended"] = aln.get("master_attended_col_idx", 4)
+            if aln.get("master_percentage_col_idx") is not None:
+                auto_key_map["Percentage"] = aln["master_percentage_col_idx"]
+
+    result["suggested_keys"] = suggested_keys
+    result["column_key_map"] = auto_key_map
+    result["detected_codes"] = [cp["codePath"] for cp in all_code_paths]
+    result["mode"] = "llm_heuristic"
+
+    return result
+
+
+def generic_align_schema(req: GenericAlignmentRequest) -> dict:
+    """
+    Entry point for generic schema alignment.
+    Handles any spreadsheet type — attendance, inventory, grades, etc.
+    """
+    api_key = req.api_key.strip() if req.api_key and req.api_key.strip() else None
+
+    csv_headers, csv_rows = parse_csv_content(req.csv_string)
+    if not csv_headers or not csv_rows:
+        raise HTTPException(status_code=400, detail="Provided CSV data is empty or invalid")
+
+    return generic_align_and_compute(
+        master_grid=req.master_grid,
+        csv_headers=csv_headers,
+        csv_rows=csv_rows,
+        target_path=req.target_column_path,
+        column_key_map=req.column_key_map,
+        merge_config=req.merge_config,
+        provider=req.provider or "gemini",
+        api_key=api_key,
+        model=req.model or "gemini-2.5-flash",
+        custom_prompt=req.custom_prompt,
+    )
+

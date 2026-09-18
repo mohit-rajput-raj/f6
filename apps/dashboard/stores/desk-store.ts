@@ -42,6 +42,38 @@ export interface IncomingTabData {
   updatedAt: number;
 }
 
+// ─── Code Mapping Types ─────────────────────────────────────
+
+export interface MergeOperationConfig {
+  op: "+" | "-" | "*" | "/" | "replace";
+  sourceField: string;
+}
+
+export interface CodeMappingEntry {
+  id?: string;
+  codePath: string;
+  columnKeyMap: Record<string, number>; // key name → master col index
+  mergeConfig?: Record<string, MergeOperationConfig> | null;
+  filePath?: string | null;
+  fileId?: string | null;
+  fileName?: string | null;
+  metadata?: Record<string, any> | null;
+}
+
+export interface MergedPreviewTabData {
+  codePath: string;
+  columns: string[];
+  data: any[][];
+  updates: any[];
+  columnKeyMap: Record<string, number>;
+  suggestedKeys?: Record<number, string>; // col index → suggested key name
+  isNew: boolean;  // true if code was never seen before (no DB mapping)
+  sheetName?: string;
+  dataStartRow?: number;
+  mergeConfigEnabled?: boolean;
+  mergeConfig?: Record<string, MergeOperationConfig> | null;
+}
+
 export interface DeskBlockState {
   id: string;
   name: string;
@@ -147,6 +179,21 @@ interface DeskState {
   setMergedPreview: (data: (Dataset & { updates?: any[]; alignment?: any; dataStartRow?: number; groupColumns?: any[]; sheetName?: string; targetPath?: string; stackName?: string }) | null) => void;
   setDeskMasterSheetData: (data: any) => void;
 
+  // ─── Code Mapping State & Actions ───
+  codeMappings: Record<string, CodeMappingEntry>;
+  mergedPreviewTabs: MergedPreviewTabData[];
+  activePreviewTabCode: string | null;
+  setCodeMappings: (mappings: Record<string, CodeMappingEntry>) => void;
+  upsertCodeMapping: (codePath: string, entry: CodeMappingEntry) => void;
+  removeCodeMapping: (codePath: string) => void;
+  setMergedPreviewTabs: (tabs: MergedPreviewTabData[]) => void;
+  addMergedPreviewTab: (tab: MergedPreviewTabData) => void;
+  updateMergedPreviewTab: (codePath: string, partial: Partial<MergedPreviewTabData>) => void;
+  removeMergedPreviewTab: (codePath: string) => void;
+  setActivePreviewTabCode: (codePath: string | null) => void;
+  updateTabColumnKey: (codePath: string, colIndex: number, keyName: string) => void;
+  setTabMergeConfigEnabled: (codePath: string, enabled: boolean) => void;
+
   // ─── OCR Actions ───
   setOcrResult: (data: Dataset | null) => void;
   setOcrProcessing: (v: boolean) => void;
@@ -178,6 +225,9 @@ export const useDeskStore = create<DeskState>()((set, get) => ({
   ocrResult: null,
   isOcrProcessing: false,
   incomingDataByTab: {},
+  codeMappings: {},
+  mergedPreviewTabs: [],
+  activePreviewTabCode: null,
 
   // ─── Top-level setters ─────────────────────────────────────
   setBlocks: (blocks) => set({ blocks }),
@@ -528,6 +578,88 @@ export const useDeskStore = create<DeskState>()((set, get) => ({
   setMergedPreview: (data) => set({ mergedPreview: data }),
   setDeskMasterSheetData: (data) => set({ activeMasterSheetData: data }),
 
+  // ─── Code Mapping Actions ─────────────────────────────────
+  setCodeMappings: (mappings) => set({ codeMappings: mappings }),
+
+  upsertCodeMapping: (codePath, entry) =>
+    set((s) => ({
+      codeMappings: {
+        ...s.codeMappings,
+        [codePath]: entry,
+      },
+    })),
+
+  removeCodeMapping: (codePath) =>
+    set((s) => {
+      const { [codePath]: _, ...rest } = s.codeMappings;
+      return { codeMappings: rest };
+    }),
+
+  setMergedPreviewTabs: (tabs) =>
+    set({
+      mergedPreviewTabs: tabs,
+      activePreviewTabCode: tabs.length > 0 ? tabs[0].codePath : null,
+    }),
+
+  addMergedPreviewTab: (tab) =>
+    set((s) => {
+      const exists = s.mergedPreviewTabs.find((t) => t.codePath === tab.codePath);
+      if (exists) {
+        // Update existing tab
+        return {
+          mergedPreviewTabs: s.mergedPreviewTabs.map((t) =>
+            t.codePath === tab.codePath ? { ...t, ...tab } : t
+          ),
+        };
+      }
+      return {
+        mergedPreviewTabs: [...s.mergedPreviewTabs, tab],
+        activePreviewTabCode: s.activePreviewTabCode || tab.codePath,
+      };
+    }),
+
+  updateMergedPreviewTab: (codePath, partial) =>
+    set((s) => ({
+      mergedPreviewTabs: s.mergedPreviewTabs.map((t) =>
+        t.codePath === codePath ? { ...t, ...partial } : t
+      ),
+    })),
+
+  removeMergedPreviewTab: (codePath) =>
+    set((s) => {
+      const filtered = s.mergedPreviewTabs.filter((t) => t.codePath !== codePath);
+      return {
+        mergedPreviewTabs: filtered,
+        activePreviewTabCode:
+          s.activePreviewTabCode === codePath
+            ? filtered[0]?.codePath || null
+            : s.activePreviewTabCode,
+      };
+    }),
+
+  setActivePreviewTabCode: (codePath) => set({ activePreviewTabCode: codePath }),
+
+  updateTabColumnKey: (codePath, colIndex, keyName) =>
+    set((s) => ({
+      mergedPreviewTabs: s.mergedPreviewTabs.map((t) => {
+        if (t.codePath !== codePath) return t;
+        return {
+          ...t,
+          columnKeyMap: {
+            ...t.columnKeyMap,
+            [keyName]: colIndex,
+          },
+        };
+      }),
+    })),
+
+  setTabMergeConfigEnabled: (codePath, enabled) =>
+    set((s) => ({
+      mergedPreviewTabs: s.mergedPreviewTabs.map((t) =>
+        t.codePath === codePath ? { ...t, mergeConfigEnabled: enabled } : t
+      ),
+    })),
+
   // ─── OCR ───────────────────────────────────────────────────
   setOcrResult: (data) => set({ ocrResult: data }),
   setOcrProcessing: (v) => set({ isOcrProcessing: v }),
@@ -544,5 +676,8 @@ export const useDeskStore = create<DeskState>()((set, get) => ({
       activeMasterSheetData: null,
       ocrResult: null,
       isOcrProcessing: false,
+      codeMappings: {},
+      mergedPreviewTabs: [],
+      activePreviewTabCode: null,
     }),
 }));

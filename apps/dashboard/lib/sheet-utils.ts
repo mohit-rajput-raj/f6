@@ -172,23 +172,32 @@ export function openSheetInSyncfusion(ss: any, rawData: any) {
       return;
     }
 
-    let targetData = unwrapSyncfusionJson(rawData) || rawData;
+    let targetData = unwrapSyncfusionJson(rawData);
 
-    // Unwrap flat table dataset { columns: [...], data: [...] }
-    if (targetData.columns && Array.isArray(targetData.columns)) {
-      const converted = convertFlatToSyncfusionWorkbook(targetData);
-      if (converted) {
-        targetData = converted;
-      }
-    } else if (targetData.data && targetData.data.columns && Array.isArray(targetData.data.columns)) {
-      const converted = convertFlatToSyncfusionWorkbook(targetData.data);
-      if (converted) {
-        targetData = converted;
+    // If not a workbook, check for flat table dataset { columns: [...], data: [...] } or array of objects
+    if (!targetData) {
+      if (rawData.columns && Array.isArray(rawData.columns)) {
+        targetData = convertFlatToSyncfusionWorkbook(rawData);
+      } else if (rawData.data && rawData.data.columns && Array.isArray(rawData.data.columns)) {
+        targetData = convertFlatToSyncfusionWorkbook(rawData.data);
+      } else if (Array.isArray(rawData) && rawData.length > 0 && typeof rawData[0] === "object") {
+        const columns = Object.keys(rawData[0]);
+        const data = rawData.map((item: any) =>
+          columns.map((col) => (item[col] !== undefined && item[col] !== null ? item[col] : ""))
+        );
+        targetData = convertFlatToSyncfusionWorkbook({ columns, data });
+      } else if (rawData.data && Array.isArray(rawData.data) && rawData.data.length > 0 && typeof rawData.data[0] === "object") {
+        const columns = Object.keys(rawData.data[0]);
+        const data = rawData.data.map((item: any) =>
+          columns.map((col) => (item[col] !== undefined && item[col] !== null ? item[col] : ""))
+        );
+        targetData = convertFlatToSyncfusionWorkbook({ columns, data });
       }
     }
 
-    // Pass data directly to Syncfusion openFromJson (microSheetAgent pattern)
-    ss.openFromJson({ file: targetData });
+    if (targetData) {
+      ss.openFromJson({ file: targetData });
+    }
   } catch (err) {
     console.warn("Error opening sheet in Syncfusion:", err);
   }

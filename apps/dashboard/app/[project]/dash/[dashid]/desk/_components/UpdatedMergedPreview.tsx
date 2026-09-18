@@ -1,10 +1,9 @@
 "use client"
 
-import React, { useState, useEffect, useMemo } from "react"
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import { useParams } from "next/navigation"
 import {
   Sparkles,
-  CheckCircle2,
   ArrowRight,
   Table2,
   X,
@@ -13,21 +12,17 @@ import {
   Database,
   Check,
   FolderPlus,
-  Folder,
-  FolderOpen,
-  FolderTree,
-  Home,
   FileSpreadsheet,
   FileText,
   Save,
-  ChevronRight,
+  Code2,
+  Zap,
 } from "lucide-react"
 import { Button } from "@repo/ui/components/ui/button"
 import { Badge } from "@repo/ui/components/ui/badge"
 import { Input } from "@repo/ui/components/ui/input"
 import { Label } from "@repo/ui/components/ui/label"
-import { ScrollArea } from "@repo/ui/components/ui/scroll-area"
-import { Tree, Folder as TreeFolder, File as TreeFile } from "@repo/ui/components/ui/File-Tree"
+import { Switch } from "@repo/ui/components/ui/switch"
 import {
   Dialog,
   DialogContent,
@@ -36,57 +31,69 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@repo/ui/components/ui/dialog"
-import { useDeskStore } from "@/stores/desk-store"
+import { useDeskStore, type MergedPreviewTabData, type CodeMappingEntry } from "@/stores/desk-store"
 import { useMasterSheetStore } from "@/stores/master-sheet-store"
 import { useSession } from "@/lib/auth-client"
 import { createDataLibraryFile } from "@/app/[project]/dash/[dashid]/(documents)/data-library/actions"
 import {
   createOrOverwriteWorkspaceFile,
-  getAllFoldersFlat,
-  createNestedFolder,
-  WorkspaceFolderItem,
+  getWorkspaceFileByPath,
 } from "@/app/[project]/dash/[dashid]/files/_actions/files-actions"
+import {
+  getCodeMappings,
+  upsertCodeMapping,
+  updateMergeConfig,
+} from "../code-mapping-actions"
+import { FileTreePicker, type FileTreePickerResult } from "./FileTreePicker"
+import { MergeConfigDrawer, type MergeConfigMap, type MergeOp } from "./MergeConfigDrawer"
 import { toast } from "sonner"
 
-interface FolderTreeNode {
-  id: string
-  name: string
-  path: string
-  parentPath: string
-  children: FolderTreeNode[]
-}
+// ─── Leaf Key Extractor ─────────────────────────────────────
 
-function buildFolderHierarchy(folders: WorkspaceFolderItem[]): FolderTreeNode[] {
-  const map = new Map<string, FolderTreeNode>()
-  const roots: FolderTreeNode[] = []
+function extractLeafKey(colHeader: string, codePath: string): string {
+  if (!colHeader) return ""
+  const normCode = codePath.replace(/[:\/]+/g, "/").trim().toLowerCase()
+  const normCol = colHeader.replace(/[:\/]+/g, "/").trim()
 
-  const sorted = [...folders].sort((a, b) => a.path.localeCompare(b.path))
+  if (normCode && normCol.toLowerCase().startsWith(normCode + "/")) {
+    const remainder = normCol.slice(normCode.length + 1).trim()
+    const clean = remainder.replace(/[^a-zA-Z0-9_%+-]+/g, "_").replace(/^_+|_+$/g, "")
+    return clean || remainder
+  }
 
-  sorted.forEach((f) => {
-    const lastSlash = f.path.lastIndexOf("/")
-    const parentPath = lastSlash !== -1 ? f.path.substring(0, lastSlash) : ""
-
-    map.set(f.path, {
-      id: f.id,
-      name: f.name,
-      path: f.path,
-      parentPath,
-      children: [],
-    })
-  })
-
-  sorted.forEach((f) => {
-    const node = map.get(f.path)
-    if (!node) return
-    if (node.parentPath && map.has(node.parentPath)) {
-      map.get(node.parentPath)?.children.push(node)
-    } else {
-      roots.push(node)
+  if (colHeader.includes(":") || colHeader.includes("/")) {
+    const parts = colHeader.split(/[:\/]/).map((p) => p.trim()).filter(Boolean)
+    if (parts.length > 1) {
+      const leaf = parts[parts.length - 1]
+      const clean = leaf.replace(/[^a-zA-Z0-9_%+-]+/g, "_").replace(/^_+|_+$/g, "")
+      return clean || leaf
     }
-  })
+  }
 
-  return roots
+  return colHeader.replace(/[^a-zA-Z0-9_%+-]+/g, "_").replace(/^_+|_+$/g, "") || colHeader
 }
+
+// ─── Mathematical Merge Helper ──────────────────────────────
+
+function applyMathOperation(existingVal: any, incomingVal: any, op: MergeOp): any {
+  const toNum = (v: any): number => {
+    if (typeof v === "number") return isNaN(v) ? 0 : v
+    const matches = String(v ?? "").match(/[-+]?\d*\.?\d+/)
+    return matches ? parseFloat(matches[0]) : 0
+  }
+
+  if (op === "replace") return incomingVal
+  if (op === "+") return toNum(existingVal) + toNum(incomingVal)
+  if (op === "-") return toNum(existingVal) - toNum(incomingVal)
+  if (op === "*") return toNum(existingVal) * toNum(incomingVal)
+  if (op === "/") {
+    const denom = toNum(incomingVal)
+    return denom !== 0 ? Math.round((toNum(existingVal) / denom) * 100) / 100 : 0
+  }
+  return incomingVal
+}
+
+// ─── Main Component ─────────────────────────────────────────
 
 export function UpdatedMergedPreview() {
   const params = useParams()
@@ -94,9 +101,21 @@ export function UpdatedMergedPreview() {
   const { data: session } = useSession()
   const userId = session?.user?.id || ""
 
+  // ── Legacy single merged preview (backward compat) ──
   const mergedPreview = useDeskStore((s) => s.mergedPreview)
   const setMergedPreview = useDeskStore((s) => s.setMergedPreview)
   const setDeskMasterSheetData = useDeskStore((s) => s.setDeskMasterSheetData)
+
+  // ── Multi-tab state ──
+  const mergedPreviewTabs = useDeskStore((s) => s.mergedPreviewTabs)
+  const activePreviewTabCode = useDeskStore((s) => s.activePreviewTabCode)
+  const setActivePreviewTabCode = useDeskStore((s) => s.setActivePreviewTabCode)
+  const addMergedPreviewTab = useDeskStore((s) => s.addMergedPreviewTab)
+  const updateMergedPreviewTab = useDeskStore((s) => s.updateMergedPreviewTab)
+  const removeMergedPreviewTab = useDeskStore((s) => s.removeMergedPreviewTab)
+  const codeMappings = useDeskStore((s) => s.codeMappings)
+  const upsertCodeMappingStore = useDeskStore((s) => s.upsertCodeMapping)
+  const setTabMergeConfigEnabled = useDeskStore((s) => s.setTabMergeConfigEnabled)
 
   const [isMerging, setIsMerging] = useState(false)
   const [mergedSuccess, setMergedSuccess] = useState(false)
@@ -108,41 +127,147 @@ export function UpdatedMergedPreview() {
   const [libraryDesc, setLibraryDesc] = useState("")
   const [isSavingLibrary, setIsSavingLibrary] = useState(false)
 
-  // ── Workspace Files Modal State (VS Code Tree UI) ──
-  const [filesModalOpen, setFilesModalOpen] = useState(false)
-  const [filesFileName, setFilesFileName] = useState("")
-  const [filesFileType, setFilesFileType] = useState<"csv" | "json">("csv")
-  const [selectedFolderPath, setSelectedFolderPath] = useState<string>("")
-  const [flatFolders, setFlatFolders] = useState<WorkspaceFolderItem[]>([])
-  const [loadingFolders, setLoadingFolders] = useState(false)
-  const [isSavingFiles, setIsSavingFiles] = useState(false)
-  const [isCreatingFolder, setIsCreatingFolder] = useState(false)
-  const [newFolderName, setNewFolderName] = useState("")
-  const [isSubmittingFolder, setIsSubmittingFolder] = useState(false)
+  // ── File Tree Picker State ──
+  const [filePickerOpen, setFilePickerOpen] = useState(false)
+  const [filePickerCodePath, setFilePickerCodePath] = useState("")
 
-  // Build recursive folder hierarchy for VS Code tree (Hook called unconditionally)
-  const folderTree = useMemo(() => buildFolderHierarchy(flatFolders), [flatFolders])
+  // ── Merge Config Drawer State ──
+  const [mergeDrawerOpen, setMergeDrawerOpen] = useState(false)
+  const [mergeDrawerCodePath, setMergeDrawerCodePath] = useState("")
 
-  if (!mergedPreview || !mergedPreview.columns || mergedPreview.columns.length === 0) {
-    return null
-  }
+  // Ref for debouncing column key persistence
+  const saveKeyTimerRef = useRef<NodeJS.Timeout | null>(null)
 
-  const columns = mergedPreview.columns || []
-  const data = mergedPreview.data || []
-  const updates = mergedPreview.updates || []
-  const sheetName = mergedPreview.sheetName || "Sheet1"
-  const targetPath = mergedPreview.targetPath || mergedPreview.stackName || ""
+  // ── Load code mappings from DB on mount ──
+  useEffect(() => {
+    if (!dashid) return
+    getCodeMappings(dashid)
+      .then((mappings) => {
+        const map: Record<string, CodeMappingEntry> = {}
+        for (const m of mappings) {
+          map[m.codePath] = {
+            id: m.id,
+            codePath: m.codePath,
+            columnKeyMap: m.columnKeyMap,
+            mergeConfig: m.mergeConfig,
+            filePath: m.filePath,
+            fileId: m.fileId,
+            fileName: m.fileName,
+            metadata: m.metadata,
+          }
+        }
+        useDeskStore.getState().setCodeMappings(map)
+      })
+      .catch((e) => console.error("Error loading code mappings:", e))
+  }, [dashid])
 
-  // Helper to format table rows to CSV
-  const generateCsvContent = () => {
-    const headerRow = columns.map((c) => `"${String(c ?? "").replace(/"/g, '""')}"`).join(",")
-    const dataRows = data.map((row) =>
+  // ── Convert mergedPreview into tab & check if code already exists ──
+  useEffect(() => {
+    if (!mergedPreview?.columns || mergedPreview.columns.length === 0) return
+
+    const rawTargetPath = (mergedPreview.targetPath || mergedPreview.stackName || "default").trim()
+    if (!rawTargetPath || rawTargetPath === "default") return
+
+    let isMounted = true
+
+    const checkAndInitTab = async () => {
+      // 1. Check in-memory store
+      let mapping = useDeskStore.getState().codeMappings[rawTargetPath]
+
+      // 2. If not found, fetch from Supabase database
+      if (!mapping && dashid) {
+        try {
+          const dbMappings = await getCodeMappings(dashid)
+          const map: Record<string, CodeMappingEntry> = {}
+          for (const m of dbMappings) {
+            map[m.codePath] = {
+              id: m.id,
+              codePath: m.codePath,
+              columnKeyMap: m.columnKeyMap,
+              mergeConfig: m.mergeConfig,
+              filePath: m.filePath,
+              fileId: m.fileId,
+              fileName: m.fileName,
+              metadata: m.metadata,
+            }
+          }
+          useDeskStore.getState().setCodeMappings(map)
+          mapping = map[rawTargetPath]
+        } catch (e) {
+          console.error("Error checking code mapping from DB:", e)
+        }
+      }
+
+      if (!isMounted) return
+
+      // Determine columnKeyMap:
+      // If code was previously used, restore its saved column keys!
+      // Otherwise auto-extract leaf keys from column headers
+      let initialKeyMap = mapping?.columnKeyMap ? { ...mapping.columnKeyMap } : {}
+      if (Object.keys(initialKeyMap).length === 0) {
+        mergedPreview.columns.forEach((col, idx) => {
+          const leaf = extractLeafKey(col, rawTargetPath)
+          if (leaf) initialKeyMap[leaf] = idx
+        })
+      }
+
+      // Check if this code ALREADY exists with a save location configured
+      const hasSaveLocation = Boolean(mapping && mapping.filePath !== undefined && mapping.fileName)
+      const isNew = !hasSaveLocation
+
+      const tabData: MergedPreviewTabData = {
+        codePath: rawTargetPath,
+        columns: mergedPreview.columns || [],
+        data: mergedPreview.data || [],
+        updates: mergedPreview.updates || [],
+        columnKeyMap: initialKeyMap,
+        suggestedKeys: {},
+        isNew,
+        sheetName: mergedPreview.sheetName || "Sheet1",
+        dataStartRow: mergedPreview.dataStartRow,
+        mergeConfigEnabled: Boolean(mapping?.mergeConfig && Object.keys(mapping.mergeConfig).length > 0),
+        mergeConfig: mapping?.mergeConfig || null,
+      }
+
+      addMergedPreviewTab(tabData)
+
+      // Only open file location picker if code is truly new (never configured before)
+      if (isNew) {
+        setFilePickerCodePath(rawTargetPath)
+        setFilePickerOpen(true)
+      }
+    }
+
+    checkAndInitTab()
+
+    return () => {
+      isMounted = false
+    }
+  }, [mergedPreview, dashid, addMergedPreviewTab])
+
+  // ── Active tab data ──
+  const activeTab = useMemo(() => {
+    if (!activePreviewTabCode) return mergedPreviewTabs[0] || null
+    return mergedPreviewTabs.find((t) => t.codePath === activePreviewTabCode) || null
+  }, [mergedPreviewTabs, activePreviewTabCode])
+
+  // Use active tab data, fallback to legacy
+  const columns = activeTab?.columns || mergedPreview?.columns || []
+  const data = activeTab?.data || mergedPreview?.data || []
+  const updates = activeTab?.updates || mergedPreview?.updates || []
+  const sheetName = activeTab?.sheetName || mergedPreview?.sheetName || "Sheet1"
+  const targetPath = activeTab?.codePath || mergedPreview?.targetPath || mergedPreview?.stackName || ""
+  const columnKeyMap = activeTab?.columnKeyMap || {}
+
+  // ── Helpers: Format CSV & JSON ──
+  const generateCsvContent = (customCols = columns, customRows = data) => {
+    const headerRow = customCols.map((c) => `"${String(c ?? "").replace(/"/g, '""')}"`).join(",")
+    const dataRows = customRows.map((row) =>
       (row || []).map((cell) => `"${String(cell ?? "").replace(/"/g, '""')}"`).join(",")
     )
     return [headerRow, ...dataRows].join("\n")
   }
 
-  // Helper to format table rows to JSON array of objects
   const generateJsonData = () => {
     return data.map((row) => {
       const obj: Record<string, any> = {}
@@ -153,189 +278,144 @@ export function UpdatedMergedPreview() {
     })
   }
 
-  // ── Open Save to Files Modal ──
-  const handleOpenFilesModal = async () => {
-    const cleanDefault = (targetPath || sheetName || "merged_data")
-      .replace(/[^a-zA-Z0-9_-]/g, "_")
-      .replace(/_+/g, "_")
-    setFilesFileName(`${cleanDefault}_merged.csv`)
-    setFilesFileType("csv")
-    setSelectedFolderPath("")
-    setIsCreatingFolder(false)
-    setNewFolderName("")
-    setFilesModalOpen(true)
+  // ── Debounced auto-save column keys to database ──
+  const debouncedSaveColumnKeys = useCallback(
+    (code: string, keyMap: Record<string, number>) => {
+      if (!dashid || !code) return
+      if (saveKeyTimerRef.current) clearTimeout(saveKeyTimerRef.current)
+      saveKeyTimerRef.current = setTimeout(async () => {
+        try {
+          await upsertCodeMapping({
+            projectWorkflowId: dashid,
+            codePath: code,
+            columnKeyMap: keyMap,
+          })
+        } catch (e) {
+          console.warn("Auto-save column keys to DB notice:", e)
+        }
+      }, 600)
+    },
+    [dashid]
+  )
 
-    if (dashid) {
-      setLoadingFolders(true)
-      try {
-        const list = await getAllFoldersFlat(dashid)
-        setFlatFolders(list)
-      } catch (e) {
-        console.error("Error loading folders:", e)
-      } finally {
-        setLoadingFolders(false)
+  // ── Column Key Input Handler ──
+  const handleColumnKeyChange = (colIndex: number, keyName: string) => {
+    if (!activeTab) return
+    const updatedKeyMap = { ...activeTab.columnKeyMap }
+    // Remove any old key mapping pointing to this column
+    for (const [k, v] of Object.entries(updatedKeyMap)) {
+      if (v === colIndex) delete updatedKeyMap[k]
+    }
+    const cleanKey = keyName.trim()
+    if (cleanKey) {
+      updatedKeyMap[cleanKey] = colIndex
+    }
+
+    // Update local tab
+    updateMergedPreviewTab(activeTab.codePath, { columnKeyMap: updatedKeyMap })
+
+    // Update global store
+    upsertCodeMappingStore(activeTab.codePath, {
+      codePath: activeTab.codePath,
+      columnKeyMap: updatedKeyMap,
+    })
+
+    // Debounced persist to database so it's remembered next time
+    debouncedSaveColumnKeys(activeTab.codePath, updatedKeyMap)
+  }
+
+  // ── Get key name for a column index ──
+  const getKeyForColumn = useCallback(
+    (colIndex: number): string => {
+      // 1. Check if user configured an explicit key
+      for (const [key, idx] of Object.entries(columnKeyMap)) {
+        if (idx === colIndex) return key
       }
-    }
-  }
+      // 2. Auto-extract clean leaf name
+      const col = columns[colIndex]
+      if (col) {
+        return extractLeafKey(col, targetPath)
+      }
+      return ""
+    },
+    [columnKeyMap, columns, targetPath]
+  )
 
-  // ── Create Folder inside Tree UI ──
-  const handleCreateFolder = async () => {
-    const trimmed = newFolderName.trim()
-    if (!trimmed) {
-      toast.error("Please enter a folder name.")
-      return
-    }
-    if (!dashid) {
-      toast.error("Workflow / Project ID missing.")
-      return
-    }
-    if (!userId) {
-      toast.error("User session missing. Please re-login.")
-      return
-    }
+  // ── Keys eligible for math operations in Merge Drawer ──
+  const configurableKeys = useMemo(() => {
+    return columns
+      .map((_, idx) => getKeyForColumn(idx))
+      .filter((k) => Boolean(k) && !/^(s_?no|enrollment|name)$/i.test(k))
+  }, [columns, getKeyForColumn])
 
-    setIsSubmittingFolder(true)
+  // ── Explicit Save Column Keys to DB Button ──
+  const handleSaveColumnKeys = async () => {
+    if (!activeTab || !dashid) return
     try {
-      const created = await createNestedFolder({
-        dashid,
-        userId,
-        parentPath: selectedFolderPath || "",
-        name: trimmed,
+      await upsertCodeMapping({
+        projectWorkflowId: dashid,
+        codePath: activeTab.codePath,
+        columnKeyMap: activeTab.columnKeyMap,
       })
-
-      toast.success(`Folder "${created.name}" created!`)
-      // Refresh folder list
-      const list = await getAllFoldersFlat(dashid)
-      setFlatFolders(list)
-      // Automatically select the new folder
-      setSelectedFolderPath(created.path)
-      setIsCreatingFolder(false)
-      setNewFolderName("")
+      upsertCodeMappingStore(activeTab.codePath, {
+        codePath: activeTab.codePath,
+        columnKeyMap: activeTab.columnKeyMap,
+      })
+      updateMergedPreviewTab(activeTab.codePath, { isNew: false })
+      toast.success(`Column keys saved for ${activeTab.codePath}`)
     } catch (err: any) {
-      console.error("Error creating folder:", err)
-      toast.error(err.message || "Failed to create folder.")
-    } finally {
-      setIsSubmittingFolder(false)
+      toast.error(err?.message || "Failed to save column keys")
     }
   }
 
-  // ── Save to Workspace Files Action ──
-  const handleSaveToFiles = async () => {
-    if (!dashid) {
-      toast.error("Workflow / Project ID missing.")
-      return
-    }
-    if (!userId) {
-      toast.error("User session missing. Please re-login.")
-      return
-    }
-
-    let finalName = filesFileName.trim()
-    if (!finalName) {
-      toast.error("Please enter a file name.")
-      return
-    }
-
-    // Ensure extension
-    if (filesFileType === "csv" && !finalName.toLowerCase().endsWith(".csv")) {
-      finalName += ".csv"
-    } else if (filesFileType === "json" && !finalName.toLowerCase().endsWith(".json")) {
-      finalName += ".json"
-    }
-
-    setIsSavingFiles(true)
+  // ── File Picker Confirm (first-time code setup) ──
+  const handleFilePickerConfirm = async (result: FileTreePickerResult) => {
+    if (!filePickerCodePath || !dashid) return
     try {
-      const filePayload =
-        filesFileType === "csv"
-          ? { columns, data, rawCsv: generateCsvContent() }
-          : generateJsonData()
-
-      const res = await createOrOverwriteWorkspaceFile({
-        dashid,
-        userId,
-        fileName: finalName,
-        folderPath: selectedFolderPath.trim(),
-        fileType: filesFileType,
-        data: filePayload,
-        metadata: {
-          columns,
-          rowCount: data.length,
-          sheetName,
-          targetPath,
-          source: "UpdatedMergedPreview",
-          exportedAt: new Date().toISOString(),
-        },
+      await upsertCodeMapping({
+        projectWorkflowId: dashid,
+        codePath: filePickerCodePath,
+        columnKeyMap: activeTab?.columnKeyMap || {},
+        filePath: result.folderPath,
+        fileName: result.fileName,
       })
-
-      const folderDisplay = selectedFolderPath.trim() ? `/${selectedFolderPath.trim()}` : "Root"
-      toast.success(
-        `Saved "${finalName}" in folder "${folderDisplay}" successfully!${res.overwritten ? " (Overwritten)" : ""}`
-      )
-      setFilesModalOpen(false)
+      upsertCodeMappingStore(filePickerCodePath, {
+        codePath: filePickerCodePath,
+        columnKeyMap: activeTab?.columnKeyMap || {},
+        filePath: result.folderPath,
+        fileName: result.fileName,
+      })
+      updateMergedPreviewTab(filePickerCodePath, { isNew: false })
+      toast.success(`Auto-save location configured: /${result.folderPath || "root"}/${result.fileName}`)
+      setFilePickerOpen(false)
     } catch (err: any) {
-      console.error("Error saving file to workspace:", err)
-      toast.error("Failed to save to Files: " + (err?.message || err))
-    } finally {
-      setIsSavingFiles(false)
+      toast.error(err?.message || "Failed to save file location")
     }
   }
 
-  // ── Open Save to Data Library Modal ──
-  const handleOpenLibraryModal = () => {
-    const cleanDefault = (targetPath || sheetName || "merged_data")
-      .replace(/[^a-zA-Z0-9_-]/g, "_")
-      .replace(/_+/g, "_")
-    setLibraryFileName(`${cleanDefault}_merged`)
-    setLibraryFileType("csv")
-    setLibraryDesc(`Merged attendance dataset with ${columns.length} columns and ${data.length} records.`)
-    setLibraryModalOpen(true)
-  }
-
-  // ── Save to Data Library Action ──
-  const handleSaveToDataLibrary = async () => {
-    if (!userId) {
-      toast.error("User session missing. Please re-login.")
-      return
-    }
-
-    let finalName = libraryFileName.trim()
-    if (!finalName) {
-      toast.error("Please enter a file name.")
-      return
-    }
-
-    setIsSavingLibrary(true)
+  // ── Merge Config Drawer Save ──
+  const handleMergeConfigSave = async (config: MergeConfigMap) => {
+    if (!mergeDrawerCodePath || !dashid) return
     try {
-      const filePayload = libraryFileType === "csv" ? generateCsvContent() : generateJsonData()
-
-      await createDataLibraryFile({
-        userId,
-        name: finalName,
-        description: libraryDesc.trim(),
-        fileType: libraryFileType,
-        data: filePayload,
-        metadata: {
-          columns,
-          rowCount: data.length,
-          sheetName,
-          targetPath,
-          source: "UpdatedMergedPreview",
-          exportedAt: new Date().toISOString(),
-        },
-        workflowId: dashid,
+      await updateMergeConfig(dashid, mergeDrawerCodePath, config)
+      const existing = codeMappings[mergeDrawerCodePath]
+      upsertCodeMappingStore(mergeDrawerCodePath, {
+        ...existing,
+        codePath: mergeDrawerCodePath,
+        columnKeyMap: activeTab?.columnKeyMap || existing?.columnKeyMap || {},
+        mergeConfig: config,
       })
-
-      toast.success(`Saved "${finalName}" to Data Library successfully!`)
-      setLibraryModalOpen(false)
+      updateMergedPreviewTab(mergeDrawerCodePath, {
+        mergeConfig: config,
+        mergeConfigEnabled: true,
+      })
+      toast.success(`Formulas saved for ${mergeDrawerCodePath}`)
     } catch (err: any) {
-      console.error("Error saving to Data Library:", err)
-      toast.error("Failed to save to Data Library: " + (err?.message || err))
-    } finally {
-      setIsSavingLibrary(false)
+      toast.error(err?.message || "Failed to save merge formulas")
     }
   }
 
-  // ── Confirm Merge directly in MasterSheet ──
+  // ── Confirm Merge (with math formulas or direct overwrite) ──
   const handleConfirmMerge = async () => {
     setIsMerging(true)
     try {
@@ -398,11 +478,11 @@ export function UpdatedMergedPreview() {
           currentRaw,
           updates,
           targetPath,
-          mergedPreview.dataStartRow
+          activeTab?.dataStartRow || mergedPreview?.dataStartRow
         )
       }
 
-      // 3. Update stores
+      // 3. Update MasterSheet stores
       if (updatedMasterSheet) {
         setDeskMasterSheetData(updatedMasterSheet)
         msStore.setSheetData(sheetName, updatedMasterSheet)
@@ -418,9 +498,94 @@ export function UpdatedMergedPreview() {
         })
       }
 
+      // 4. Auto-save to workspace file:
+      // If Merge Mapping is ON: data will NOT overwrite directly.
+      // Instead, it combines existing file data with incoming data via configured formulas!
+      // If Merge Mapping is OFF: data overwrites directly.
+      const mapping = codeMappings[targetPath] || useDeskStore.getState().codeMappings[targetPath]
+      if (mapping?.filePath !== undefined && mapping?.fileName && dashid && userId) {
+        try {
+          let filePayload = { columns, data, rawCsv: generateCsvContent(columns, data) }
+
+          if (activeTab?.mergeConfigEnabled && activeTab?.mergeConfig) {
+            // Load existing file data
+            const existingFile = await getWorkspaceFileByPath({
+              dashid,
+              folderPath: mapping.filePath || "",
+              fileName: mapping.fileName,
+            })
+
+            if (existingFile?.data && typeof existingFile.data === "object") {
+              const prevCols: string[] = (existingFile.data as any).columns || []
+              const prevRows: any[][] = (existingFile.data as any).data || []
+
+              if (prevRows.length > 0) {
+                // Determine row key column (e.g. Enrollment, ID, or S.No)
+                let idColIdx = columns.findIndex((c) => /enroll|id|roll|code/i.test(c))
+                if (idColIdx === -1) idColIdx = 1
+
+                let prevIdColIdx = prevCols.findIndex((c) => /enroll|id|roll|code/i.test(c))
+                if (prevIdColIdx === -1) prevIdColIdx = idColIdx
+
+                // Build lookup of previous rows
+                const existingRowMap = new Map<string, any[]>()
+                prevRows.forEach((r, idx) => {
+                  const keyVal = String(r[prevIdColIdx] ?? idx).trim().toLowerCase()
+                  if (keyVal) existingRowMap.set(keyVal, r)
+                })
+
+                // Merge incoming rows with existing records
+                const mergedRows = data.map((incomingRow, rowIdx) => {
+                  const keyVal = String(incomingRow[idColIdx] ?? rowIdx).trim().toLowerCase()
+                  const existingRow = existingRowMap.get(keyVal)
+
+                  if (!existingRow) return [...incomingRow]
+
+                  return incomingRow.map((inCell, colIdx) => {
+                    const colKey = getKeyForColumn(colIdx)
+                    const opCfg = activeTab.mergeConfig?.[colKey]
+                    if (!opCfg) return inCell
+
+                    const existingCell = existingRow[colIdx] ?? 0
+                    return applyMathOperation(existingCell, inCell, opCfg.op)
+                  })
+                })
+
+                filePayload = {
+                  columns,
+                  data: mergedRows,
+                  rawCsv: generateCsvContent(columns, mergedRows),
+                }
+              }
+            }
+          }
+
+          await createOrOverwriteWorkspaceFile({
+            dashid,
+            userId,
+            fileName: mapping.fileName,
+            folderPath: mapping.filePath || "",
+            fileType: "json",
+            data: filePayload,
+            metadata: {
+              columns,
+              rowCount: filePayload.data.length,
+              sheetName,
+              targetPath,
+              codePath: targetPath,
+              mergedWithFormulas: Boolean(activeTab?.mergeConfigEnabled),
+              source: "UpdatedMergedPreview-AutoSave",
+              exportedAt: new Date().toISOString(),
+            },
+          })
+        } catch (e) {
+          console.warn("Auto-save file notice:", e)
+        }
+      }
+
       setMergedSuccess(true)
       toast.success(
-        `Merged ${updates.length || data.length} student records into MasterSheet "${sheetName}"! Click "Save Sheet" below to persist changes.`
+        `Merged ${updates.length || data.length} records into MasterSheet "${sheetName}"! Click "Save Sheet" to persist changes.`
       )
       setTimeout(() => setMergedSuccess(false), 5000)
     } catch (err: any) {
@@ -431,64 +596,109 @@ export function UpdatedMergedPreview() {
     }
   }
 
-  // Recursive Tree Node renderer for VS Code style overlay
-  const renderTreeNodes = (nodes: FolderTreeNode[]) => {
-    return nodes.map((node) => {
-      const hasChildren = node.children && node.children.length > 0
-      const isSelected = selectedFolderPath === node.path
+  // ── Open Data Library Modal ──
+  const handleOpenLibraryModal = () => {
+    const cleanDefault = (targetPath || sheetName || "merged_data")
+      .replace(/[^a-zA-Z0-9_-]/g, "_")
+      .replace(/_+/g, "_")
+    setLibraryFileName(`${cleanDefault}_merged`)
+    setLibraryFileType("csv")
+    setLibraryDesc(`Merged dataset with ${columns.length} columns and ${data.length} records.`)
+    setLibraryModalOpen(true)
+  }
 
-      return (
-        <TreeFolder
-          key={node.path}
-          value={node.path}
-          element={node.name}
-          isSelect={isSelected}
-          className="text-xs"
-        >
-          {hasChildren ? (
-            renderTreeNodes(node.children)
-          ) : (
-            <TreeFile
-              value={`${node.path}__empty`}
-              isSelectable={false}
-              className="py-0.5 px-2 text-[11px] text-muted-foreground italic flex items-center gap-1.5 opacity-70 cursor-default"
-              fileIcon={<span className="w-1.5 h-1.5 rounded-full bg-border shrink-0" />}
-            >
-              (No subfolders)
-            </TreeFile>
-          )}
-        </TreeFolder>
-      )
-    })
+  // ── Save to Data Library ──
+  const handleSaveToDataLibrary = async () => {
+    if (!userId) {
+      toast.error("User session missing. Please re-login.")
+      return
+    }
+    const finalName = libraryFileName.trim()
+    if (!finalName) {
+      toast.error("Please enter a file name.")
+      return
+    }
+    setIsSavingLibrary(true)
+    try {
+      const filePayload = libraryFileType === "csv" ? generateCsvContent() : generateJsonData()
+      await createDataLibraryFile({
+        userId,
+        name: finalName,
+        description: libraryDesc.trim(),
+        fileType: libraryFileType,
+        data: filePayload,
+        metadata: {
+          columns,
+          rowCount: data.length,
+          sheetName,
+          targetPath,
+          source: "UpdatedMergedPreview",
+          exportedAt: new Date().toISOString(),
+        },
+        workflowId: dashid,
+      })
+      toast.success(`Saved "${finalName}" to Data Library successfully!`)
+      setLibraryModalOpen(false)
+    } catch (err: any) {
+      toast.error("Failed to save to Data Library: " + (err?.message || err))
+    } finally {
+      setIsSavingLibrary(false)
+    }
+  }
+
+  // ── Dismiss a tab ──
+  const handleDismissTab = (codePath: string) => {
+    removeMergedPreviewTab(codePath)
+    if (mergedPreviewTabs.length <= 1) {
+      setMergedPreview(null)
+    }
+  }
+
+  const currentMapping = codeMappings[targetPath] || useDeskStore.getState().codeMappings[targetPath]
+
+  // If no tabs or columns, don't render preview
+  const shouldRender =
+    (mergedPreviewTabs.length > 0 ||
+      (mergedPreview && mergedPreview.columns && mergedPreview.columns.length > 0)) &&
+    columns.length > 0
+
+  if (!shouldRender) {
+    return null
   }
 
   return (
     <div className="rounded-lg border border-border bg-card text-card-foreground shadow-sm overflow-hidden mb-4 animate-in fade-in-50 duration-200">
-      {/* Header Bar */}
+      {/* ── Header Bar ── */}
       <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-b border-border bg-muted/40">
         <div className="flex items-center gap-3">
           <div className="flex items-center justify-center size-8 rounded-md bg-primary/10 text-primary border border-primary/20">
             <Table2 className="size-4" />
           </div>
-
           <div>
             <div className="flex items-center gap-2 flex-wrap">
               <h3 className="text-sm font-semibold tracking-tight text-foreground">
-                Merged Attendance Preview
+                Merged Preview
               </h3>
               <Badge variant="secondary" className="text-[11px] font-normal">
                 {updates.length > 0 ? `${updates.length} Updates` : "Preview"}
               </Badge>
+              {activeTab?.isNew && (
+                <Badge
+                  variant="outline"
+                  className="text-[11px] font-normal text-amber-500 border-amber-500/40 bg-amber-500/10"
+                >
+                  <Sparkles className="size-3 mr-1" />
+                  New Code
+                </Badge>
+              )}
             </div>
-
-            {/* Metadata bar */}
             <div className="flex items-center gap-2 mt-0.5 text-xs text-muted-foreground">
               <span>
                 Sheet: <strong className="font-mono font-medium text-foreground">{sheetName}</strong>
               </span>
               <span>•</span>
               <span>
-                Path: <strong className="font-mono font-medium text-foreground">{targetPath}</strong>
+                Code: <strong className="font-mono font-medium text-foreground">{targetPath}</strong>
               </span>
               <span>•</span>
               <span>{data.length} records</span>
@@ -496,31 +706,47 @@ export function UpdatedMergedPreview() {
           </div>
         </div>
 
-        {/* Action Buttons */}
+        {/* ── Action Buttons ── */}
         <div className="flex items-center gap-2 flex-wrap">
-          {/* Button: Save to Data Library */}
+          {/* Save Column Keys */}
+          {activeTab && Object.keys(activeTab.columnKeyMap).length > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleSaveColumnKeys}
+              className="h-8 gap-1.5 text-xs font-medium cursor-pointer shadow-2xs hover:bg-teal-500/10 hover:text-teal-500 hover:border-teal-500/30"
+            >
+              <Code2 className="size-3.5 text-teal-500" />
+              <span>Save Keys</span>
+            </Button>
+          )}
+
+          {/* Save to Data Library */}
           <Button
             variant="outline"
             size="sm"
             onClick={handleOpenLibraryModal}
-            className="h-8 gap-1.5 text-xs font-medium cursor-pointer shadow-2xs hover:bg-blue-500/10 hover:text-blue-600 hover:border-blue-500/30"
+            className="h-8 gap-1.5 text-xs font-medium cursor-pointer shadow-2xs hover:bg-blue-500/10 hover:text-blue-500 hover:border-blue-500/30"
           >
             <Database className="size-3.5 text-blue-500" />
-            <span>Save to Data Library</span>
+            <span>Data Library</span>
           </Button>
 
-          {/* Button: Save to Files with VS Code Folder Tree */}
+          {/* Set File Location */}
           <Button
             variant="outline"
             size="sm"
-            onClick={handleOpenFilesModal}
-            className="h-8 gap-1.5 text-xs font-medium cursor-pointer shadow-2xs hover:bg-amber-500/10 hover:text-amber-600 hover:border-amber-500/30"
+            onClick={() => {
+              setFilePickerCodePath(targetPath)
+              setFilePickerOpen(true)
+            }}
+            className="h-8 gap-1.5 text-xs font-medium cursor-pointer shadow-2xs hover:bg-amber-500/10 hover:text-amber-500 hover:border-amber-500/30"
           >
             <FolderPlus className="size-3.5 text-amber-500" />
             <span>Save to Files</span>
           </Button>
 
-          {/* Button: Confirm Merge into MasterSheet */}
+          {/* Confirm Merge */}
           <Button
             onClick={handleConfirmMerge}
             disabled={isMerging}
@@ -535,12 +761,12 @@ export function UpdatedMergedPreview() {
             ) : mergedSuccess ? (
               <>
                 <Check className="size-4" />
-                <span>Merged into MasterSheet</span>
+                <span>Merged!</span>
               </>
             ) : (
               <>
                 <ArrowRight className="size-3.5" />
-                <span>Confirm Merge in MasterSheet</span>
+                <span>Confirm Merge</span>
               </>
             )}
           </Button>
@@ -548,8 +774,11 @@ export function UpdatedMergedPreview() {
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => setMergedPreview(null)}
-            className="size-8 text-muted-foreground hover:text-foreground"
+            onClick={() => {
+              if (activeTab) handleDismissTab(activeTab.codePath)
+              else setMergedPreview(null)
+            }}
+            className="size-8 text-muted-foreground hover:text-foreground cursor-pointer"
             title="Dismiss preview"
           >
             <X className="size-4" />
@@ -557,35 +786,150 @@ export function UpdatedMergedPreview() {
         </div>
       </div>
 
-      {/* Columns Tag List */}
-      <div className="px-4 py-2 border-b border-border bg-muted/20 flex items-center gap-2 overflow-x-auto text-xs">
-        <span className="text-muted-foreground font-medium flex items-center gap-1.5 shrink-0">
-          <Layers className="size-3.5" /> Target Columns:
-        </span>
-        <div className="flex items-center gap-1.5 flex-wrap">
+      {/* ── Tab Bar (Multi-code tabs, fixed hydration button nesting) ── */}
+      {mergedPreviewTabs.length > 1 && (
+        <div className="flex items-center gap-1 px-4 py-1.5 border-b border-border bg-muted/20 overflow-x-auto">
+          {mergedPreviewTabs.map((tab) => (
+            <div
+              key={tab.codePath}
+              role="button"
+              tabIndex={0}
+              onClick={() => setActivePreviewTabCode(tab.codePath)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  setActivePreviewTabCode(tab.codePath)
+                }
+              }}
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-medium transition-colors cursor-pointer shrink-0 select-none ${
+                activePreviewTabCode === tab.codePath
+                  ? "bg-primary/15 text-primary border border-primary/30"
+                  : "hover:bg-muted/70 text-muted-foreground"
+              }`}
+            >
+              <Code2 className="size-3" />
+              <span className="font-mono">{tab.codePath}</span>
+              {tab.isNew && (
+                <span className="size-1.5 rounded-full bg-amber-500 shrink-0" />
+              )}
+              <span
+                role="button"
+                tabIndex={0}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleDismissTab(tab.codePath)
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.stopPropagation()
+                    handleDismissTab(tab.codePath)
+                  }
+                }}
+                className="ml-1 p-0.5 rounded hover:text-destructive hover:bg-destructive/10 transition-colors"
+                title="Close tab"
+              >
+                <X className="size-3" />
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── Merge Mapping Toggle + Column Keys Row ── */}
+      <div className="px-4 py-2 border-b border-border bg-muted/20">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-muted-foreground font-medium flex items-center gap-1.5 text-xs shrink-0">
+            <Layers className="size-3.5" /> Column Keys:
+          </span>
+
+          <div className="flex items-center gap-3">
+            {/* Merge Mapping Toggle */}
+            <div className="flex items-center gap-2">
+              <Label className="text-[11px] text-muted-foreground cursor-pointer" htmlFor="merge-toggle">
+                Merge Mapping
+              </Label>
+              <Switch
+                id="merge-toggle"
+                checked={activeTab?.mergeConfigEnabled || false}
+                onCheckedChange={(checked) => {
+                  if (activeTab) setTabMergeConfigEnabled(activeTab.codePath, checked)
+                }}
+              />
+            </div>
+
+            {/* Launch Merge button (visible when toggle is ON) */}
+            {activeTab?.mergeConfigEnabled && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setMergeDrawerCodePath(activeTab.codePath)
+                  setMergeDrawerOpen(true)
+                }}
+                className="h-7 gap-1.5 text-[11px] font-medium cursor-pointer border-emerald-500/30 text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 animate-in fade-in-50 duration-200"
+              >
+                <Zap className="size-3.5 text-emerald-400" />
+                <span>Launch Merge</span>
+              </Button>
+            )}
+
+            {/* File location indicator */}
+            {currentMapping?.filePath !== undefined && (
+              <Badge
+                variant="outline"
+                onClick={() => {
+                  setFilePickerCodePath(targetPath)
+                  setFilePickerOpen(true)
+                }}
+                className="text-[10px] font-mono bg-background gap-1 cursor-pointer hover:bg-muted transition-colors"
+                title="Click to view/change auto-save location"
+              >
+                <FolderPlus className="size-3 text-amber-500" />
+                {currentMapping?.filePath
+                  ? `/${currentMapping.filePath}/${currentMapping?.fileName || ""}`
+                  : `/ ${currentMapping?.fileName || "root"}`}
+              </Badge>
+            )}
+          </div>
+        </div>
+
+        {/* Column Key Inputs (Showing clean leaf keys e.g. Total, Attended, %) */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
           {columns.map((col, idx) => {
+            const currentKey = getKeyForColumn(idx)
             const isMetric =
               col.includes(":") ||
               col.toLowerCase().includes("total") ||
               col.toLowerCase().includes("attend") ||
               col.includes("%")
+
             return (
-              <span
-                key={idx}
-                className={`px-2 py-0.5 rounded text-[11px] font-mono border ${
-                  isMetric
-                    ? "bg-primary/10 text-primary border-primary/25 font-semibold"
-                    : "bg-background text-foreground border-border"
-                }`}
-              >
-                {col}
-              </span>
+              <div key={idx} className="flex flex-col items-center gap-0.5 shrink-0">
+                <Input
+                  value={currentKey}
+                  onChange={(e) => handleColumnKeyChange(idx, e.target.value)}
+                  className={`h-6 w-24 text-[10px] font-mono text-center px-1 ${
+                    isMetric
+                      ? "border-primary/40 bg-primary/5 text-primary font-semibold"
+                      : "border-border bg-background"
+                  }`}
+                  placeholder={`col_${idx}`}
+                  title={`Column ${idx}: ${col} (Type to customize key)`}
+                />
+                <span
+                  className={`text-[9px] truncate max-w-24 ${
+                    isMetric ? "text-primary font-medium" : "text-muted-foreground"
+                  }`}
+                  title={col}
+                >
+                  {col}
+                </span>
+              </div>
             )
           })}
         </div>
       </div>
 
-      {/* Table Preview */}
+      {/* ── Table Preview ── */}
       <div className="max-h-[260px] overflow-auto bg-card">
         <table className="w-full text-left text-xs border-collapse">
           <thead>
@@ -644,17 +988,15 @@ export function UpdatedMergedPreview() {
         </table>
       </div>
 
-      {/* Footer Banner */}
+      {/* ── Footer Banner ── */}
       <div className="px-4 py-2 border-t border-border bg-muted/30 flex items-center justify-between text-xs text-muted-foreground">
         <span>
-          Click <strong>Confirm Merge in MasterSheet</strong> or use <strong>Save to Files / Data Library</strong> to store this dataset.
+          Click <strong>Confirm Merge</strong> to apply, or use <strong>Data Library / Save to Files</strong> to store this dataset.
         </span>
         <span className="font-mono text-[11px]">{data.length} records</span>
       </div>
 
-      {/* ────────────────────────────────────────────────────────── */}
-      {/* ── MODAL 1: Save to Data Library ── */}
-      {/* ────────────────────────────────────────────────────────── */}
+      {/* ── MODAL: Save to Data Library ── */}
       <Dialog open={libraryModalOpen} onOpenChange={setLibraryModalOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -668,7 +1010,6 @@ export function UpdatedMergedPreview() {
           </DialogHeader>
 
           <div className="space-y-4 py-2 text-sm">
-            {/* Summary Tag */}
             <div className="rounded-md border border-blue-500/20 bg-blue-500/5 p-2.5 text-xs text-muted-foreground flex items-center justify-between">
               <span className="font-medium text-foreground">
                 Sheet: <strong className="font-mono">{sheetName}</strong>
@@ -678,7 +1019,6 @@ export function UpdatedMergedPreview() {
               </Badge>
             </div>
 
-            {/* File Name */}
             <div className="space-y-1.5">
               <Label className="text-xs font-medium">File Name</Label>
               <Input
@@ -689,7 +1029,6 @@ export function UpdatedMergedPreview() {
               />
             </div>
 
-            {/* Format Selection */}
             <div className="space-y-1.5">
               <Label className="text-xs font-medium">Format</Label>
               <div className="flex gap-2">
@@ -716,7 +1055,6 @@ export function UpdatedMergedPreview() {
               </div>
             </div>
 
-            {/* Description */}
             <div className="space-y-1.5">
               <Label className="text-xs font-medium">Description (Optional)</Label>
               <Input
@@ -762,276 +1100,33 @@ export function UpdatedMergedPreview() {
         </DialogContent>
       </Dialog>
 
-      {/* ────────────────────────────────────────────────────────── */}
-      {/* ── MODAL 2: Save to Workspace Files (VS Code Tree UI) ── */}
-      {/* ────────────────────────────────────────────────────────── */}
-      <Dialog open={filesModalOpen} onOpenChange={setFilesModalOpen}>
-        <DialogContent className="sm:max-w-lg max-h-[85vh] flex flex-col">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-base">
-              <FolderPlus className="size-5 text-amber-500" />
-              <span>Save to Workspace Files</span>
-            </DialogTitle>
-            <DialogDescription className="text-xs">
-              Select a target folder path from the tree explorer or specify a custom folder.
-            </DialogDescription>
-          </DialogHeader>
+      {/* ── File Tree Picker (first-time code detection) ── */}
+      <FileTreePicker
+        open={filePickerOpen}
+        onOpenChange={setFilePickerOpen}
+        dashid={dashid}
+        userId={userId}
+        title={`Set Auto-Save Location — ${filePickerCodePath}`}
+        description={`First time seeing code path "${filePickerCodePath}". Select workspace folder and file name. Future merges will auto-save here without prompting.`}
+        defaultFileName={`${filePickerCodePath.replace(/[^a-zA-Z0-9]/g, "_")}_data.json`}
+        defaultFolderPath={codeMappings[filePickerCodePath]?.filePath || ""}
+        onConfirm={handleFilePickerConfirm}
+      />
 
-          <div className="space-y-3.5 py-1 text-sm flex-1 overflow-y-auto pr-1">
-            {/* Target Path Breadcrumb Indicator */}
-            <div className="rounded-md border border-border bg-muted/30 p-2.5 flex items-center justify-between gap-2">
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground min-w-0">
-                <FolderOpen className="size-4 text-amber-500 shrink-0" />
-                <span className="shrink-0 font-medium">Target Folder:</span>
-                <Badge variant="outline" className="font-mono text-[11px] bg-background truncate">
-                  {selectedFolderPath.trim() ? `/${selectedFolderPath.trim()}` : "/ (Root Workspace)"}
-                </Badge>
-              </div>
-
-              {selectedFolderPath && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setSelectedFolderPath("")}
-                  className="h-6 text-[10px] px-2 text-muted-foreground hover:text-foreground cursor-pointer shrink-0"
-                >
-                  Reset to Root
-                </Button>
-              )}
-            </div>
-
-            {/* VS Code Style Folder Tree Explorer */}
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between text-xs">
-                <Label className="font-medium flex items-center gap-1.5">
-                  <FolderTree className="size-3.5 text-primary" />
-                  <span>Folder Directory</span>
-                </Label>
-                <div className="flex items-center gap-1.5">
-                  {!isCreatingFolder && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        setIsCreatingFolder(true)
-                        setNewFolderName("")
-                      }}
-                      className="h-6 px-2 text-[11px] text-primary hover:text-primary hover:bg-primary/10 flex items-center gap-1 cursor-pointer"
-                    >
-                      <FolderPlus className="size-3.5" />
-                      <span>New Folder</span>
-                    </Button>
-                  )}
-                  <span className="text-[11px] text-muted-foreground">Click folder to select</span>
-                </div>
-              </div>
-
-              {/* Inline Folder Creation Form */}
-              {isCreatingFolder && (
-                <div className="p-2 rounded-md border border-primary/30 bg-primary/5 space-y-1.5 text-xs animate-in fade-in-50 duration-200">
-                  <div className="flex items-center justify-between text-[11px] text-foreground">
-                    <span className="flex items-center gap-1 font-medium">
-                      <FolderPlus className="size-3.5 text-primary" />
-                      Create folder inside:
-                    </span>
-                    <code className="bg-background/80 px-1.5 py-0.5 rounded text-[10px] text-primary font-mono border border-border">
-                      {selectedFolderPath ? `/${selectedFolderPath}` : "Root (/)"}
-                    </code>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <Input
-                      autoFocus
-                      placeholder="Folder name (e.g. exports, archives)..."
-                      value={newFolderName}
-                      onChange={(e) => setNewFolderName(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          e.preventDefault()
-                          handleCreateFolder()
-                        } else if (e.key === "Escape") {
-                          setIsCreatingFolder(false)
-                          setNewFolderName("")
-                        }
-                      }}
-                      disabled={isSubmittingFolder}
-                      className="h-7 text-xs bg-background"
-                    />
-                    <Button
-                      type="button"
-                      size="sm"
-                      onClick={handleCreateFolder}
-                      disabled={isSubmittingFolder || !newFolderName.trim()}
-                      className="h-7 px-2.5 text-xs shrink-0 cursor-pointer"
-                    >
-                      {isSubmittingFolder ? (
-                        <RefreshCw className="size-3 animate-spin" />
-                      ) : (
-                        <Check className="size-3.5" />
-                      )}
-                      <span className="ml-1">Create</span>
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        setIsCreatingFolder(false)
-                        setNewFolderName("")
-                      }}
-                      disabled={isSubmittingFolder}
-                      className="h-7 px-2 text-xs shrink-0 text-muted-foreground hover:text-foreground cursor-pointer"
-                    >
-                      <X className="size-3.5" />
-                    </Button>
-                  </div>
-                </div>
-              )}
-
-              <div className="rounded-md border border-border bg-card shadow-inner overflow-hidden">
-                <ScrollArea className="h-44 p-2">
-                  {loadingFolders ? (
-                    <div className="flex items-center justify-center h-28 text-xs text-muted-foreground gap-2">
-                      <RefreshCw className="size-4 animate-spin" />
-                      <span>Loading folders...</span>
-                    </div>
-                  ) : (
-                    <div className="space-y-1">
-                      {/* Root Workspace Row */}
-                      <button
-                        type="button"
-                        onClick={() => setSelectedFolderPath("")}
-                        className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-xs font-medium text-left transition-colors cursor-pointer ${
-                          selectedFolderPath === ""
-                            ? "bg-primary/15 text-primary font-semibold border border-primary/30"
-                            : "hover:bg-muted/70 text-foreground"
-                        }`}
-                      >
-                        <Home className="size-3.5 text-primary shrink-0" />
-                        <span>Root Workspace (/)</span>
-                      </button>
-
-                      {/* Nested Folders via Tree */}
-                      {folderTree.length > 0 ? (
-                        <div className="pt-1 pl-1">
-                          <Tree
-                            onSelectChange={(path) => setSelectedFolderPath(path)}
-                            selectedId={selectedFolderPath}
-                            className="text-xs"
-                          >
-                            {renderTreeNodes(folderTree)}
-                          </Tree>
-                        </div>
-                      ) : (
-                        <div className="py-4 px-2 text-center text-xs text-muted-foreground">
-                          <p>No subfolders created yet.</p>
-                          <p className="text-[11px] opacity-80 mt-0.5">
-                            File will be saved at the root level, or you can specify a folder path below.
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </ScrollArea>
-              </div>
-            </div>
-
-            {/* Custom / Editable Folder Path Input */}
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between text-xs">
-                <Label className="font-medium">Folder Path (Custom or Auto-Create)</Label>
-                <span className="text-[10px] text-muted-foreground">Auto creates missing path</span>
-              </div>
-              <Input
-                value={selectedFolderPath}
-                onChange={(e) => setSelectedFolderPath(e.target.value)}
-                placeholder="e.g. Attendance/Term1 or leave blank for root"
-                className="h-8 text-xs font-mono"
-              />
-            </div>
-
-            {/* File Name & Format Selection */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-              <div className="sm:col-span-2 space-y-1.5">
-                <Label className="text-xs font-medium">File Name</Label>
-                <Input
-                  value={filesFileName}
-                  onChange={(e) => setFilesFileName(e.target.value)}
-                  placeholder="attendance_merged.csv"
-                  className="h-8 text-xs font-mono"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <Label className="text-xs font-medium">Format</Label>
-                <div className="flex gap-1">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant={filesFileType === "csv" ? "default" : "outline"}
-                    onClick={() => {
-                      setFilesFileType("csv")
-                      if (filesFileName.endsWith(".json")) {
-                        setFilesFileName(filesFileName.replace(/\.json$/, ".csv"))
-                      }
-                    }}
-                    className="h-8 text-xs flex-1 cursor-pointer"
-                  >
-                    CSV
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant={filesFileType === "json" ? "default" : "outline"}
-                    onClick={() => {
-                      setFilesFileType("json")
-                      if (filesFileName.endsWith(".csv")) {
-                        setFilesFileName(filesFileName.replace(/\.csv$/, ".json"))
-                      }
-                    }}
-                    className="h-8 text-xs flex-1 cursor-pointer"
-                  >
-                    JSON
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <DialogFooter className="gap-2 sm:gap-0 pt-2 border-t border-border">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => setFilesModalOpen(false)}
-              disabled={isSavingFiles}
-              className="text-xs h-8 cursor-pointer"
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              onClick={handleSaveToFiles}
-              disabled={isSavingFiles}
-              className="text-xs h-8 gap-1.5 cursor-pointer"
-            >
-              {isSavingFiles ? (
-                <>
-                  <RefreshCw className="size-3.5 animate-spin" />
-                  <span>Saving...</span>
-                </>
-              ) : (
-                <>
-                  <Save className="size-3.5" />
-                  <span>Save File</span>
-                </>
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* ── Merge Config Drawer (Math operations & formula engine) ── */}
+      <MergeConfigDrawer
+        open={mergeDrawerOpen}
+        onOpenChange={setMergeDrawerOpen}
+        codePath={mergeDrawerCodePath}
+        columnKeys={
+          configurableKeys.length > 0
+            ? configurableKeys
+            : columns.map((_, i) => getKeyForColumn(i)).filter(Boolean)
+        }
+        csvHeaders={columns}
+        initialConfig={activeTab?.mergeConfig || codeMappings[mergeDrawerCodePath]?.mergeConfig || null}
+        onSave={handleMergeConfigSave}
+      />
     </div>
   )
 }

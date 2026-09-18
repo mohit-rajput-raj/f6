@@ -6,7 +6,16 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import List, Any, Optional
 from app.services.agent_service import run_agent
-from app.services.alignment_service import align_and_compute_updates, parse_csv_content, dynamic_align_schema, DynamicAlignmentRequest
+from app.services.alignment_service import (
+    align_and_compute_updates,
+    parse_csv_content,
+    dynamic_align_schema,
+    DynamicAlignmentRequest,
+    generic_align_schema,
+    GenericAlignmentRequest,
+    detect_code_paths_from_grid,
+    extract_header_tree,
+)
 from app.tools.ocr_tool import extract_table_from_image
 from app.tools.formula_tool import evaluate_formula, aggregate_column
 from app.tools.column_matcher import match_columns
@@ -192,3 +201,48 @@ async def dynamic_align_schema_endpoint(req: DynamicAlignmentRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.post("/generic-align")
+async def generic_align_endpoint(req: GenericAlignmentRequest):
+    """
+    Generic schema alignment for any spreadsheet type.
+    Supports deterministic mapping via column_key_map, merge operations,
+    and auto-detection of code paths from master sheet headers.
+    """
+    try:
+        if not req.master_grid:
+            raise HTTPException(status_code=400, detail="Missing master grid")
+        if not req.csv_string:
+            raise HTTPException(status_code=400, detail="Missing input data string")
+
+        result = generic_align_schema(req)
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class DetectCodesRequest(BaseModel):
+    master_grid: List[List[Any]]
+
+
+@router.post("/detect-codes")
+async def detect_codes_endpoint(req: DetectCodesRequest):
+    """Detect all code paths from master sheet headers without alignment."""
+    try:
+        if not req.master_grid:
+            raise HTTPException(status_code=400, detail="Missing master grid")
+
+        codes = detect_code_paths_from_grid(req.master_grid)
+        data_start_row, col_paths, enroll_col, name_col = extract_header_tree(req.master_grid)
+
+        return {
+            "success": True,
+            "detected_codes": codes,
+            "data_start_row": data_start_row,
+            "enrollment_col_idx": enroll_col,
+            "name_col_idx": name_col,
+            "col_paths": {str(k): v for k, v in col_paths.items()},
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
