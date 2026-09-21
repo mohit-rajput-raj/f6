@@ -2,7 +2,9 @@
 AI Router — Endpoints for running the LangGraph agent and individual tools.
 """
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, UploadFile, File
+import os
+import base64
 from pydantic import BaseModel
 from typing import List, Any, Optional
 from app.services.agent_service import run_agent
@@ -46,8 +48,8 @@ class AgentRequest(BaseModel):
 
 class OCRRequest(BaseModel):
     image_base64: str
-    api_key: str
-    model_name: Optional[str] = "gemini-2.0-flash"
+    api_key: Optional[str] = None
+    model_name: Optional[str] = "gemini-2.5-flash"
 
 
 class FormulaRequest(BaseModel):
@@ -92,12 +94,35 @@ async def agent_endpoint(req: AgentRequest):
 async def ocr_endpoint(req: OCRRequest):
     """Extract table data from an image using vision LLM."""
     try:
+        api_key = req.api_key or os.getenv("GEMINI_API_KEY")
         result = extract_table_from_image.invoke({
             "image_base64": req.image_base64,
-            "api_key": req.api_key,
-            "model_name": req.model_name,
+            "api_key": api_key,
+            "model_name": req.model_name or "gemini-2.5-flash",
         })
-        if "error" in result:
+        if isinstance(result, dict) and "error" in result:
+            raise HTTPException(status_code=400, detail=result["error"])
+        return {"success": True, "data": result}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/ocr/upload")
+async def ocr_upload_endpoint(file: UploadFile = File(...)):
+    """Extract table data directly from an uploaded image file."""
+    try:
+        content = await file.read()
+        mime_type = file.content_type or "image/png"
+        b64 = f"data:{mime_type};base64,{base64.b64encode(content).decode('utf-8')}"
+        api_key = os.getenv("GEMINI_API_KEY")
+        result = extract_table_from_image.invoke({
+            "image_base64": b64,
+            "api_key": api_key,
+            "model_name": "gemini-2.5-flash",
+        })
+        if isinstance(result, dict) and "error" in result:
             raise HTTPException(status_code=400, detail=result["error"])
         return {"success": True, "data": result}
     except HTTPException:

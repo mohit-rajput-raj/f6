@@ -34,7 +34,7 @@ export async function getDataLibraryFiles(dashid?: string, userId?: string) {
 
   let query = supabase
     .from("data_library_file")
-    .select("id, name, description, fileType, metadata, createdAt, updatedAt, workflowId")
+    .select("id, name, description, fileType, data, metadata, createdAt, updatedAt, workflowId")
     .order("updatedAt", { ascending: false });
 
   const conditions: string[] = [];

@@ -21,14 +21,20 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@repo/ui/components/ui/tooltip";
+import { cn } from "@repo/ui/lib/utils";
 
-export default function PricingSection() {
+export default function PricingSection({ className }: { className?: string }) {
   const [isAnnual, setIsAnnual] = React.useState(true);
 
   return (
-    <section className="w-full pt-28 pb-20 sm:pt-36 sm:pb-28 bg-zinc-950 text-zinc-100 transition-colors duration-200 relative overflow-hidden">
+    <section
+      className={cn(
+        "w-full pt-8 pb-20 sm:pt-16 sm:pb-38  bg-zinc-950 text-zinc-100 transition-colors duration-200 relative overflow-hidden",
+        className,
+      )}
+    >
       {/* Subtle ambient light glow */}
-      <div className="absolute top-20 left-1/2 -translate-x-1/2 w-[680px] h-[280px] bg-primary/10 blur-[140px] rounded-full pointer-events-none z-0" />
+      <div className="absolute top-20  left-1/2 -translate-x-1/2 w-[680px] h-[280px] bg-primary/10 blur-[140px] rounded-full pointer-events-none z-0" />
 
       <div className="container relative z-10 px-4 md:px-6 mx-auto max-w-7xl">
         {/* Header */}
@@ -111,7 +117,10 @@ export default function PricingSection() {
             </CardContent>
             <CardFooter className="pt-6 border-t border-border">
               <Link href="/auth/sign-in" className="w-full">
-                <Button variant="outline" className="w-full font-medium cursor-pointer">
+                <Button
+                  variant="outline"
+                  className="w-full font-medium cursor-pointer"
+                >
                   Get Started Free
                 </Button>
               </Link>
@@ -198,7 +207,10 @@ export default function PricingSection() {
             </CardContent>
             <CardFooter className="pt-6 border-t border-border">
               <Link href="/help" className="w-full">
-                <Button variant="outline" className="w-full font-medium cursor-pointer">
+                <Button
+                  variant="outline"
+                  className="w-full font-medium cursor-pointer"
+                >
                   Contact Enterprise Team
                 </Button>
               </Link>
