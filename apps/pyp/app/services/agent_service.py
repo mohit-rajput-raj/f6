@@ -13,7 +13,7 @@ def get_llm(provider: str, api_key: str, model: str = None):
     """Create an LLM instance based on the user's provider and API key."""
     if provider == "gemini":
         return ChatGoogleGenerativeAI(
-            model=model or "gemini-2.0-flash",
+            model=model or "gemini-2.5-flash",
             google_api_key=api_key,
             temperature=0,
         )

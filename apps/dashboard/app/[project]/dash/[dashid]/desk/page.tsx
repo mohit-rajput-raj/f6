@@ -1,153 +1,157 @@
-"use client"
+"use client";
 
-import React, { useState, useCallback, useRef, useEffect, useMemo } from "react"
-import {
-  Plus, Camera, X,
-  Settings2, Loader2, ArrowDown,
-} from "lucide-react"
-import { Button } from "@/components/ui/components"
-import { toast } from "sonner"
-import { useSession } from "@/lib/auth-client"
-import { useDeskStore, type DeskBlockState } from "@/stores/desk-store"
-import { useQuery } from "@tanstack/react-query"
-import { scanTableImage } from "./ocr-actions"
-import {
-  getSharedDeskAccess,
-} from "./desk-share-actions"
+import React, {
+  useState,
+  useCallback,
+  useRef,
+  useEffect,
+  useMemo,
+} from "react";
+import { Plus, Camera, X, Settings2, Loader2, ArrowDown } from "lucide-react";
+import { Button } from "@/components/ui/components";
+import { toast } from "sonner";
+import { useSession } from "@/lib/auth-client";
+import { useDeskStore, type DeskBlockState } from "@/stores/desk-store";
+import { useQuery } from "@tanstack/react-query";
+import { scanTableImage } from "./ocr-actions";
+import { getSharedDeskAccess } from "./desk-share-actions";
 import {
   createDeskBlock,
   initializeDefaultDesk,
   updateDeskBlockInputs,
   updateDeskBlockOutput,
   deleteDeskBlock,
-} from "./desk-block-actions"
-import { useMasterSheetStore } from "@/stores/master-sheet-store"
-import { usePathname, useRouter, useParams } from "next/navigation"
-import { DeskBlock } from "./_components/DeskBlock"
-import { InviteNotification } from "./_components/InviteNotification"
-import { MasterSheetPanel } from "./_components/MasterSheetPanel"
-import { MasterSheetHistoryPanel } from "./_components/MasterSheetHistoryPanel"
-import { UpdatedMergedPreview } from "./_components/UpdatedMergedPreview"
-import { executeWorkflow } from "../editor/_components/nodes/executions/nodeExecutions"
-import { getWorkFlow } from "../editor/_actions/editor.service"
-import { HelixLoader, RoseLoader } from "curls-loaders"
+} from "./desk-block-actions";
+import { useMasterSheetStore } from "@/stores/master-sheet-store";
+import { usePathname, useRouter, useParams } from "next/navigation";
+import { DeskBlock } from "./_components/DeskBlock";
+import { InviteNotification } from "./_components/InviteNotification";
+import { MasterSheetPanel } from "./_components/MasterSheetPanel";
+import { MasterSheetHistoryPanel } from "./_components/MasterSheetHistoryPanel";
+import { UpdatedMergedPreview } from "./_components/UpdatedMergedPreview";
+import { executeWorkflow } from "../editor/_components/nodes/executions/nodeExecutions";
+import { getWorkFlow } from "../editor/_actions/editor.service";
+import { HelixLoader, RoseLoader } from "curls-loaders";
 
 // ─── Main Component ─────────────────────────────────────────
 export default function DeskPage() {
-  const { data: sessionData } = useSession()
-  const userId = sessionData?.user?.id
-  const userEmail = sessionData?.user?.email ?? ""
-  const params = useParams()
-  const dashid = params?.dashid as string
+  const { data: sessionData } = useSession();
+  const userId = sessionData?.user?.id;
+  const userEmail = sessionData?.user?.email ?? "";
+  const params = useParams();
+  const dashid = params?.dashid as string;
 
   // ─── Granular Zustand selectors (prevents full re-render on every store change) ───
-  const blocks = useDeskStore((s) => s.blocks)
-  const isLoading = useDeskStore((s) => s.isLoading)
-  const isGuest = useDeskStore((s) => s.isGuest)
-  const isViewer = useDeskStore((s) => s.isViewer)
-  const ocrResult = useDeskStore((s) => s.ocrResult)
-  const isOcrProcessing = useDeskStore((s) => s.isOcrProcessing)
+  const blocks = useDeskStore((s) => s.blocks);
+  const isLoading = useDeskStore((s) => s.isLoading);
+  const isGuest = useDeskStore((s) => s.isGuest);
+  const isViewer = useDeskStore((s) => s.isViewer);
+  const ocrResult = useDeskStore((s) => s.ocrResult);
+  const isOcrProcessing = useDeskStore((s) => s.isOcrProcessing);
 
   // Actions (stable references — never cause re-renders)
-  const setBlocks = useDeskStore((s) => s.setBlocks)
-  const setProjectWorkflowId = useDeskStore((s) => s.setProjectWorkflowId)
-  const setIsLoading = useDeskStore((s) => s.setIsLoading)
-  const setDeskAccess = useDeskStore((s) => s.setDeskAccess)
-  const addBlock = useDeskStore((s) => s.addBlock)
-  const setBlockOutput = useDeskStore((s) => s.setBlockOutput)
-  const setBlockExecuting = useDeskStore((s) => s.setBlockExecuting)
-  const setOcrResult = useDeskStore((s) => s.setOcrResult)
-  const setOcrProcessing = useDeskStore((s) => s.setOcrProcessing)
+  const setBlocks = useDeskStore((s) => s.setBlocks);
+  const setProjectWorkflowId = useDeskStore((s) => s.setProjectWorkflowId);
+  const setIsLoading = useDeskStore((s) => s.setIsLoading);
+  const setDeskAccess = useDeskStore((s) => s.setDeskAccess);
+  const addBlock = useDeskStore((s) => s.addBlock);
+  const setBlockOutput = useDeskStore((s) => s.setBlockOutput);
+  const setBlockExecuting = useDeskStore((s) => s.setBlockExecuting);
+  const setOcrResult = useDeskStore((s) => s.setOcrResult);
+  const setOcrProcessing = useDeskStore((s) => s.setOcrProcessing);
 
-  const [isAddingBlock, setIsAddingBlock] = useState(false)
+  const [isAddingBlock, setIsAddingBlock] = useState(false);
 
   // OCR file input ref
-  const ocrFileRef = useRef<HTMLInputElement>(null)
+  const ocrFileRef = useRef<HTMLInputElement>(null);
 
   // Master sheet store
-  const { sheets: masterSheets, activeSheetName } = useMasterSheetStore()
-  const activeMasterSheet = activeSheetName ? masterSheets[activeSheetName] : null
+  const { sheets: masterSheets, activeSheetName } = useMasterSheetStore();
+  const activeMasterSheet = activeSheetName
+    ? masterSheets[activeSheetName]
+    : null;
 
-  const router = useRouter()
-  const pathname = usePathname()
+  const router = useRouter();
+  const pathname = usePathname();
 
   // ─── Load blocks from DB on mount (cached with TanStack Query) ─────
   const { data: _deskData, isLoading: isDeskQueryLoading } = useQuery({
-    queryKey: ['desk-load', dashid, userId],
+    queryKey: ["desk-load", dashid, userId],
     queryFn: async () => {
-      setProjectWorkflowId(dashid)
+      setProjectWorkflowId(dashid);
 
       // Parallel fetch: access check + blocks initialization
       const [access, dbBlocks] = await Promise.all([
         userEmail ? getSharedDeskAccess(dashid, userEmail) : null,
         initializeDefaultDesk(dashid, userId!),
-      ])
+      ]);
 
-      if (access) setDeskAccess(access)
+      if (access) setDeskAccess(access);
 
       const mappedBlocks = dbBlocks.map((b) => ({
         ...b,
         actionButtons: [] as any[],
         isExecuting: false,
-      }))
-      setBlocks(mappedBlocks)
+      }));
+      setBlocks(mappedBlocks);
 
-      return { access, blocks: mappedBlocks }
+      return { access, blocks: mappedBlocks };
     },
     enabled: !!dashid && !!userId,
-    staleTime: 5 * 60 * 1000,    // don't refetch for 5 min
+    staleTime: 5 * 60 * 1000, // don't refetch for 5 min
     refetchOnMount: false,
     refetchOnWindowFocus: false,
-  })
+  });
 
   // Sync TanStack Query loading state with our store's isLoading
   useEffect(() => {
-    setIsLoading(isDeskQueryLoading)
-  }, [isDeskQueryLoading, setIsLoading])
+    setIsLoading(isDeskQueryLoading);
+  }, [isDeskQueryLoading, setIsLoading]);
 
   // ─── Auto-save block state to DB (debounced, targeted) ────
-  const saveTimerRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
-  const isInitialLoadRef = useRef(true)
-  const prevBlockSnapshotRef = useRef<Record<string, string>>({})
+  const saveTimerRef = useRef<Record<string, ReturnType<typeof setTimeout>>>(
+    {},
+  );
+  const isInitialLoadRef = useRef(true);
+  const prevBlockSnapshotRef = useRef<Record<string, string>>({});
 
-  const debouncedSaveBlock = useCallback(
-    (blockId: string) => {
-      if (saveTimerRef.current[blockId]) {
-        clearTimeout(saveTimerRef.current[blockId])
+  const debouncedSaveBlock = useCallback((blockId: string) => {
+    if (saveTimerRef.current[blockId]) {
+      clearTimeout(saveTimerRef.current[blockId]);
+    }
+    saveTimerRef.current[blockId] = setTimeout(async () => {
+      const block = useDeskStore
+        .getState()
+        .blocks.find((b) => b.id === blockId);
+      if (!block) return;
+      try {
+        await updateDeskBlockInputs(blockId, {
+          textInputs: block.textInputs,
+          sheets: block.sheets,
+          checkboxFields: block.checkboxFields,
+        });
+      } catch (err) {
+        console.error("Failed to save block:", err);
       }
-      saveTimerRef.current[blockId] = setTimeout(async () => {
-        const block = useDeskStore.getState().blocks.find((b) => b.id === blockId)
-        if (!block) return
-        try {
-          await updateDeskBlockInputs(blockId, {
-            textInputs: block.textInputs,
-            sheets: block.sheets,
-            checkboxFields: block.checkboxFields,
-          })
-        } catch (err) {
-          console.error("Failed to save block:", err)
-        }
-      }, 2000)
-    },
-    []
-  )
+    }, 2000);
+  }, []);
 
   // Watch blocks for changes and trigger save — ONLY for blocks that actually changed
   useEffect(() => {
     // Skip saving on initial load (blocks just came from DB, no changes)
     if (isInitialLoadRef.current) {
       // Snapshot current blocks state so we can diff later
-      const snapshot: Record<string, string> = {}
+      const snapshot: Record<string, string> = {};
       blocks.forEach((block) => {
         snapshot[block.id] = JSON.stringify({
           textInputs: block.textInputs,
           sheets: block.sheets,
           checkboxFields: block.checkboxFields,
-        })
-      })
-      prevBlockSnapshotRef.current = snapshot
-      isInitialLoadRef.current = false
-      return
+        });
+      });
+      prevBlockSnapshotRef.current = snapshot;
+      isInitialLoadRef.current = false;
+      return;
     }
 
     // Only save blocks whose saveable fields actually changed
@@ -156,278 +160,309 @@ export default function DeskPage() {
         textInputs: block.textInputs,
         sheets: block.sheets,
         checkboxFields: block.checkboxFields,
-      })
-      const prevKey = prevBlockSnapshotRef.current[block.id]
+      });
+      const prevKey = prevBlockSnapshotRef.current[block.id];
 
       if (currentKey !== prevKey) {
-        prevBlockSnapshotRef.current[block.id] = currentKey
-        debouncedSaveBlock(block.id)
+        prevBlockSnapshotRef.current[block.id] = currentKey;
+        debouncedSaveBlock(block.id);
       }
-    })
-  }, [blocks, debouncedSaveBlock])
-
-
+    });
+  }, [blocks, debouncedSaveBlock]);
 
   // ─── Add new BigBlock (root block + first child tab) ──────
   const handleAddBlock = useCallback(async () => {
-    if (!dashid || !userId) return
+    if (!dashid || !userId) return;
     if (isViewer) {
-      toast.error("Viewers cannot add blocks")
-      return
+      toast.error("Viewers cannot add blocks");
+      return;
     }
-    setIsAddingBlock(true)
+    setIsAddingBlock(true);
     try {
       // Create root BigBlock
-      const rootBlock = await createDeskBlock(dashid, userId, undefined, undefined, `BigBlock ${blocks.filter(b => !b.parentId).length + 1}`)
-      addBlock({ ...rootBlock, actionButtons: [], isExecuting: false })
+      const rootBlock = await createDeskBlock(
+        dashid,
+        userId,
+        undefined,
+        undefined,
+        `BigBlock ${blocks.filter((b) => !b.parentId).length + 1}`,
+      );
+      addBlock({ ...rootBlock, actionButtons: [], isExecuting: false });
 
       // Create first child tab inside the BigBlock
-      const firstTab = await createDeskBlock(dashid, userId, 0, rootBlock.id, "Tab 1")
-      addBlock({ ...firstTab, actionButtons: [], isExecuting: false })
+      const firstTab = await createDeskBlock(
+        dashid,
+        userId,
+        0,
+        rootBlock.id,
+        "Tab 1",
+      );
+      addBlock({ ...firstTab, actionButtons: [], isExecuting: false });
 
-      toast.success("BigBlock added with first tab")
+      toast.success("BigBlock added with first tab");
     } catch (err: any) {
-      toast.error(err?.message || "Failed to add block")
+      toast.error(err?.message || "Failed to add block");
     } finally {
-      setIsAddingBlock(false)
+      setIsAddingBlock(false);
     }
-  }, [dashid, userId, addBlock, blocks])
+  }, [dashid, userId, addBlock, blocks]);
 
   // ─── Execute a block ──────────────────────────────────────
   const handleExecuteBlock = useCallback(
     async (blockId: string) => {
-      const block = useDeskStore.getState().blocks.find((b) => b.id === blockId)
-      if (!block) return
+      const block = useDeskStore
+        .getState()
+        .blocks.find((b) => b.id === blockId);
+      if (!block) return;
 
-      setBlockExecuting(blockId, true)
+      setBlockExecuting(blockId, true);
       // Immediately reset previous output preview so old data doesn't linger while executing
-      setBlockOutput(blockId, null)
+      setBlockOutput(blockId, null);
       if (block.parentId) {
-        setBlockOutput(block.parentId, null)
+        setBlockOutput(block.parentId, null);
       }
 
       try {
         // Load the block's editor workflow
-        const workflow = await getWorkFlow(block.editorWorkflowId)
+        const workflow = await getWorkFlow(block.editorWorkflowId);
         if (!workflow?.definition) {
-          toast.error("No workflow found for this block")
-          return
+          toast.error("No workflow found for this block");
+          return;
         }
 
-        const def = workflow.definition as any
-        const nodes = def?.reactFlow?.nodes ?? []
-        const edges = def?.reactFlow?.edges ?? []
+        const def = workflow.definition as any;
+        const nodes = def?.reactFlow?.nodes ?? [];
+        const edges = def?.reactFlow?.edges ?? [];
 
         if (nodes.length === 0) {
-          toast.info("No nodes in this block's editor. Add nodes via Settings.")
-          return
+          toast.info(
+            "No nodes in this block's editor. Add nodes via Settings.",
+          );
+          return;
         }
 
         // Prepare a mock setNodes for execution
-        let currentNodes = [...nodes]
-        const mockSetNodes: React.Dispatch<React.SetStateAction<any[]>> = (updater) => {
+        let currentNodes = [...nodes];
+        const mockSetNodes: React.Dispatch<React.SetStateAction<any[]>> = (
+          updater,
+        ) => {
           if (typeof updater === "function") {
-            currentNodes = updater(currentNodes)
+            currentNodes = updater(currentNodes);
           } else {
-            currentNodes = updater
+            currentNodes = updater;
           }
-        }
+        };
 
         // Execute the workflow
-        await executeWorkflow(currentNodes, edges, mockSetNodes, sessionData?.user?.id)
+        await executeWorkflow(
+          currentNodes,
+          edges,
+          mockSetNodes,
+          sessionData?.user?.id,
+        );
 
         // Save updated execution states/results back to workflow definition so editor stays updated
         try {
-          const { saveWorkflow } = await import("../editor/_actions/editor.service")
-          await saveWorkflow(block.editorWorkflowId, currentNodes, edges)
+          const { saveWorkflow } =
+            await import("../editor/_actions/editor.service");
+          await saveWorkflow(block.editorWorkflowId, currentNodes, edges);
 
-          const { useWorkflowEditorStore } = await import("@/stores/workflow-editor-store")
-          useWorkflowEditorStore.getState().initWorkflow(block.editorWorkflowId, currentNodes, edges)
+          const { useWorkflowEditorStore } =
+            await import("@/stores/workflow-editor-store");
+          useWorkflowEditorStore
+            .getState()
+            .initWorkflow(block.editorWorkflowId, currentNodes, edges);
         } catch {
           // non-critical
         }
 
         // Find OutputPreviewNode result and set as block output
         const outputNode = currentNodes.find(
-          (n: any) => n.type === "OutputPreviewNode" && n.data?.result && n.data?.previewEnabled !== false
-        )
+          (n: any) =>
+            n.type === "OutputPreviewNode" &&
+            n.data?.result &&
+            n.data?.previewEnabled !== false,
+        );
         if (outputNode?.data?.result) {
-          const outputData = outputNode.data.result
-          setBlockOutput(blockId, outputData)
-          await updateDeskBlockOutput(blockId, outputData)
+          const outputData = outputNode.data.result;
+          setBlockOutput(blockId, outputData);
+          await updateDeskBlockOutput(blockId, outputData);
 
           // Also propagate to parent BigBlock's outputPreview & per-tab outputs
           if (block.parentId) {
-            setBlockOutput(block.parentId, outputData)
-            useDeskStore.getState().setTabOutput(block.parentId, block.name, outputData)
-            await updateDeskBlockOutput(block.parentId, outputData)
+            setBlockOutput(block.parentId, outputData);
+            useDeskStore
+              .getState()
+              .setTabOutput(block.parentId, block.name, outputData);
+            await updateDeskBlockOutput(block.parentId, outputData);
           }
         } else {
-          setBlockOutput(blockId, null)
-          await updateDeskBlockOutput(blockId, null)
+          setBlockOutput(blockId, null);
+          await updateDeskBlockOutput(blockId, null);
           if (block.parentId) {
-            setBlockOutput(block.parentId, null)
-            useDeskStore.getState().setTabOutput(block.parentId, block.name, null)
-            await updateDeskBlockOutput(block.parentId, null)
+            setBlockOutput(block.parentId, null);
+            useDeskStore
+              .getState()
+              .setTabOutput(block.parentId, block.name, null);
+            await updateDeskBlockOutput(block.parentId, null);
           }
         }
 
-        toast.success(`Block executed successfully`)
+        toast.success(`Block executed successfully`);
       } catch (err: any) {
-        console.error("Block execution failed:", err)
-        toast.error(err?.message || "Execution failed")
+        console.error("Block execution failed:", err);
+        toast.error(err?.message || "Execution failed");
       } finally {
-        setBlockExecuting(blockId, false)
+        setBlockExecuting(blockId, false);
       }
     },
-    [setBlockExecuting, setBlockOutput]
-  )
+    [setBlockExecuting, setBlockOutput],
+  );
 
   // ─── Add a child tab to a BigBlock ────────────────────────
   const handleAddTab = useCallback(
     async (bigBlockId: string) => {
       if (!dashid || !userId) {
-        toast.error("User session not available")
-        return
+        toast.error("User session not available");
+        return;
       }
       try {
-        const childCount = blocks.filter((b) => b.parentId === bigBlockId).length
+        const childCount = blocks.filter(
+          (b) => b.parentId === bigBlockId,
+        ).length;
         const newChild = await createDeskBlock(
           dashid,
           userId,
           childCount,
           bigBlockId,
-          `Tab ${childCount + 1}`
-        )
-        addBlock({ ...newChild, actionButtons: [], isExecuting: false })
-        toast.success(`Tab "${newChild.name}" created`)
-        return newChild.id
+          `Tab ${childCount + 1}`,
+        );
+        addBlock({ ...newChild, actionButtons: [], isExecuting: false });
+        toast.success(`Tab "${newChild.name}" created`);
+        return newChild.id;
       } catch (err: any) {
-        console.error("Failed to add tab:", err)
-        toast.error(err?.message || "Failed to add tab")
+        console.error("Failed to add tab:", err);
+        toast.error(err?.message || "Failed to add tab");
       }
     },
-    [dashid, userId, blocks, addBlock]
-  )
+    [dashid, userId, blocks, addBlock],
+  );
 
   // ─── Rename a child tab ───────────────────────────────────
   const handleRenameTab = useCallback(
     async (blockId: string, newName: string) => {
       try {
-        const { renameDeskBlock } = await import("./desk-block-actions")
-        await renameDeskBlock(blockId, newName)
-        useDeskStore.getState().updateBlockName(blockId, newName)
+        const { renameDeskBlock } = await import("./desk-block-actions");
+        await renameDeskBlock(blockId, newName);
+        useDeskStore.getState().updateBlockName(blockId, newName);
       } catch (err: any) {
-        console.error("Failed to rename tab:", err)
-        toast.error(err?.message || "Failed to rename")
+        console.error("Failed to rename tab:", err);
+        toast.error(err?.message || "Failed to rename");
       }
     },
-    []
-  )
+    [],
+  );
 
   // ─── Delete a child tab (and auto-delete BigBlock if last tab) ────
-  const handleDeleteTab = useCallback(
-    async (blockId: string) => {
-      try {
-        const allBlocks = useDeskStore.getState().blocks
-        const targetBlock = allBlocks.find((b) => b.id === blockId)
+  const handleDeleteTab = useCallback(async (blockId: string) => {
+    try {
+      const allBlocks = useDeskStore.getState().blocks;
+      const targetBlock = allBlocks.find((b) => b.id === blockId);
 
-        await deleteDeskBlock(blockId)
-        useDeskStore.getState().removeBlock(blockId)
+      await deleteDeskBlock(blockId);
+      useDeskStore.getState().removeBlock(blockId);
 
-        if (targetBlock?.parentId) {
-          const parentId = targetBlock.parentId
-          const remainingChildren = useDeskStore.getState().blocks.filter((b) => b.parentId === parentId)
-          if (remainingChildren.length === 0) {
-            await deleteDeskBlock(parentId)
-            useDeskStore.getState().removeBlock(parentId)
-            toast.success("BigBlock deleted (no tabs left)")
-            return
-          }
+      if (targetBlock?.parentId) {
+        const parentId = targetBlock.parentId;
+        const remainingChildren = useDeskStore
+          .getState()
+          .blocks.filter((b) => b.parentId === parentId);
+        if (remainingChildren.length === 0) {
+          await deleteDeskBlock(parentId);
+          useDeskStore.getState().removeBlock(parentId);
+          toast.success("BigBlock deleted (no tabs left)");
+          return;
         }
-        toast.success("Tab deleted")
-      } catch (err: any) {
-        console.error("Failed to delete tab:", err)
-        toast.error(err?.message || "Failed to delete")
       }
-    },
-    []
-  )
+      toast.success("Tab deleted");
+    } catch (err: any) {
+      console.error("Failed to delete tab:", err);
+      toast.error(err?.message || "Failed to delete");
+    }
+  }, []);
 
   // ─── Delete a BigBlock and all its child tabs ──────────────
-  const handleDeleteBigBlock = useCallback(
-    async (bigBlockId: string) => {
-      try {
-        const allBlocks = useDeskStore.getState().blocks
-        const children = allBlocks.filter((b) => b.parentId === bigBlockId)
+  const handleDeleteBigBlock = useCallback(async (bigBlockId: string) => {
+    try {
+      const allBlocks = useDeskStore.getState().blocks;
+      const children = allBlocks.filter((b) => b.parentId === bigBlockId);
 
-        for (const child of children) {
-          await deleteDeskBlock(child.id)
-          useDeskStore.getState().removeBlock(child.id)
-        }
-
-        await deleteDeskBlock(bigBlockId)
-        useDeskStore.getState().removeBlock(bigBlockId)
-        toast.success("BigBlock deleted")
-      } catch (err: any) {
-        console.error("Failed to delete BigBlock:", err)
-        toast.error(err?.message || "Failed to delete BigBlock")
+      for (const child of children) {
+        await deleteDeskBlock(child.id);
+        useDeskStore.getState().removeBlock(child.id);
       }
-    },
-    []
-  )
+
+      await deleteDeskBlock(bigBlockId);
+      useDeskStore.getState().removeBlock(bigBlockId);
+      toast.success("BigBlock deleted");
+    } catch (err: any) {
+      console.error("Failed to delete BigBlock:", err);
+      toast.error(err?.message || "Failed to delete BigBlock");
+    }
+  }, []);
 
   // Watch for triggered action buttons to auto-execute their block
   // Only checks blocks with triggered buttons (avoids iterating all blocks every render)
   const triggeredBlocks = useMemo(
-    () => blocks.filter((b) => b.actionButtons?.some((a) => a.triggered) && !b.isExecuting),
-    [blocks]
-  )
+    () =>
+      blocks.filter(
+        (b) => b.actionButtons?.some((a) => a.triggered) && !b.isExecuting,
+      ),
+    [blocks],
+  );
 
   useEffect(() => {
     triggeredBlocks.forEach((block) => {
       handleExecuteBlock(block.id).then(() => {
         block.actionButtons?.forEach((a) => {
           if (a.triggered) {
-            useDeskStore.getState().resetActionButton(block.id, a.id)
+            useDeskStore.getState().resetActionButton(block.id, a.id);
           }
-        })
-      })
-    })
+        });
+      });
+    });
   }, [triggeredBlocks, handleExecuteBlock]);
 
   // ─── OCR Handler ──────────────────────────────────────────
-  const handleOcrUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    if (!file.type.startsWith("image/")) {
-      toast.error("Please upload an image file (PNG, JPG, etc.)")
-      return
-    }
-    setOcrProcessing(true)
-    try {
-      const reader = new FileReader()
-      const base64 = await new Promise<string>((resolve, reject) => {
-        reader.onload = () => resolve(reader.result as string)
-        reader.onerror = reject
-        reader.readAsDataURL(file)
-      })
-      const result = await scanTableImage(base64)
-      if (result.success && result.data) {
-        setOcrResult(result.data)
-        toast.success(`Scanned: ${result.data.data.length} rows × ${result.data.columns.length} columns`)
-      } else {
-        toast.error(result.error || "Failed to extract table from image")
-      }
-    } catch (err: any) {
-      toast.error(err?.message || "OCR processing failed")
-    } finally {
-      setOcrProcessing(false)
-      if (ocrFileRef.current) ocrFileRef.current.value = ""
-    }
-  }, [setOcrResult, setOcrProcessing])
-
-
+  // const handleOcrUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+  //   const file = e.target.files?.[0]
+  //   if (!file) return
+  //   if (!file.type.startsWith("image/")) {
+  //     toast.error("Please upload an image file (PNG, JPG, etc.)")
+  //     return
+  //   }
+  //   setOcrProcessing(true)
+  //   try {
+  //     const reader = new FileReader()
+  //     const base64 = await new Promise<string>((resolve, reject) => {
+  //       reader.onload = () => resolve(reader.result as string)
+  //       reader.onerror = reject
+  //       reader.readAsDataURL(file)
+  //     })
+  //     const result = await scanTableImage(base64)
+  //     if (result.success && result.data) {
+  //       setOcrResult(result.data)
+  //       toast.success(`Scanned: ${result.data.data.length} rows × ${result.data.columns.length} columns`)
+  //     } else {
+  //       toast.error(result.error || "Failed to extract table from image")
+  //     }
+  //   } catch (err: any) {
+  //     toast.error(err?.message || "OCR processing failed")
+  //   } finally {
+  //     setOcrProcessing(false)
+  //     if (ocrFileRef.current) ocrFileRef.current.value = ""
+  //   }
+  // }, [setOcrResult, setOcrProcessing])
 
   // ─── Render ───────────────────────────────────────────────
   if (isLoading) {
@@ -446,7 +481,7 @@ export default function DeskPage() {
           <p className="text-sm text-muted-foreground">Loading desk...</p>
         </div>
       </div>
-    )
+    );
   }
 
   return (
@@ -465,8 +500,7 @@ export default function DeskPage() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          {/* OCR Upload */}
+        {/* <div className="flex items-center gap-2">
           <input
             ref={ocrFileRef}
             type="file"
@@ -489,7 +523,7 @@ export default function DeskPage() {
           </Button>
 
 
-        </div>
+        </div> */}
       </div>
 
       {/* ─── Invite Notification Banner ──────────────────── */}
@@ -502,7 +536,8 @@ export default function DeskPage() {
             <div className="flex items-center gap-2">
               <span className="text-lg">🔍</span>
               <span className="text-sm font-medium text-emerald-800 dark:text-emerald-200">
-                OCR Result — {ocrResult.data.length} rows × {ocrResult.columns.length} columns
+                OCR Result — {ocrResult.data.length} rows ×{" "}
+                {ocrResult.columns.length} columns
               </span>
             </div>
             <div className="flex gap-1">
@@ -521,7 +556,10 @@ export default function DeskPage() {
               <thead>
                 <tr className="bg-muted sticky top-0">
                   {ocrResult.columns.map((col, i) => (
-                    <th key={i} className="px-2 py-1 text-left font-medium whitespace-nowrap border-r last:border-r-0">
+                    <th
+                      key={i}
+                      className="px-2 py-1 text-left font-medium whitespace-nowrap border-r last:border-r-0"
+                    >
                       {col}
                     </th>
                   ))}
@@ -531,7 +569,10 @@ export default function DeskPage() {
                 {ocrResult.data.slice(0, 5).map((row, ri) => (
                   <tr key={ri} className="border-t">
                     {row.map((cell: any, ci: number) => (
-                      <td key={ci} className="px-2 py-0.5 whitespace-nowrap border-r last:border-r-0">
+                      <td
+                        key={ci}
+                        className="px-2 py-0.5 whitespace-nowrap border-r last:border-r-0"
+                      >
                         {String(cell ?? "")}
                       </td>
                     ))}
@@ -539,7 +580,10 @@ export default function DeskPage() {
                 ))}
                 {ocrResult.data.length > 5 && (
                   <tr>
-                    <td colSpan={ocrResult.columns.length} className="px-2 py-1 text-center text-muted-foreground italic">
+                    <td
+                      colSpan={ocrResult.columns.length}
+                      className="px-2 py-1 text-center text-muted-foreground italic"
+                    >
                       ... and {ocrResult.data.length - 5} more rows
                     </td>
                   </tr>
@@ -552,50 +596,62 @@ export default function DeskPage() {
 
       {/* ─── Blocks Pipeline ─────────────────────────────── */}
       <div className="flex-1 min-h-full max-h-full overflow-y-auto p-4 space-y-3">
-        {blocks.filter(b => !b.parentId).length === 0 ? (
+        {blocks.filter((b) => !b.parentId).length === 0 ? (
           <div className="flex flex-col items-center justify-center h-64 text-muted-foreground gap-3">
             <p className="text-sm">No blocks yet.</p>
             {!isViewer && (
-              <Button onClick={handleAddBlock} className="gap-1.5 bg-teal-600 hover:bg-teal-700 text-white">
+              <Button
+                onClick={handleAddBlock}
+                className="gap-1.5 bg-teal-600 hover:bg-teal-700 text-white"
+              >
                 <Plus className="size-4" />
                 Add First BigBlock
               </Button>
             )}
             {isViewer && (
-              <p className="text-xs text-amber-500/80">You have view-only access to this desk.</p>
+              <p className="text-xs text-amber-500/80">
+                You have view-only access to this desk.
+              </p>
             )}
           </div>
         ) : (
           <>
-            {blocks.filter(b => !b.parentId).sort((a, b) => a.blockOrder - b.blockOrder).map((block, index, rootArr) => (
-              <React.Fragment key={block.id}>
-                <DeskBlock
-                  block={block}
-                  blockIndex={index}
-                  totalBlocks={rootArr.length}
-                  allBlocks={blocks}
-                  isGuest={isGuest}
-                  dashid={dashid}
-                  userId={userId}
-                  onExecute={handleExecuteBlock}
-                  onAddTab={handleAddTab}
-                  onRenameTab={handleRenameTab}
-                  onDeleteTab={handleDeleteTab}
-                  onDeleteBigBlock={handleDeleteBigBlock}
-                  previousBlockOutput={index > 0 ? rootArr[index - 1]?.outputPreview : undefined}
-                />
+            {blocks
+              .filter((b) => !b.parentId)
+              .sort((a, b) => a.blockOrder - b.blockOrder)
+              .map((block, index, rootArr) => (
+                <React.Fragment key={block.id}>
+                  <DeskBlock
+                    block={block}
+                    blockIndex={index}
+                    totalBlocks={rootArr.length}
+                    allBlocks={blocks}
+                    isGuest={isGuest}
+                    dashid={dashid}
+                    userId={userId}
+                    onExecute={handleExecuteBlock}
+                    onAddTab={handleAddTab}
+                    onRenameTab={handleRenameTab}
+                    onDeleteTab={handleDeleteTab}
+                    onDeleteBigBlock={handleDeleteBigBlock}
+                    previousBlockOutput={
+                      index > 0 ? rootArr[index - 1]?.outputPreview : undefined
+                    }
+                  />
 
-                {/* Arrow connector between BigBlocks */}
-                {index < rootArr.length - 1 && (
-                  <div className="flex justify-center py-1">
-                    <div className="flex flex-col items-center text-zinc-500">
-                      <ArrowDown className="size-5" />
-                      <span className="text-[9px] text-muted-foreground">data flows</span>
+                  {/* Arrow connector between BigBlocks */}
+                  {index < rootArr.length - 1 && (
+                    <div className="flex justify-center py-1">
+                      <div className="flex flex-col items-center text-zinc-500">
+                        <ArrowDown className="size-5" />
+                        <span className="text-[9px] text-muted-foreground">
+                          data flows
+                        </span>
+                      </div>
                     </div>
-                  </div>
-                )}
-              </React.Fragment>
-            ))}
+                  )}
+                </React.Fragment>
+              ))}
 
             {/* Add BigBlock Button — hidden for viewers */}
             {!isViewer && (
@@ -627,8 +683,6 @@ export default function DeskPage() {
         {/* ─── Sheet Version History ──────────────────────── */}
         <MasterSheetHistoryPanel />
       </div>
-
-
     </div>
-  )
+  );
 }

@@ -177,7 +177,7 @@ export async function getFilesInFolder(
   const { data, error } = await supabase
     .from("workspace_file")
     .select(
-      "id, workflowId, userId, folderId, folderPath, name, fileType, createdAt, updatedAt",
+      "id, workflowId, userId, folderId, folderPath, name, fileType, metadata, createdAt, updatedAt",
     )
     .eq("workflowId", dashid)
     .eq("folderPath", cleanPath)
@@ -185,6 +185,29 @@ export async function getFilesInFolder(
 
   if (error) {
     console.error("Error fetching files in folder:", error);
+    return [];
+  }
+  return data || [];
+}
+
+/**
+ * Fetch all workspace files in a project (for picker/search)
+ */
+export async function getAllWorkspaceFiles(
+  dashid: string,
+): Promise<WorkspaceFileItem[]> {
+  if (!isValidUuid(dashid)) return [];
+
+  const { data, error } = await supabase
+    .from("workspace_file")
+    .select(
+      "id, workflowId, userId, folderId, folderPath, name, fileType, metadata, createdAt, updatedAt",
+    )
+    .eq("workflowId", dashid)
+    .order("updatedAt", { ascending: false });
+
+  if (error) {
+    console.error("Error fetching workspace files:", error);
     return [];
   }
   return data || [];

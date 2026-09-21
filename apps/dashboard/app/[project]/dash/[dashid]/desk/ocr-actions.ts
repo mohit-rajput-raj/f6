@@ -14,7 +14,10 @@ interface OcrResult {
 export async function scanTableImage(base64Image: string): Promise<OcrResult> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    return { success: false, error: "GEMINI_API_KEY is not configured. Add it to .env.local" };
+    return {
+      success: false,
+      error: "GEMINI_API_KEY is not configured. Add it to .env.local",
+    };
   }
 
   try {
@@ -31,7 +34,7 @@ export async function scanTableImage(base64Image: string): Promise<OcrResult> {
     }
 
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -65,7 +68,7 @@ Rules:
             maxOutputTokens: 8192,
           },
         }),
-      }
+      },
     );
 
     if (!response.ok) {
@@ -94,7 +97,10 @@ Rules:
     const parsed = JSON.parse(jsonStr);
 
     if (!parsed.columns || !Array.isArray(parsed.columns)) {
-      return { success: false, error: "Invalid response format — missing columns" };
+      return {
+        success: false,
+        error: "Invalid response format — missing columns",
+      };
     }
 
     return {

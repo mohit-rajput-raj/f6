@@ -59,57 +59,51 @@ const data = {
     },
   ],
   ColapseblenavMain: [
-    {
-      title: "Playground",
-      url: "#",
-      icon: SquareTerminal,
-      isActive: true,
-      items: [
-        {
-          name: "Data Library3",
-          url: "/data-library",
-
-          icon: IconDatabase,
-        },
-        {
-          name: "Data Library4",
-          url: "/data-library",
-
-          icon: IconDatabase,
-        },
-      ],
-    },
-    {
-      title: "Models",
-      url: "#",
-      icon: Bot,
-      items: [
-        {
-          name: "Data Library1",
-          url: "/data-library",
-
-          icon: IconDatabase,
-        },
-        {
-          name: "Data Library2",
-          url: "/data-library",
-
-          icon: IconDatabase,
-        },
-        {
-          name: "Data Library3",
-          url: "/data-library",
-
-          icon: IconDatabase,
-        },
-        {
-          name: "Data Library4",
-          url: "/data-library",
-
-          icon: IconDatabase,
-        },
-      ],
-    },
+    // {
+    //   title: "Playground",
+    //   url: "#",
+    //   icon: SquareTerminal,
+    //   isActive: true,
+    //   items: [
+    //     {
+    //       name: "Data Library3",
+    //       url: "/data-library",
+    //       icon: IconDatabase,
+    //     },
+    //     {
+    //       name: "Data Library4",
+    //       url: "/data-library",
+    //       icon: IconDatabase,
+    //     },
+    //   ],
+    // },
+    // {
+    //   title: "Models",
+    //   url: "#",
+    //   icon: Bot,
+    //   items: [
+    //     {
+    //       name: "Data Library1",
+    //       url: "/data-library",
+    //       icon: IconDatabase,
+    //     },
+    //     {
+    //       name: "Data Library2",
+    //       url: "/data-library",
+    //       icon: IconDatabase,
+    //     },
+    //     {
+    //       name: "Data Library3",
+    //       url: "/data-library",
+    //       icon: IconDatabase,
+    //     },
+    //     {
+    //       name: "Data Library4",
+    //       url: "/data-library",
+    //       icon: IconDatabase,
+    //     },
+    //   ],
+    // },
   ],
   navMain: [
     {
@@ -252,21 +246,21 @@ const data = {
       url: "/billing",
       icon: IconFileWord,
     },
-    {
-      name: "Integration",
-      url: "/integration",
-      icon: IconInnerShadowTop,
-    },
+    // {
+    //   name: "Integration",
+    //   url: "/integration",
+    //   icon: IconInnerShadowTop,
+    // },
     {
       name: "Settings",
       url: "/settings",
       icon: IconSettings,
     },
-    {
-      name: "Plugins",
-      url: "/plugs",
-      icon: IconPlugConnected,
-    },
+    // {
+    //   name: "Plugins",
+    //   url: "/plugs",
+    //   icon: IconPlugConnected,
+    // },
     {
       name: "Notifications",
       url: "/notifications",

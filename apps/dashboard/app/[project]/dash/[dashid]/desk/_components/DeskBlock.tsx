@@ -57,6 +57,7 @@ const SpreadsheetComponent = dynamic(
 );
 
 import { openSheetInSyncfusion } from "@/lib/sheet-utils";
+import { SheetDataUploadModal } from "./SheetDataUploadModal";
 
 // ─── CSV parsing helper ─────────────────────────────────────
 function parseCSV(text: string): { columns: string[]; data: string[][] } {
@@ -307,6 +308,40 @@ export function DeskBlock({
       reader.readAsText(file);
     },
     [updateSheetData, setBlockOutput],
+  );
+
+  // ─── Sheet Data Upload Modal ───────────────────────────────
+  const [uploadModalTarget, setUploadModalTarget] = useState<{
+    sheetId: string;
+    sheetName: string;
+  } | null>(null);
+
+  const handleOpenUploadModal = useCallback(
+    (sheetId: string, sheetName: string) => {
+      if (isGuest) return;
+      setUploadModalTarget({ sheetId, sheetName });
+    },
+    [isGuest],
+  );
+
+  const handleDatasetLoaded = useCallback(
+    (dataset: Dataset, sourceName: string) => {
+      if (!uploadModalTarget || !activeChild) return;
+      updateSheetData(activeChild.id, uploadModalTarget.sheetId, dataset);
+      setBlockOutput(activeChild.id, null);
+      setActivePreviewTab(uploadModalTarget.sheetId);
+      toast.success(
+        `Loaded ${dataset.data.length} rows × ${dataset.columns.length} cols from "${sourceName}"`,
+      );
+      setUploadModalTarget(null);
+    },
+    [
+      uploadModalTarget,
+      activeChild,
+      updateSheetData,
+      setBlockOutput,
+      setActivePreviewTab,
+    ],
   );
 
   // ─── Load previous BigBlock output into a sheet ────────────
@@ -911,21 +946,38 @@ export function DeskBlock({
                                   {sheet.data.columns.length} cols
                                 </span>
                                 {!isGuest && (
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      useDeskStore
-                                        .getState()
-                                        .clearSheetData(
-                                          activeChild.id,
+                                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleOpenUploadModal(
                                           sheet.id,
+                                          sheet.name,
                                         );
-                                    }}
-                                    className="text-muted-foreground hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
-                                    title="Clear data"
-                                  >
-                                    <Trash2 className="size-3" />
-                                  </button>
+                                      }}
+                                      className="text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                                      title="Replace / import data"
+                                    >
+                                      <FileUp className="size-3" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        useDeskStore
+                                          .getState()
+                                          .clearSheetData(
+                                            activeChild.id,
+                                            sheet.id,
+                                          );
+                                      }}
+                                      className="text-muted-foreground hover:text-red-500 transition-colors cursor-pointer"
+                                      title="Clear data"
+                                    >
+                                      <Trash2 className="size-3" />
+                                    </button>
+                                  </div>
                                 )}
                               </div>
                               <div className="flex flex-wrap gap-0.5">
@@ -947,23 +999,20 @@ export function DeskBlock({
                               </div>
                             </div>
                           ) : (
-                            <label className="flex items-center gap-1.5 text-[10px] text-muted-foreground cursor-pointer hover:text-foreground transition">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleOpenUploadModal(
+                                  sheet.id,
+                                  sheet.name,
+                                )
+                              }
+                              disabled={isGuest}
+                              className="flex items-center gap-1.5 text-[10px] text-muted-foreground cursor-pointer hover:text-foreground transition font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
                               <FileUp className="size-3" />
                               Upload CSV
-                              <input
-                                type="file"
-                                accept=".csv,.txt"
-                                className="hidden"
-                                onChange={(e) =>
-                                  handleSheetFileUpload(
-                                    activeChild.id,
-                                    sheet.id,
-                                    e,
-                                  )
-                                }
-                                disabled={isGuest}
-                              />
-                            </label>
+                            </button>
                           )}
                         </div>
                       ))
@@ -1159,6 +1208,20 @@ export function DeskBlock({
             </ResizablePanel>
           </ResizablePanelGroup>
         </div>
+      )}
+
+      {/* ─── Sheet Data Upload Modal ─── */}
+      {uploadModalTarget && activeChild && (
+        <SheetDataUploadModal
+          open={uploadModalTarget !== null}
+          onOpenChange={(open) => {
+            if (!open) setUploadModalTarget(null);
+          }}
+          dashid={dashid}
+          userId={userId}
+          sheetName={uploadModalTarget.sheetName}
+          onSelectDataset={handleDatasetLoaded}
+        />
       )}
     </div>
   );
