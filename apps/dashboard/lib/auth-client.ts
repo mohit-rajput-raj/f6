@@ -1,5 +1,6 @@
 // apps/web/lib/auth-client.ts
 import { createAuthClient } from "better-auth/react";
+import { polarClient } from "@polar-sh/better-auth/client";
 
 export const authClient = createAuthClient({
   baseURL:
@@ -9,6 +10,7 @@ export const authClient = createAuthClient({
       : process.env.VERCEL_URL
         ? `https://${process.env.VERCEL_URL}`
         : "http://localhost:3002"),
+  plugins: [polarClient()],
 });
 
 export const {

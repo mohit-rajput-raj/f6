@@ -1,2 +1,2 @@
 export { auth } from "./auth";
-// sdfkdsf|?
+export { createAuthClient } from "./client";

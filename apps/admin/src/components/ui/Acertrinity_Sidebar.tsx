@@ -6,12 +6,12 @@ import {
   SidebarLink,
 } from "@repo/ui/components/ui/acertrinity/sidebar";
 import {
-  IconArrowLeft,
   IconBell,
   IconBrandTabler,
   IconChartBar,
   IconCreditCard,
   IconFileAnalytics,
+  IconLogout,
   IconSettings,
   IconUsers,
 } from "@tabler/icons-react";
@@ -19,7 +19,13 @@ import { motion } from "framer-motion";
 import { cn } from "@repo/ui/lib/utils";
 import Link from "next/link";
 import { ModeToggle } from "@repo/ui/components/themes/toogle";
+import { useSession, signOut } from "@/lib/auth-client";
+import { useRouter } from "next/navigation";
+
 export function SidebarDemo({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
+  const { data: session, isPending } = useSession();
+
   const links = [
     {
       label: "Dashboard",
@@ -70,16 +76,52 @@ export function SidebarDemo({ children }: { children: React.ReactNode }) {
         <IconSettings className="h-5 w-5 shrink-0 text-neutral-700 dark:text-neutral-200" />
       ),
     },
-    {
-      label: "Logout",
-      href: "/login",
-      icon: (
-        <IconArrowLeft className="h-5 w-5 shrink-0 text-neutral-700 dark:text-neutral-200" />
-      ),
-    },
   ];
 
   const [open, setOpen] = useState(false);
+
+  const userName = session?.user?.name || session?.user?.email?.split("@")[0] || "Admin";
+  const userImage = session?.user?.image;
+  const userEmail = session?.user?.email;
+
+  React.useEffect(() => {
+    if (!isPending && !session?.user) {
+      router.replace("/login");
+    }
+  }, [session, isPending, router]);
+
+  const handleLogout = async () => {
+    try {
+      await signOut({
+        fetchOptions: {
+          onSuccess: () => {
+            router.replace("/login");
+          },
+        },
+      });
+    } catch (err) {
+      console.error("Sign out error:", err);
+    } finally {
+      router.replace("/login");
+    }
+  };
+
+  if (isPending) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center bg-neutral-100 dark:bg-neutral-950">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-6 w-6 animate-spin rounded-full border-2 border-neutral-300 border-t-neutral-900 dark:border-neutral-700 dark:border-t-neutral-100" />
+          <span className="text-xs font-medium text-neutral-500 dark:text-neutral-400">
+            Verifying portal session...
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  if (!session?.user) {
+    return null;
+  }
 
   return (
     <div
@@ -97,22 +139,45 @@ export function SidebarDemo({ children }: { children: React.ReactNode }) {
               ))}
             </div>
           </div>
-          <div>
+          <div className="flex flex-col gap-2">
+            {/* User Profile */}
             <SidebarLink
               link={{
-                label: "Manu Arora",
+                label: userName,
                 href: "/settings",
-                icon: (
+                icon: userImage ? (
                   <img
-                    src="https://assets.aceternity.com/manu.png"
-                    className="h-7 w-7 shrink-0 rounded-full"
+                    src={userImage}
+                    className="h-7 w-7 shrink-0 rounded-full border border-neutral-300 dark:border-neutral-600 object-cover"
                     width={50}
                     height={50}
                     alt="Avatar"
                   />
+                ) : (
+                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-neutral-800 text-xs font-semibold text-white dark:bg-neutral-200 dark:text-neutral-900">
+                    {userName.charAt(0).toUpperCase()}
+                  </div>
                 ),
               }}
             />
+
+            {/* Logout Button */}
+            <button
+              onClick={handleLogout}
+              className="flex items-center justify-start gap-2 group/sidebar py-2 cursor-pointer hover:opacity-80 transition-opacity"
+            >
+              <IconLogout className="h-5 w-5 shrink-0 text-neutral-700 dark:text-neutral-200" />
+              <motion.span
+                animate={{
+                  display: open ? "inline-block" : "none",
+                  opacity: open ? 1 : 0,
+                }}
+                className="text-neutral-700 dark:text-neutral-200 text-sm group-hover/sidebar:translate-x-1 transition duration-150 whitespace-pre inline-block !p-0 !m-0"
+              >
+                Logout
+              </motion.span>
+            </button>
+
             <ModeToggle />
           </div>
         </SidebarBody>

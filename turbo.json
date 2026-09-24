@@ -2,6 +2,8 @@
   "$schema": "https://turborepo.com/schema.json",
   "ui": "tui",
   "globalEnv": [
+    "POLAR_ACCESS_TOKEN",
+    "POLAR_SERVER",
     "GOOGLE_CALLBACK_URL",
     "GOOGLE_CLIENT_ID",
     "GOOGLE_CLIENT_SECRET",
@@ -74,6 +76,8 @@
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
       "outputs": [".next/**", "!.next/cache/**", "src/generated/**", "dist/**", "dist"],
       "env": [
+        "POLAR_ACCESS_TOKEN",
+        "POLAR_SERVER",
         "DATABASE_URL",
         "GOOGLE_CALLBACK_URL",
         "GOOGLE_CLIENT_ID",
@@ -103,6 +107,8 @@
     },
     "dev": {
       "env":[
+        "POLAR_ACCESS_TOKEN",
+        "POLAR_SERVER",
         "DATABASE_URL",
         "GOOGLE_CALLBACK_URL",
         "GOOGLE_CLIENT_ID",

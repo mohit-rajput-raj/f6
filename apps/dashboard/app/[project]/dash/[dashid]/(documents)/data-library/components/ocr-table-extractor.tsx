@@ -1,6 +1,12 @@
-'use client';
+"use client";
 
-import React, { useState, useRef, useMemo, useCallback, useEffect } from 'react';
+import React, {
+  useState,
+  useRef,
+  useMemo,
+  useCallback,
+  useEffect,
+} from "react";
 import {
   Sparkles,
   ScanText,
@@ -22,20 +28,25 @@ import {
   Image as ImageIcon,
   ShieldCheck,
   Lock,
-} from 'lucide-react';
-import { Button } from '@repo/ui/components/ui/button';
-import { Input } from '@repo/ui/components/ui/input';
-import { Badge } from '@repo/ui/components/ui/badge';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@repo/ui/components/ui/tabs';
-import { toast } from 'sonner';
-import Spreadsheet from 'react-spreadsheet';
-import { scanTableImageAction } from '../ocr-actions';
-import { createDataLibraryFile } from '../actions';
+} from "lucide-react";
+import { Button } from "@repo/ui/components/ui/button";
+import { Input } from "@repo/ui/components/ui/input";
+import { Badge } from "@repo/ui/components/ui/badge";
+import {
+  Tabs,
+  TabsList,
+  TabsTrigger,
+  TabsContent,
+} from "@repo/ui/components/ui/tabs";
+import { toast } from "sonner";
+import Spreadsheet from "react-spreadsheet";
+import { scanTableImageAction } from "../ocr-actions";
+import { createDataLibraryFile } from "../actions";
 import {
   saveEncryptedOcrDraft,
   loadEncryptedOcrDraft,
   clearEncryptedOcrDraft,
-} from '../lib/secure-ocr-storage';
+} from "../lib/secure-ocr-storage";
 
 interface OcrTableExtractorProps {
   dashid: string;
@@ -56,14 +67,18 @@ export const OcrTableExtractor: React.FC<OcrTableExtractorProps> = ({
   const [isScanning, setIsScanning] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [fileName, setFileName] = useState<string>('');
+  const [fileName, setFileName] = useState<string>("");
 
   // Extracted data state
-  const [datasetName, setDatasetName] = useState<string>('');
+  const [datasetName, setDatasetName] = useState<string>("");
   const [columns, setColumns] = useState<string[]>([]);
   // react-spreadsheet represents data as an array of rows: { value: string }[][]
-  const [spreadsheetCells, setSpreadsheetCells] = useState<{ value: string }[][]>([]);
-  const [jsonFormat, setJsonFormat] = useState<'columns_data' | 'records'>('columns_data');
+  const [spreadsheetCells, setSpreadsheetCells] = useState<
+    { value: string }[][]
+  >([]);
+  const [jsonFormat, setJsonFormat] = useState<"columns_data" | "records">(
+    "columns_data",
+  );
   const [copied, setCopied] = useState(false);
   const [hasRestoredDraft, setHasRestoredDraft] = useState(false);
 
@@ -75,15 +90,15 @@ export const OcrTableExtractor: React.FC<OcrTableExtractorProps> = ({
     try {
       const draft = loadEncryptedOcrDraft(dashid);
       if (draft && (draft.columns?.length > 0 || draft.imagePreview)) {
-        setDatasetName(draft.datasetName || '');
-        setFileName(draft.fileName || '');
+        setDatasetName(draft.datasetName || "");
+        setFileName(draft.fileName || "");
         setImagePreview(draft.imagePreview || null);
         setColumns(draft.columns || []);
         setSpreadsheetCells(draft.spreadsheetCells || []);
         setHasRestoredDraft(true);
       }
     } catch (err) {
-      console.warn('Could not restore OCR draft:', err);
+      console.warn("Could not restore OCR draft:", err);
     }
   }, [dashid]);
 
@@ -111,7 +126,7 @@ export const OcrTableExtractor: React.FC<OcrTableExtractorProps> = ({
     let count = 0;
     spreadsheetCells.forEach((row) => {
       row.forEach((cell) => {
-        if (!cell || !cell.value || cell.value.trim() === '') {
+        if (!cell || !cell.value || cell.value.trim() === "") {
           count++;
         }
       });
@@ -124,14 +139,15 @@ export const OcrTableExtractor: React.FC<OcrTableExtractorProps> = ({
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (!file.type.startsWith('image/')) {
-      toast.error('Please upload a valid image file (PNG, JPG, WEBP)');
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please upload a valid image file (PNG, JPG, WEBP)");
       return;
     }
 
     setFileName(file.name);
     const defaultName =
-      file.name.replace(/\.[^/.]+$/, '').replace(/[_-]/g, ' ') || 'OCR Extracted Table';
+      file.name.replace(/\.[^/.]+$/, "").replace(/[_-]/g, " ") ||
+      "OCR Extracted Table";
     setDatasetName(defaultName);
 
     const reader = new FileReader();
@@ -142,7 +158,7 @@ export const OcrTableExtractor: React.FC<OcrTableExtractorProps> = ({
     };
     reader.readAsDataURL(file);
 
-    if (fileInputRef.current) fileInputRef.current.value = '';
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   // Drag and drop handlers
@@ -163,14 +179,15 @@ export const OcrTableExtractor: React.FC<OcrTableExtractorProps> = ({
     const file = e.dataTransfer.files?.[0];
     if (!file) return;
 
-    if (!file.type.startsWith('image/')) {
-      toast.error('Please drop an image file (PNG, JPG, WEBP)');
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please drop an image file (PNG, JPG, WEBP)");
       return;
     }
 
     setFileName(file.name);
     const defaultName =
-      file.name.replace(/\.[^/.]+$/, '').replace(/[_-]/g, ' ') || 'OCR Extracted Table';
+      file.name.replace(/\.[^/.]+$/, "").replace(/[_-]/g, " ") ||
+      "OCR Extracted Table";
     setDatasetName(defaultName);
 
     const reader = new FileReader();
@@ -188,14 +205,16 @@ export const OcrTableExtractor: React.FC<OcrTableExtractorProps> = ({
     try {
       const res = await scanTableImageAction(base64Image);
       if (!res.success || !res.data) {
-        throw new Error(res.error || 'Failed to extract table data');
+        throw new Error(res.error || "Failed to extract table data");
       }
 
       const extractedCols = res.data.columns || [];
       const extractedRows = res.data.data || [];
 
       if (extractedCols.length === 0 && extractedRows.length === 0) {
-        toast.error('No table structure detected in the image. Please try a clearer image.');
+        toast.error(
+          "No table structure detected in the image. Please try a clearer image.",
+        );
         return;
       }
 
@@ -203,40 +222,48 @@ export const OcrTableExtractor: React.FC<OcrTableExtractorProps> = ({
       // Map to react-spreadsheet format
       const formatted = extractedRows.map((row) =>
         extractedCols.map((_, colIdx) => ({
-          value: row[colIdx] !== null && row[colIdx] !== undefined ? String(row[colIdx]) : '',
-        }))
+          value:
+            row[colIdx] !== null && row[colIdx] !== undefined
+              ? String(row[colIdx])
+              : "",
+        })),
       );
       setSpreadsheetCells(formatted);
-      setDatasetName(fallbackName || `OCR Table - ${new Date().toLocaleDateString()}`);
+      setDatasetName(
+        fallbackName || `OCR Table - ${new Date().toLocaleDateString()}`,
+      );
       setHasRestoredDraft(false);
 
       toast.success(
-        `Extracted ${extractedCols.length} columns & ${extractedRows.length} rows (${res.source === 'pyp' ? 'Python pyp server' : 'AI Vision fallback'})`
+        `Extracted ${extractedCols.length} columns & ${extractedRows.length} rows (${res.source === "pyp" ? "Python pyp server" : "AI Vision fallback"})`,
       );
     } catch (err: any) {
-      console.error('OCR Error:', err);
-      toast.error(err.message || 'Error processing OCR');
+      console.error("OCR Error:", err);
+      toast.error(err.message || "Error processing OCR");
     } finally {
       setIsScanning(false);
     }
   };
 
   // Cell change handler in Spreadsheet
-  const handleSpreadsheetChange = useCallback((newData: (({ value: string } | undefined)[])[]) => {
-    const normalized = newData.map((row) =>
-      (row || []).map((cell) => ({ value: cell?.value ?? '' }))
-    );
-    setSpreadsheetCells(normalized);
-  }, []);
+  const handleSpreadsheetChange = useCallback(
+    (newData: ({ value: string } | undefined)[][]) => {
+      const normalized = newData.map((row) =>
+        (row || []).map((cell) => ({ value: cell?.value ?? "" })),
+      );
+      setSpreadsheetCells(normalized);
+    },
+    [],
+  );
 
   // Add Row
   const handleAddRow = () => {
     if (columns.length === 0) {
-      setColumns(['Column 1']);
-      setSpreadsheetCells([[{ value: '' }]]);
+      setColumns(["Column 1"]);
+      setSpreadsheetCells([[{ value: "" }]]);
       return;
     }
-    const newRow = columns.map(() => ({ value: '' }));
+    const newRow = columns.map(() => ({ value: "" }));
     setSpreadsheetCells((prev) => [...prev, newRow]);
   };
 
@@ -244,17 +271,19 @@ export const OcrTableExtractor: React.FC<OcrTableExtractorProps> = ({
   const handleAddColumn = () => {
     const newColName = `Column ${columns.length + 1}`;
     setColumns((prev) => [...prev, newColName]);
-    setSpreadsheetCells((prev) => prev.map((row) => [...row, { value: '' }]));
+    setSpreadsheetCells((prev) => prev.map((row) => [...row, { value: "" }]));
   };
 
   // Remove Column
   const handleRemoveColumn = (colIndex: number) => {
     if (columns.length <= 1) {
-      toast.error('At least one column is required');
+      toast.error("At least one column is required");
       return;
     }
     setColumns((prev) => prev.filter((_, idx) => idx !== colIndex));
-    setSpreadsheetCells((prev) => prev.map((row) => row.filter((_, idx) => idx !== colIndex)));
+    setSpreadsheetCells((prev) =>
+      prev.map((row) => row.filter((_, idx) => idx !== colIndex)),
+    );
   };
 
   // Rename column header
@@ -269,26 +298,28 @@ export const OcrTableExtractor: React.FC<OcrTableExtractorProps> = ({
   // Current extracted data as array of arrays
   const rawDataRows = useMemo(() => {
     return spreadsheetCells.map((row) =>
-      columns.map((_, i) => (row[i]?.value !== undefined ? String(row[i].value) : ''))
+      columns.map((_, i) =>
+        row[i]?.value !== undefined ? String(row[i].value) : "",
+      ),
     );
   }, [spreadsheetCells, columns]);
 
   // Current extracted data as JSON string
   const jsonPreviewString = useMemo(() => {
-    if (jsonFormat === 'columns_data') {
+    if (jsonFormat === "columns_data") {
       return JSON.stringify(
         {
           columns,
           data: rawDataRows,
         },
         null,
-        2
+        2,
       );
     } else {
       const records = rawDataRows.map((row) => {
         const obj: Record<string, string> = {};
         columns.forEach((col, idx) => {
-          obj[col || `col_${idx + 1}`] = row[idx] ?? '';
+          obj[col || `col_${idx + 1}`] = row[idx] ?? "";
         });
         return obj;
       });
@@ -300,42 +331,42 @@ export const OcrTableExtractor: React.FC<OcrTableExtractorProps> = ({
   const handleCopyJson = () => {
     navigator.clipboard.writeText(jsonPreviewString);
     setCopied(true);
-    toast.success('JSON copied to clipboard');
+    toast.success("JSON copied to clipboard");
     setTimeout(() => setCopied(false), 2000);
   };
 
   // Clear previous data / Reset
   const handleClearPreviousData = () => {
     setImagePreview(null);
-    setFileName('');
+    setFileName("");
     setColumns([]);
     setSpreadsheetCells([]);
-    setDatasetName('');
+    setDatasetName("");
     setHasRestoredDraft(false);
     clearEncryptedOcrDraft(dashid);
-    if (fileInputRef.current) fileInputRef.current.value = '';
-    toast.info('Previous extraction data cleared');
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    toast.info("Previous extraction data cleared");
   };
 
   // Save to Data Library
   const handleSaveToLibrary = async () => {
     if (!userId) {
-      toast.error('You must be logged in to save');
+      toast.error("You must be logged in to save");
       return;
     }
     if (columns.length === 0) {
-      toast.error('No table data to save');
+      toast.error("No table data to save");
       return;
     }
 
-    const title = datasetName.trim() || 'OCR Extracted Table';
+    const title = datasetName.trim() || "OCR Extracted Table";
     setIsSaving(true);
     try {
       await createDataLibraryFile({
         userId,
         name: title,
-        description: `Extracted via OCR from ${fileName || 'table image'} (${columns.length} cols × ${rawDataRows.length} rows)`,
-        fileType: 'json',
+        description: `Extracted via OCR from ${fileName || "table image"} (${columns.length} cols × ${rawDataRows.length} rows)`,
+        fileType: "json",
         data: {
           columns,
           data: rawDataRows,
@@ -343,7 +374,7 @@ export const OcrTableExtractor: React.FC<OcrTableExtractorProps> = ({
         metadata: {
           rowCount: rawDataRows.length,
           colCount: columns.length,
-          source: 'ocr',
+          source: "ocr",
           originalFileName: fileName,
           extractedAt: new Date().toISOString(),
         },
@@ -354,10 +385,10 @@ export const OcrTableExtractor: React.FC<OcrTableExtractorProps> = ({
       // Clear encrypted draft after successful save
       clearEncryptedOcrDraft(dashid);
       setImagePreview(null);
-      setFileName('');
+      setFileName("");
       setColumns([]);
       setSpreadsheetCells([]);
-      setDatasetName('');
+      setDatasetName("");
       setHasRestoredDraft(false);
 
       await onSaveSuccess();
@@ -365,8 +396,8 @@ export const OcrTableExtractor: React.FC<OcrTableExtractorProps> = ({
         onCloseDrawer();
       }
     } catch (err: any) {
-      console.error('Failed to save to library:', err);
-      toast.error(err?.message || 'Failed to save dataset');
+      console.error("Failed to save to library:", err);
+      toast.error(err?.message || "Failed to save dataset");
     } finally {
       setIsSaving(false);
     }
@@ -376,15 +407,15 @@ export const OcrTableExtractor: React.FC<OcrTableExtractorProps> = ({
 
   return (
     <div
-      className={`w-full transition-all duration-300 ${
+      className={`w-full h-full flex flex-col transition-all duration-300 ${
         isInDrawer
-          ? 'space-y-4'
-          : 'rounded-2xl border bg-card/60 backdrop-blur-xs shadow-xs overflow-hidden'
+          ? "space-y-4"
+          : "rounded-2xl border bg-card/60 backdrop-blur-xs shadow-xs overflow-hidden"
       }`}
     >
       {/* Top Banner / Header (when rendered standalone) */}
       {!isInDrawer && (
-        <div className="flex items-center justify-between px-5 py-3.5 border-b bg-muted/20">
+        <div className="flex items-center justify-between px-5 py-3.5 border-b bg-muted/20 shrink-0">
           <div className="flex items-center gap-3">
             <div className="p-2 rounded-xl bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 text-white shadow-sm shadow-purple-500/20">
               <ScanText className="size-4" />
@@ -402,7 +433,8 @@ export const OcrTableExtractor: React.FC<OcrTableExtractorProps> = ({
                 </Badge>
               </div>
               <p className="text-xs text-muted-foreground">
-                Extract printed or digital tables from images into editable spreadsheets and JSON
+                Extract printed or digital tables from images into editable
+                spreadsheets and JSON
               </p>
             </div>
           </div>
@@ -424,9 +456,13 @@ export const OcrTableExtractor: React.FC<OcrTableExtractorProps> = ({
               size="sm"
               onClick={() => setIsOpen(!isOpen)}
               className="h-8 w-8 p-0"
-              title={isOpen ? 'Collapse OCR section' : 'Expand OCR section'}
+              title={isOpen ? "Collapse OCR section" : "Expand OCR section"}
             >
-              {isOpen ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
+              {isOpen ? (
+                <ChevronUp className="size-4" />
+              ) : (
+                <ChevronDown className="size-4" />
+              )}
             </Button>
           </div>
         </div>
@@ -434,7 +470,7 @@ export const OcrTableExtractor: React.FC<OcrTableExtractorProps> = ({
 
       {/* Persistence and Actions Bar inside Drawer */}
       {isInDrawer && (
-        <div className="flex items-center justify-between pb-2 border-b">
+        <div className="flex items-center justify-between pb-2 border-b shrink-0">
           <div className="flex items-center gap-2">
             <Badge
               variant="outline"
@@ -471,7 +507,9 @@ export const OcrTableExtractor: React.FC<OcrTableExtractorProps> = ({
       )}
 
       {(isOpen || isInDrawer) && (
-        <div className={isInDrawer ? 'space-y-4' : 'p-5 space-y-4'}>
+        <div
+          className={`flex flex-col flex-1 ${isInDrawer ? "space-y-4" : "p-5 space-y-4"}`}
+        >
           {/* Upload Dropzone (when no data or when scanning) */}
           {!columns.length && !isScanning && (
             <div
@@ -479,10 +517,10 @@ export const OcrTableExtractor: React.FC<OcrTableExtractorProps> = ({
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
               onClick={() => fileInputRef.current?.click()}
-              className={`border-2 border-dashed rounded-xl p-10 flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-200 group ${
+              className={`flex-1 min-h-[250px] h-full border-2 border-dashed rounded-xl p-10 flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-200 group ${
                 isDragging
-                  ? 'border-primary bg-primary/5 scale-[0.99]'
-                  : 'border-muted-foreground/25 hover:border-primary/50 hover:bg-muted/30'
+                  ? "border-primary bg-primary/5 scale-[0.99]"
+                  : "border-muted-foreground/25 hover:border-primary/50 hover:bg-muted/30"
               }`}
             >
               <input
@@ -496,19 +534,22 @@ export const OcrTableExtractor: React.FC<OcrTableExtractorProps> = ({
                 <Upload className="size-7" />
               </div>
               <p className="text-base font-semibold text-foreground mb-1">
-                Drop table image here, or{' '}
-                <span className="text-primary underline underline-offset-2">browse files</span>
+                Drop table image here, or{" "}
+                <span className="text-primary underline underline-offset-2">
+                  browse files
+                </span>
               </p>
               <p className="text-xs text-muted-foreground max-w-md">
-                Supports PNG, JPG, or WEBP. Clear photos or screenshots of financial tables, invoices,
-                catalogues, or spreadsheets work best.
+                Supports PNG, JPG, or WEBP. Clear photos or screenshots of
+                financial tables, invoices, catalogues, or spreadsheets work
+                best.
               </p>
             </div>
           )}
 
           {/* Scanning Progress State */}
           {isScanning && (
-            <div className="border rounded-xl p-10 flex flex-col items-center justify-center text-center space-y-4 bg-muted/10">
+            <div className="flex-1 min-h-[250px] border rounded-xl p-10 flex flex-col items-center justify-center text-center space-y-4 bg-muted/10">
               <div className="relative">
                 <div className="size-14 rounded-2xl bg-primary flex items-center justify-center text-primary-foreground animate-pulse shadow-md">
                   <ScanText className="size-7 animate-bounce" />
@@ -516,9 +557,12 @@ export const OcrTableExtractor: React.FC<OcrTableExtractorProps> = ({
                 <div className="absolute -inset-1 rounded-2xl bg-primary/20 blur-sm -z-10 animate-pulse" />
               </div>
               <div>
-                <h3 className="text-base font-semibold text-foreground">Processing Table Image</h3>
+                <h3 className="text-base font-semibold text-foreground">
+                  Processing Table Image
+                </h3>
                 <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
-                  AI vision model is detecting table structure, headers, and all cell values...
+                  AI vision model is detecting table structure, headers, and all
+                  cell values...
                 </p>
               </div>
               <div className="flex items-center gap-2 text-xs text-primary font-medium">
@@ -556,7 +600,10 @@ export const OcrTableExtractor: React.FC<OcrTableExtractorProps> = ({
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0 flex-wrap">
-                  <Badge variant="secondary" className="text-xs py-1 px-2.5 font-medium">
+                  <Badge
+                    variant="secondary"
+                    className="text-xs py-1 px-2.5 font-medium"
+                  >
                     {columns.length} cols × {spreadsheetCells.length} rows
                   </Badge>
 
@@ -567,7 +614,8 @@ export const OcrTableExtractor: React.FC<OcrTableExtractorProps> = ({
                       title={`${blankCellsCount} cells were returned empty. Click on cells to edit them directly.`}
                     >
                       <AlertCircle className="size-3" />
-                      {blankCellsCount} empty cell{blankCellsCount > 1 ? 's' : ''}
+                      {blankCellsCount} empty cell
+                      {blankCellsCount > 1 ? "s" : ""}
                     </Badge>
                   )}
 
@@ -593,7 +641,7 @@ export const OcrTableExtractor: React.FC<OcrTableExtractorProps> = ({
                     ) : (
                       <Save className="size-3.5" />
                     )}
-                    <span>{isSaving ? 'Saving...' : 'Save to Library'}</span>
+                    <span>{isSaving ? "Saving..." : "Save to Library"}</span>
                   </Button>
                 </div>
               </div>
@@ -604,8 +652,9 @@ export const OcrTableExtractor: React.FC<OcrTableExtractorProps> = ({
                   <div className="flex items-center gap-2">
                     <AlertCircle className="size-4 shrink-0" />
                     <span>
-                      Some cells are empty because OCR couldn't clearly recognize them. You can click
-                      and type in the spreadsheet table below to edit or fill them before saving.
+                      Some cells are empty because OCR couldn't clearly
+                      recognize them. You can click and type in the spreadsheet
+                      table below to edit or fill them before saving.
                     </span>
                   </div>
                 </div>
@@ -615,11 +664,17 @@ export const OcrTableExtractor: React.FC<OcrTableExtractorProps> = ({
               <Tabs defaultValue="spreadsheet" className="w-full">
                 <div className="flex items-center justify-between border-b pb-2 flex-wrap gap-2">
                   <TabsList className="h-8 bg-muted/60 p-0.5">
-                    <TabsTrigger value="spreadsheet" className="text-xs h-7 gap-1.5 px-3 font-medium">
+                    <TabsTrigger
+                      value="spreadsheet"
+                      className="text-xs h-7 gap-1.5 px-3 font-medium"
+                    >
                       <TableIcon className="size-3.5" />
                       Spreadsheet Editor
                     </TabsTrigger>
-                    <TabsTrigger value="json" className="text-xs h-7 gap-1.5 px-3 font-medium">
+                    <TabsTrigger
+                      value="json"
+                      className="text-xs h-7 gap-1.5 px-3 font-medium"
+                    >
                       <Braces className="size-3.5" />
                       JSON Preview
                     </TabsTrigger>
@@ -661,7 +716,9 @@ export const OcrTableExtractor: React.FC<OcrTableExtractorProps> = ({
                           <input
                             type="text"
                             value={col}
-                            onChange={(e) => handleColumnNameChange(idx, e.target.value)}
+                            onChange={(e) =>
+                              handleColumnNameChange(idx, e.target.value)
+                            }
                             className="bg-transparent border-none text-xs font-medium focus:outline-none w-24"
                             placeholder={`Col ${idx + 1}`}
                           />
@@ -696,26 +753,28 @@ export const OcrTableExtractor: React.FC<OcrTableExtractorProps> = ({
                   <div className="border rounded-xl bg-background overflow-hidden shadow-2xs">
                     <div className="flex items-center justify-between px-3.5 py-2 bg-muted/40 border-b">
                       <div className="flex items-center gap-2">
-                        <span className="text-xs text-muted-foreground font-medium">Format:</span>
+                        <span className="text-xs text-muted-foreground font-medium">
+                          Format:
+                        </span>
                         <div className="flex rounded-lg border bg-background p-0.5 shadow-2xs">
                           <button
                             type="button"
-                            onClick={() => setJsonFormat('columns_data')}
+                            onClick={() => setJsonFormat("columns_data")}
                             className={`px-2.5 py-0.5 text-xs rounded-md transition cursor-pointer ${
-                              jsonFormat === 'columns_data'
-                                ? 'bg-muted font-semibold text-foreground'
-                                : 'text-muted-foreground hover:text-foreground'
+                              jsonFormat === "columns_data"
+                                ? "bg-muted font-semibold text-foreground"
+                                : "text-muted-foreground hover:text-foreground"
                             }`}
                           >
                             Columns & Rows
                           </button>
                           <button
                             type="button"
-                            onClick={() => setJsonFormat('records')}
+                            onClick={() => setJsonFormat("records")}
                             className={`px-2.5 py-0.5 text-xs rounded-md transition cursor-pointer ${
-                              jsonFormat === 'records'
-                                ? 'bg-muted font-semibold text-foreground'
-                                : 'text-muted-foreground hover:text-foreground'
+                              jsonFormat === "records"
+                                ? "bg-muted font-semibold text-foreground"
+                                : "text-muted-foreground hover:text-foreground"
                             }`}
                           >
                             Object Records
@@ -729,8 +788,12 @@ export const OcrTableExtractor: React.FC<OcrTableExtractorProps> = ({
                         onClick={handleCopyJson}
                         className="h-7 text-xs gap-1 cursor-pointer"
                       >
-                        {copied ? <Check className="size-3 text-primary" /> : <Copy className="size-3" />}
-                        <span>{copied ? 'Copied' : 'Copy JSON'}</span>
+                        {copied ? (
+                          <Check className="size-3 text-primary" />
+                        ) : (
+                          <Copy className="size-3" />
+                        )}
+                        <span>{copied ? "Copied" : "Copy JSON"}</span>
                       </Button>
                     </div>
 
