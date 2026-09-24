@@ -1,11 +1,11 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   checkAdminExists,
-  loginAdmin,
+  registerAdmin,
   getAdminSession,
 } from "../_actions/admin-auth";
 import {
@@ -13,56 +13,65 @@ import {
   KeyRound,
   Lock,
   Mail,
+  User,
   Loader2,
   AlertCircle,
   Eye,
   EyeOff,
-  UserPlus,
-  ArrowRight,
+  CheckCircle2,
 } from "lucide-react";
 
-export default function LoginPage() {
+export default function RegisterAdminPage() {
   const router = useRouter();
 
+  const [pageState, setPageState] = useState<"checking" | "ready" | "locked">("checking");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showPw, setShowPw] = useState(false);
-  const [adminInitialised, setAdminInitialised] = useState<boolean | null>(null);
 
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [passkey, setPasskey] = useState("");
 
-  // Check if session exists or if admin setup has been completed
+  // Check if session exists or if admin already exists
   useEffect(() => {
-    async function checkState() {
+    async function initCheck() {
+      // If already logged in, go to dashboard
       const session = await getAdminSession();
       if (session?.user) {
         router.replace("/dashboard");
         return;
       }
 
+      // Check if an admin account is already created
       const { exists } = await checkAdminExists();
-      setAdminInitialised(exists);
+      if (exists) {
+        setPageState("locked");
+        setTimeout(() => router.replace("/login"), 1500);
+      } else {
+        setPageState("ready");
+      }
     }
 
-    checkState();
+    initCheck();
   }, [router]);
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setLoading(true);
 
     try {
-      const res = await loginAdmin({
+      const res = await registerAdmin({
+        name,
         email,
         password,
         passkey,
       });
 
       if (!res.ok) {
-        setError(res.error || "Authentication failed.");
+        setError(res.error || "Failed to create administrator account.");
         setLoading(false);
         return;
       }
@@ -70,44 +79,63 @@ export default function LoginPage() {
       // Success -> navigate to admin dashboard
       router.replace("/dashboard");
     } catch (err: any) {
-      setError(err?.message || "An unexpected error occurred during login.");
+      setError(err?.message || "An unexpected error occurred during registration.");
       setLoading(false);
     }
   };
 
-  return (
-    <div className="flex min-h-screen items-center justify-center bg-neutral-50 px-4 dark:bg-neutral-950">
-      <div className="w-full max-w-sm rounded-xl border border-neutral-200 bg-white p-8 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
-        {/* Header */}
-        <div className="flex flex-col items-center text-center">
-          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-neutral-900 text-white shadow dark:bg-neutral-100 dark:text-neutral-900">
-            <Shield className="h-5 w-5" />
-          </div>
-          <h1 className="mt-4 text-xl font-bold tracking-tight text-neutral-900 dark:text-neutral-50">
-            Admin Portal
-          </h1>
-          <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
-            Sign in with your email, password, and master passkey.
-          </p>
-        </div>
+  // ── Loading state ──
+  if (pageState === "checking") {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-neutral-50 dark:bg-neutral-950">
+        <Loader2 className="h-6 w-6 animate-spin text-neutral-400" />
+      </div>
+    );
+  }
 
-        {/* Not initialized banner */}
-        {adminInitialised === false && (
-          <div className="mt-5 rounded-lg border border-amber-200 bg-amber-50 p-3.5 text-xs text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-300">
-            <p className="font-semibold">Setup required</p>
-            <p className="mt-0.5 text-amber-800 dark:text-amber-400">
-              No administrator account has been created yet.
-            </p>
+  // ── Locked state: Admin already exists ──
+  if (pageState === "locked") {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-neutral-50 px-4 dark:bg-neutral-950">
+        <div className="w-full max-w-sm rounded-xl border border-neutral-200 bg-white p-8 text-center shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400">
+            <CheckCircle2 className="h-6 w-6" />
+          </div>
+          <h2 className="mt-4 text-base font-semibold text-neutral-900 dark:text-neutral-100">
+            Admin Already Initialised
+          </h2>
+          <p className="mt-2 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400">
+            The master administrator account is already configured. Registration is permanently closed. Redirecting to login…
+          </p>
+          <div className="mt-5">
             <Link
-              href="/register"
-              className="mt-2.5 inline-flex items-center gap-1.5 font-medium text-amber-950 underline hover:text-black dark:text-amber-200 dark:hover:text-white"
+              href="/login"
+              className="inline-flex items-center text-xs font-medium text-neutral-800 underline hover:text-black dark:text-neutral-300 dark:hover:text-white"
             >
-              <UserPlus className="h-3.5 w-3.5" />
-              Initialise Admin Account
-              <ArrowRight className="h-3 w-3" />
+              Go to Login now &rarr;
             </Link>
           </div>
-        )}
+        </div>
+      </div>
+    );
+  }
+
+  // ── Ready state: Initial Setup Form ──
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-neutral-50 px-4 dark:bg-neutral-950">
+      <div className="w-full max-w-md rounded-xl border border-neutral-200 bg-white p-8 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+        {/* Header */}
+        <div className="flex flex-col items-center text-center">
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-neutral-900 text-white shadow dark:bg-neutral-100 dark:text-neutral-900">
+            <Shield className="h-6 w-6" />
+          </div>
+          <h1 className="mt-4 text-xl font-bold tracking-tight text-neutral-900 dark:text-neutral-50">
+            Initialise Administrator
+          </h1>
+          <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
+            One-time portal setup. Once created, this registration gate locks permanently.
+          </p>
+        </div>
 
         {/* Error Alert */}
         {error && (
@@ -117,12 +145,30 @@ export default function LoginPage() {
           </div>
         )}
 
-        {/* Login Form */}
-        <form onSubmit={handleLogin} className="mt-6 space-y-4">
+        {/* Setup Form */}
+        <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+          {/* Administrator Name */}
+          <div>
+            <label className="mb-1.5 block text-xs font-medium text-neutral-700 dark:text-neutral-300">
+              Administrator Name
+            </label>
+            <div className="relative">
+              <User className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-neutral-400" />
+              <input
+                type="text"
+                required
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="e.g. Mohit Rajput"
+                className="w-full rounded-lg border border-neutral-200 bg-white py-2.5 pl-9 pr-3 text-sm text-neutral-900 placeholder:text-neutral-400 outline-none transition focus:border-neutral-500 focus:ring-1 focus:ring-neutral-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100"
+              />
+            </div>
+          </div>
+
           {/* Email */}
           <div>
             <label className="mb-1.5 block text-xs font-medium text-neutral-700 dark:text-neutral-300">
-              Email Address
+              Admin Email
             </label>
             <div className="relative">
               <Mail className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-neutral-400" />
@@ -140,16 +186,17 @@ export default function LoginPage() {
           {/* Password */}
           <div>
             <label className="mb-1.5 block text-xs font-medium text-neutral-700 dark:text-neutral-300">
-              Password
+              Admin Password
             </label>
             <div className="relative">
               <Lock className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-neutral-400" />
               <input
                 type={showPw ? "text" : "password"}
                 required
+                minLength={8}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
+                placeholder="Choose a strong password (min 8 chars)"
                 className="w-full rounded-lg border border-neutral-200 bg-white py-2.5 pl-9 pr-10 text-sm text-neutral-900 placeholder:text-neutral-400 outline-none transition focus:border-neutral-500 focus:ring-1 focus:ring-neutral-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100"
               />
               <button
@@ -167,10 +214,10 @@ export default function LoginPage() {
           <div>
             <div className="mb-1.5 flex items-center justify-between">
               <label className="text-xs font-medium text-neutral-700 dark:text-neutral-300">
-                Admin Passkey
+                Master Passkey
               </label>
               <span className="text-[10px] text-neutral-400">
-                System Security Key
+                System Authorization Key
               </span>
             </div>
             <div className="relative">
@@ -195,26 +242,23 @@ export default function LoginPage() {
             {loading ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Signing in…
+                Creating administrator account…
               </>
             ) : (
-              "Sign In to Admin Portal"
+              "Initialise Admin Account"
             )}
           </button>
         </form>
 
-        {/* Initial setup link if not registered yet */}
-        {adminInitialised === false && (
-          <p className="mt-6 text-center text-xs text-neutral-400 dark:text-neutral-500">
-            First time here?{" "}
-            <Link
-              href="/register"
-              className="font-medium text-neutral-700 underline hover:text-neutral-900 dark:text-neutral-300 dark:hover:text-white"
-            >
-              Initialise admin account
-            </Link>
-          </p>
-        )}
+        <p className="mt-6 text-center text-xs text-neutral-400 dark:text-neutral-500">
+          Already registered?{" "}
+          <Link
+            href="/login"
+            className="font-medium text-neutral-700 underline hover:text-neutral-900 dark:text-neutral-300 dark:hover:text-white"
+          >
+            Sign in
+          </Link>
+        </p>
       </div>
     </div>
   );

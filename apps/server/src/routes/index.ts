@@ -4,6 +4,7 @@ import deskRoutes from "../modules/desk/desk.routes.js";
 import teamRoutes from "../modules/team/team.routes.js";
 import notificationRoutes from "../modules/notification/notification.routes.js";
 import usersRoutes from "../modules/admin/users/users.routes.js";
+import subscribersRoutes from "../modules/admin/subscribers/subscribers.routes.js";
 
 const router: Router = Router();
 
@@ -20,5 +21,6 @@ router.use("/notifications", notificationRoutes);
 
 // ─── Admin Routes ───────────────────────────────────────────
 router.use("/admin", usersRoutes);
+router.use("/admin/subscribers", subscribersRoutes);
 
 export default router;

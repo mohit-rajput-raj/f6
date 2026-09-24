@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Check, Zap, Building2, Sparkles, HelpCircle } from "lucide-react";
+import { Check, Zap, Building2, Sparkles, HelpCircle, Loader2, Lock } from "lucide-react";
 import { Button } from "@repo/ui/components/ui/button";
 import {
   Card,
@@ -22,9 +22,29 @@ import {
   TooltipTrigger,
 } from "@repo/ui/components/ui/tooltip";
 import { cn } from "@repo/ui/lib/utils";
+import { authClient } from "@/lib/auth-client";
+import { toast } from "sonner";
 
 export default function PricingSection({ className }: { className?: string }) {
   const [isAnnual, setIsAnnual] = React.useState(true);
+  const [loadingPlan, setLoadingPlan] = React.useState<string | null>(null);
+
+  const handleCheckout = async (slug: string) => {
+    try {
+      setLoadingPlan(slug);
+      await (authClient as any).checkout({
+        slug,
+      });
+    } catch (error: any) {
+      console.error("Checkout error:", error);
+      if (error?.message?.includes("UNAUTHORIZED") || error?.status === 401) {
+        toast.error("Please sign in first to upgrade your plan.");
+      } else {
+        toast.error("Failed to start checkout. Please try again.");
+      }
+      setLoadingPlan(null);
+    }
+  };
 
   return (
     <section
@@ -80,8 +100,19 @@ export default function PricingSection({ className }: { className?: string }) {
 
         {/* Pricing Cards Grid */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-stretch">
-          {/* Plan 1: Free Starter */}
-          <Card className="relative flex flex-col border-border bg-card shadow-sm hover:shadow-md transition-shadow">
+          {/* Plan 1: Free Starter — BLURRED / Coming Soon */}
+          <Card className="relative flex flex-col border-border bg-card shadow-sm overflow-hidden">
+            {/* Blur overlay */}
+            <div className="absolute inset-0 z-20 backdrop-blur-[6px] bg-card/60 flex flex-col items-center justify-center gap-3 rounded-xl">
+              <div className="w-12 h-12 rounded-full bg-muted/80 flex items-center justify-center border border-border">
+                <Lock className="w-5 h-5 text-muted-foreground" />
+              </div>
+              <p className="text-sm font-semibold text-muted-foreground">Coming Soon</p>
+              <p className="text-xs text-muted-foreground/70 max-w-[180px] text-center">
+                This plan will be available in a future update.
+              </p>
+            </div>
+
             <CardHeader className="pb-6">
               <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center mb-4 border border-border">
                 <Zap className="w-5 h-5 text-muted-foreground" />
@@ -116,18 +147,17 @@ export default function PricingSection({ className }: { className?: string }) {
               </ul>
             </CardContent>
             <CardFooter className="pt-6 border-t border-border">
-              <Link href="/auth/sign-in" className="w-full">
-                <Button
-                  variant="outline"
-                  className="w-full font-medium cursor-pointer"
-                >
-                  Get Started Free
-                </Button>
-              </Link>
+              <Button
+                variant="outline"
+                className="w-full font-medium cursor-not-allowed opacity-50"
+                disabled
+              >
+                Get Started Free
+              </Button>
             </CardFooter>
           </Card>
 
-          {/* Plan 2: Professional (Featured) */}
+          {/* Plan 2: Professional (Featured) — Polar checkout */}
           <Card className="relative flex flex-col border-2 border-primary bg-card shadow-lg">
             <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 bg-primary text-primary-foreground text-xs font-semibold rounded-full shadow-sm">
               Most Popular
@@ -164,15 +194,24 @@ export default function PricingSection({ className }: { className?: string }) {
               </ul>
             </CardContent>
             <CardFooter className="pt-6 border-t border-border">
-              <Link href="/auth/sign-in" className="w-full">
-                <Button className="w-full font-medium shadow-sm cursor-pointer">
-                  Upgrade to Pro
-                </Button>
-              </Link>
+              <Button
+                className="w-full font-medium shadow-sm cursor-pointer"
+                disabled={loadingPlan === "unixl-pro"}
+                onClick={() => handleCheckout("unixl-pro")}
+              >
+                {loadingPlan === "unixl-pro" ? (
+                  <span className="flex items-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Redirecting...
+                  </span>
+                ) : (
+                  "Upgrade to Pro"
+                )}
+              </Button>
             </CardFooter>
           </Card>
 
-          {/* Plan 3: Enterprise */}
+          {/* Plan 3: Enterprise — Polar checkout */}
           <Card className="relative flex flex-col border-border bg-card shadow-sm hover:shadow-md transition-shadow">
             <CardHeader className="pb-6">
               <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center mb-4 border border-border">
@@ -206,14 +245,21 @@ export default function PricingSection({ className }: { className?: string }) {
               </ul>
             </CardContent>
             <CardFooter className="pt-6 border-t border-border">
-              <Link href="/help" className="w-full">
-                <Button
-                  variant="outline"
-                  className="w-full font-medium cursor-pointer"
-                >
-                  Contact Enterprise Team
-                </Button>
-              </Link>
+              <Button
+                variant="outline"
+                className="w-full font-medium cursor-pointer"
+                disabled={loadingPlan === "unixl-max"}
+                onClick={() => handleCheckout("unixl-max")}
+              >
+                {loadingPlan === "unixl-max" ? (
+                  <span className="flex items-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Redirecting...
+                  </span>
+                ) : (
+                  "Contact Enterprise Team"
+                )}
+              </Button>
             </CardFooter>
           </Card>
         </div>

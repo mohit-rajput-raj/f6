@@ -53,6 +53,7 @@ import { client } from "@/lib/orpc";
 import { useRef } from "react";
 import { motion, MotionValue, useScroll, useTransform } from "framer-motion";
 import { Button } from "@repo/ui/components/ui/button";
+import { WorkflowGraphCanvas } from "./WorkFlowGraphCanvas";
 export const BgImage = ({
   imageAddress,
   y,
@@ -512,11 +513,11 @@ export default function Home() {
               </div>
 
               {/* Right Column: Interactive Node Canvas with Moving Data Pulses */}
+              {/* <WorkflowGraphCanvas /> */}
               <div className="lg:col-span-7 relative">
                 <div className="absolute -inset-2 bg-primary/10 rounded-3xl blur-2xl -z-10 opacity-70 pointer-events-none" />
 
                 <div className="rounded-2xl border border-zinc-800 bg-zinc-900/90 shadow-2xl overflow-hidden backdrop-blur-md">
-                  {/* Canvas Window Topbar */}
                   <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-zinc-800/80 bg-zinc-900/95">
                     <div className="flex items-center gap-2">
                       <div className="flex items-center gap-1.5">
@@ -539,11 +540,9 @@ export default function Home() {
                     </div>
                   </div>
 
-                  {/* Canvas Workspace Viewport */}
                   <div className="relative p-5 sm:p-7 bg-zinc-950 min-h-[440px] flex items-center justify-center overflow-hidden">
                     <div className="absolute inset-0 bg-[radial-gradient(#27272a_1px,transparent_1px)] [background-size:18px_18px] opacity-40" />
 
-                    {/* SVG Cables with Animated Moving Data Packets */}
                     <svg className="absolute inset-0 w-full h-full pointer-events-none z-0">
                       <defs>
                         <linearGradient
@@ -566,7 +565,6 @@ export default function Home() {
                         </linearGradient>
                       </defs>
 
-                      {/* Wire 1: SheetNode -> AnalyticsStackNode */}
                       <path
                         d="M 175 160 C 230 160, 240 100, 305 100"
                         fill="none"
@@ -586,7 +584,6 @@ export default function Home() {
                         />
                       </circle>
 
-                      {/* Wire 2: DeskTextInput -> AnalyticsStackNode */}
                       <path
                         d="M 175 60 C 230 60, 240 120, 305 120"
                         fill="none"
@@ -601,7 +598,6 @@ export default function Home() {
                         />
                       </circle>
 
-                      {/* Wire 3: SheetNode -> DynamicMasterSheetNode */}
                       <path
                         d="M 175 175 C 230 175, 240 270, 305 270"
                         fill="none"
@@ -621,7 +617,6 @@ export default function Home() {
                         />
                       </circle>
 
-                      {/* Wire 4: DynamicMasterSheetNode -> MergedPreviewNode */}
                       <path
                         d="M 485 270 C 515 270, 520 270, 550 270"
                         fill="none"
@@ -640,7 +635,6 @@ export default function Home() {
                         />
                       </circle>
 
-                      {/* Wire 5: AnalyticsStack -> SaveFileNode */}
                       <path
                         d="M 485 100 C 515 100, 520 100, 550 100"
                         fill="none"
@@ -656,11 +650,8 @@ export default function Home() {
                       </circle>
                     </svg>
 
-                    {/* Monochromatic Node Layout (Zinc + Primary) */}
                     <div className="relative z-10 grid grid-cols-3 gap-6 w-full max-w-lg text-[10px]">
-                      {/* Column 1: Source Nodes */}
                       <div className="space-y-4">
-                        {/* Node: DeskTextInput */}
                         <div
                           className={`p-2.5 rounded-lg border bg-zinc-900/90 backdrop-blur-md shadow-md space-y-1.5 relative transition-all ${
                             activeNodeStep === 0
@@ -681,7 +672,6 @@ export default function Home() {
                           <div className="absolute -right-1.5 top-1/2 -translate-y-1/2 size-2.5 rounded-full bg-primary border border-zinc-950" />
                         </div>
 
-                        {/* Node: DeskSheetNode */}
                         <div
                           className={`p-2.5 rounded-lg border bg-zinc-900/90 backdrop-blur-md shadow-md space-y-1.5 relative transition-all ${
                             activeNodeStep === 0
@@ -714,9 +704,7 @@ export default function Home() {
                         </div>
                       </div>
 
-                      {/* Column 2: Transform & AI Layer */}
                       <div className="space-y-4">
-                        {/* Node: AnalyticsStackNode */}
                         <div
                           className={`p-2.5 rounded-lg border bg-zinc-900/90 backdrop-blur-md shadow-md space-y-1.5 relative transition-all ${
                             activeNodeStep === 1
@@ -747,7 +735,6 @@ export default function Home() {
                           <div className="absolute -right-1.5 top-1/2 -translate-y-1/2 size-2.5 rounded-full bg-primary border border-zinc-950" />
                         </div>
 
-                        {/* Node: DynamicMasterSheet */}
                         <div
                           className={`p-2.5 rounded-lg border bg-zinc-900/90 backdrop-blur-md shadow-md space-y-1.5 relative transition-all ${
                             activeNodeStep === 2
@@ -772,9 +759,7 @@ export default function Home() {
                         </div>
                       </div>
 
-                      {/* Column 3: Output & Preview */}
                       <div className="space-y-4">
-                        {/* Node: SaveFileNode */}
                         <div
                           className={`p-2.5 rounded-lg border bg-zinc-900/90 backdrop-blur-md shadow-md space-y-1.5 relative transition-all ${
                             activeNodeStep === 3
@@ -797,7 +782,6 @@ export default function Home() {
                           <div className="absolute -left-1.5 top-1/2 -translate-y-1/2 size-2.5 rounded-full bg-zinc-700 border border-zinc-950" />
                         </div>
 
-                        {/* Node: UpdatedMergedPreview */}
                         <div
                           className={`p-2.5 rounded-lg border bg-zinc-900/90 backdrop-blur-md shadow-md space-y-1.5 relative transition-all ${
                             activeNodeStep === 3
@@ -823,7 +807,6 @@ export default function Home() {
                     </div>
                   </div>
 
-                  {/* Canvas Footer Bar */}
                   <div className="px-4 py-2.5 border-t border-zinc-800/80 bg-zinc-900/60 flex items-center justify-between text-[11px] font-mono text-zinc-400">
                     <span className="flex items-center gap-1.5">
                       <ShieldCheck className="size-3.5 text-primary" />
