@@ -35,7 +35,7 @@ function verifyPassword(password: string, stored: string): boolean {
     const verifyHash = crypto.scryptSync(password, salt, 64).toString("hex");
     return crypto.timingSafeEqual(
       Buffer.from(hash, "hex"),
-      Buffer.from(verifyHash, "hex")
+      Buffer.from(verifyHash, "hex"),
     );
   } catch {
     return false;
@@ -44,7 +44,7 @@ function verifyPassword(password: string, stored: string): boolean {
 
 function createSignedSessionToken(payload: AdminSessionUser): string {
   const body = Buffer.from(
-    JSON.stringify({ ...payload, exp: Date.now() + 7 * 24 * 60 * 60 * 1000 })
+    JSON.stringify({ ...payload, exp: Date.now() + 7 * 24 * 60 * 60 * 1000 }),
   ).toString("base64url");
   const signature = crypto
     .createHmac("sha256", SESSION_SECRET)
@@ -197,7 +197,9 @@ export async function registerAdmin(formData: {
       console.error("[admin-auth] registerAdmin insert error:", error);
       return {
         ok: false,
-        error: error.message || "Failed to create administrator account in database.",
+        error:
+          error.message ||
+          "Failed to create administrator account in database.",
       };
     }
 
@@ -320,7 +322,9 @@ export async function logoutAdmin(): Promise<{ ok: boolean }> {
 
 // ── Get Current Admin Session ──
 
-export async function getAdminSession(): Promise<{ user: AdminSessionUser } | null> {
+export async function getAdminSession(): Promise<{
+  user: AdminSessionUser;
+} | null> {
   try {
     const cookieStore = await cookies();
     const token = cookieStore.get("admin_session")?.value;
