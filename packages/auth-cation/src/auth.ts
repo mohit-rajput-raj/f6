@@ -40,8 +40,12 @@ export const auth = betterAuth({
       prompt: "select_account",
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-      // Explicitly defining callbackURL prevents any dynamic host mismatch issues
-      redirectURI: process.env.GOOGLE_CALLBACK_URL || undefined,
+      // Ensure local development uses localhost callback even if Vercel URL was left in .env
+      redirectURI:
+        process.env.NODE_ENV === "development" &&
+        process.env.GOOGLE_CALLBACK_URL?.includes("vercel.app")
+          ? "http://localhost:3002/api/auth/callback/google"
+          : (process.env.GOOGLE_CALLBACK_URL || undefined),
     },
   },
   plugins: [

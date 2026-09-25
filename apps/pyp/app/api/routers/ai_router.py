@@ -50,6 +50,14 @@ class OCRRequest(BaseModel):
     image_base64: str
     api_key: Optional[str] = None
     model_name: Optional[str] = "gemini-2.5-flash"
+    custom_prompt: Optional[str] = None
+    dot_to_a: Optional[bool] = True
+    leave_unclear_blank: Optional[bool] = True
+    handle_cross_outs: Optional[bool] = True
+    parse_multi_tier_dates: Optional[bool] = True
+    include_bottom_notes: Optional[bool] = True
+    is_data_only: Optional[bool] = False
+    tile_context: Optional[str] = None
 
 
 class FormulaRequest(BaseModel):
@@ -92,13 +100,21 @@ async def agent_endpoint(req: AgentRequest):
 
 @router.post("/ocr")
 async def ocr_endpoint(req: OCRRequest):
-    """Extract table data from an image using vision LLM."""
+    """Extract table data from an image using vision LLM with LangChain."""
     try:
         api_key = req.api_key or os.getenv("GEMINI_API_KEY")
         result = extract_table_from_image.invoke({
             "image_base64": req.image_base64,
             "api_key": api_key,
             "model_name": req.model_name or "gemini-2.5-flash",
+            "custom_prompt": req.custom_prompt,
+            "dot_to_a": req.dot_to_a if req.dot_to_a is not None else True,
+            "leave_unclear_blank": req.leave_unclear_blank if req.leave_unclear_blank is not None else True,
+            "handle_cross_outs": req.handle_cross_outs if req.handle_cross_outs is not None else True,
+            "parse_multi_tier_dates": req.parse_multi_tier_dates if req.parse_multi_tier_dates is not None else True,
+            "include_bottom_notes": req.include_bottom_notes if req.include_bottom_notes is not None else True,
+            "is_data_only": req.is_data_only or False,
+            "tile_context": req.tile_context,
         })
         if isinstance(result, dict) and "error" in result:
             raise HTTPException(status_code=400, detail=result["error"])
