@@ -4,10 +4,26 @@ import { pypApi } from "@/lib/axios";
 import { supabase } from "@repo/db";
 
 const EMAIL_REGEX = /^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$/;
-const SERVER_URL =
-  process.env.NEXT_PUBLIC_SERVER_URL ||
-  process.env.SERVER_URL ||
-  "http://localhost:3000/api/v1";
+
+/**
+ * Resolve full API URL ensuring /api/v1 prefix and handling trailing slashes correctly.
+ */
+function getEmailApiUrl(endpoint: string): string {
+  const rawBase =
+    process.env.SERVER_URL ||
+    process.env.NEXT_PUBLIC_SERVER_URL ||
+    "http://localhost:3000/api/v1";
+
+  let base = rawBase.trim().replace(/\/+$/, "");
+
+  // If the base URL doesn't contain /api/v1, append it
+  if (!base.endsWith("/api/v1")) {
+    base = `${base}/api/v1`;
+  }
+
+  const cleanEndpoint = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
+  return `${base}${cleanEndpoint}`;
+}
 
 export interface EmailAttachment {
   filename: string;
@@ -64,18 +80,25 @@ export interface SendBatchEmailsResult {
  * Server action to test SMTP connection via apps/server nodemailer.
  */
 export async function testSmtpConnectionAction(smtpConfig: SmtpConfig) {
+  const url = getEmailApiUrl("/email/test-smtp");
   try {
-    const res = await fetch(`${SERVER_URL}/email/test-smtp`, {
+    const res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ smtp_config: smtpConfig }),
     });
-    const data = await res.json();
+    const data = await res.json().catch(() => null);
+    if (!res.ok) {
+      return {
+        success: false,
+        error: data?.error || `Server responded with ${res.status}: ${res.statusText}`,
+      };
+    }
     return data;
   } catch (err: any) {
     return {
       success: false,
-      error: `Could not connect to apps/server: ${err.message || String(err)}`,
+      error: `Could not connect to apps/server at ${url}: ${err.message || String(err)}`,
     };
   }
 }
@@ -101,9 +124,12 @@ export async function sendBatchEmailsAction(
     };
   }
 
+  let serverDispatchError: string | null = null;
+
   // 1. Try apps/server (Node.js Express + Nodemailer) - PRIMARY DISPATCH ENGINE
   try {
-    const serverRes = await fetch(`${SERVER_URL}/email/send-batch`, {
+    const url = getEmailApiUrl("/email/send-batch");
+    const serverRes = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -117,7 +143,17 @@ export async function sendBatchEmailsAction(
     if (data && data.table && Array.isArray(data.table.data)) {
       return data;
     }
+
+    if (data && data.error) {
+      serverDispatchError =
+        typeof data.error === "string"
+          ? data.error
+          : data.error.message || JSON.stringify(data.error);
+    } else if (!serverRes.ok) {
+      serverDispatchError = `Server responded with ${serverRes.status} (${serverRes.statusText}) at ${url}`;
+    }
   } catch (err: any) {
+    serverDispatchError = `Could not connect to apps/server: ${err.message || String(err)}`;
     console.warn("apps/server email dispatch failed or unreachable:", err?.message);
   }
 
@@ -145,10 +181,12 @@ export async function sendBatchEmailsAction(
   const errorsList: { key: string; email: string; status: number; error: string }[] = [];
   const sentAt = new Date().toISOString().replace("T", " ").substring(0, 19);
 
-  const missingSmtp = !smtpConfig?.user || !smtpConfig?.password;
-  const generalErrMsg = missingSmtp
-    ? "SMTP not configured. Open the SMTP tab and enter your Gmail address and 16-character App Password."
-    : "Email server unreachable. Ensure apps/server is running on port 3000.";
+  const missingSmtp = !smtpConfig?.user && !process.env.SMTP_USER;
+  const generalErrMsg =
+    serverDispatchError ||
+    (missingSmtp
+      ? "SMTP not configured. Open the SMTP tab and enter your Gmail address and 16-character App Password."
+      : "Email server unreachable. Ensure apps/server is running and reachable.");
 
   for (const job of recipients) {
     const keyVal = String(job.key ?? `Row_${outputRows.length + 1}`);
