@@ -9,6 +9,7 @@ import {
 } from "@polar-sh/better-auth";
 import "dotenv/config";
 import { Polar } from "@polar-sh/sdk";
+import { sendEmail } from "./email";
 
 const polarClient = new Polar({
   accessToken: process.env.POLAR_ACCESS_TOKEN,
@@ -24,7 +25,20 @@ export const auth = betterAuth({
   }),
   emailAndPassword: {
     enabled: true,
-    requireEmailVerification: false,
+    requireEmailVerification: true,
+  },
+  emailVerification: {
+    sendOnSignUp: true,
+    sendOnSignIn: true,
+    autoSignInAfterVerification: true,
+    sendVerificationEmail: async ({ user, url, token }) => {
+      await sendEmail({
+        to: user.email,
+        subject: "Verify your email address",
+        url,
+        code: token,
+      });
+    },
   },
 
   // Cleaned baseURL fallback without trailing slashes
@@ -45,7 +59,7 @@ export const auth = betterAuth({
         process.env.NODE_ENV === "development" &&
         process.env.GOOGLE_CALLBACK_URL?.includes("vercel.app")
           ? "http://localhost:3002/api/auth/callback/google"
-          : (process.env.GOOGLE_CALLBACK_URL || undefined),
+          : process.env.GOOGLE_CALLBACK_URL || undefined,
     },
   },
   plugins: [

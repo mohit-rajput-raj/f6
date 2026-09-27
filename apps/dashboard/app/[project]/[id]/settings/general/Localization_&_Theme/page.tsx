@@ -9,18 +9,37 @@ import { Button } from "@repo/ui/components/ui/button";
 import { Label } from "@repo/ui/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@repo/ui/components/ui/select";
 import { toast } from "sonner";
-import { IconPalette, IconMoon, IconSun, IconDeviceDesktop, IconLanguage, IconClock } from "@tabler/icons-react";
-import { cn } from "@repo/ui/lib/utils";
+import { IconPalette, IconLanguage, IconClock } from "@tabler/icons-react";
+import { ModeToggle } from "@repo/ui/components/themes/toogle";
 
 function LocalizationAndThemeForm() {
-  const [theme, setTheme] = useState<"system" | "light" | "dark">("dark");
-  const [language, setLanguage] = useState("en-US");
-  const [timezone, setTimezone] = useState("UTC+05:30");
-  const [dateFormat, setDateFormat] = useState("YYYY-MM-DD");
+  const [language, setLanguage] = useState(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("UNIXL_LANGUAGE") || "en-US";
+    }
+    return "en-US";
+  });
+  const [timezone, setTimezone] = useState(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("UNIXL_TIMEZONE") || "UTC+05:30";
+    }
+    return "UTC+05:30";
+  });
+  const [dateFormat, setDateFormat] = useState(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("UNIXL_DATE_FORMAT") || "YYYY-MM-DD";
+    }
+    return "YYYY-MM-DD";
+  });
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
-    toast.success("Appearance & Localization settings updated!");
+    if (typeof window !== "undefined") {
+      localStorage.setItem("UNIXL_LANGUAGE", language);
+      localStorage.setItem("UNIXL_TIMEZONE", timezone);
+      localStorage.setItem("UNIXL_DATE_FORMAT", dateFormat);
+    }
+    toast.success("Appearance & Localization settings saved!");
   };
 
   return (
@@ -38,34 +57,14 @@ function LocalizationAndThemeForm() {
       <form onSubmit={handleSave}>
         <CardContent className="space-y-6">
           {/* Theme Selector */}
-          <div className="space-y-3">
-            <Label className="text-sm font-medium">Interface Theme</Label>
-            <div className="grid grid-cols-3 gap-4 max-w-lg">
-              {[
-                { id: "light", label: "Light", icon: IconSun },
-                { id: "dark", label: "Dark", icon: IconMoon },
-                { id: "system", label: "System", icon: IconDeviceDesktop },
-              ].map((item) => {
-                const Icon = item.icon;
-                const isSelected = theme === item.id;
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => setTheme(item.id as any)}
-                    className={cn(
-                      "flex flex-col items-center gap-2 p-4 rounded-xl border transition-all cursor-pointer",
-                      isSelected
-                        ? "border-primary bg-primary/10 text-primary ring-2 ring-primary/20 font-semibold"
-                        : "border-border/60 hover:bg-accent text-muted-foreground"
-                    )}
-                  >
-                    <Icon className="size-6" />
-                    <span className="text-xs">{item.label}</span>
-                  </button>
-                );
-              })}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-xl border p-4 bg-muted/30">
+            <div className="space-y-0.5">
+              <Label className="text-sm font-medium">Interface Theme</Label>
+              <p className="text-xs text-muted-foreground">
+                Customize appearance or switch between light, dark, and system themes.
+              </p>
             </div>
+            <ModeToggle />
           </div>
 
           <div className="grid gap-5 sm:grid-cols-2 pt-2">
@@ -85,6 +84,7 @@ function LocalizationAndThemeForm() {
                   <SelectItem value="es-ES">Spanish (Español)</SelectItem>
                   <SelectItem value="de-DE">German (Deutsch)</SelectItem>
                   <SelectItem value="ja-JP">Japanese (日本語)</SelectItem>
+                  <SelectItem value="hi-IN">Hindi (हिन्दी)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -105,6 +105,7 @@ function LocalizationAndThemeForm() {
                   <SelectItem value="UTC-05:00">(UTC-05:00) Eastern Time (US & Canada)</SelectItem>
                   <SelectItem value="UTC+00:00">(UTC+00:00) Universal Coordinated Time (UTC)</SelectItem>
                   <SelectItem value="UTC+01:00">(UTC+01:00) Central European Time (CET)</SelectItem>
+                  <SelectItem value="UTC+09:00">(UTC+09:00) Japan Standard Time (JST)</SelectItem>
                 </SelectContent>
               </Select>
             </div>

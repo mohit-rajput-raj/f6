@@ -1,16 +1,15 @@
 'use client';
 
+import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Button, Input } from '@/components/ui/components';
 import { signUp, signIn } from '@/lib/auth-client';
 import { Field, FieldDescription, FieldGroup, FieldLabel, FieldSeparator } from '@repo/ui/components/ui/field';
 import { cn } from '@repo/ui/lib/utils';
 import { IconBrandGoogle } from '@tabler/icons-react';
-import { useRouter } from 'next/navigation';
-import { useState } from 'react';
-
-// Attempt to use the same image as sign-in if it exists
-
-import img from "./image.png"
+import { VerifyEmailForm } from '../../verify-email/page';
+import { sendVerificationOtpAction } from '../../actions';
+import img from "./image.png";
 
 export default function SignUpPage() {
   return <SignUpPageLayout />;
@@ -24,6 +23,9 @@ export function SignUpForm({
   const [loading, setLoading] = useState(false);
   const [emailLoading, setEmailLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [authMode, setAuthMode] = useState<"register" | "verify">("register");
+  const [registeredEmail, setRegisteredEmail] = useState<string>("");
 
   const handleGoogleSignUp = async () => {
     setLoading(true);
@@ -65,8 +67,16 @@ export function SignUpForm({
         email,
         password,
       }, {
-        onSuccess: () => {
-          router.push('/');
+        onSuccess: async () => {
+          setRegisteredEmail(email);
+          // Automatically trigger sending the OTP code to their verification table
+          try {
+            await sendVerificationOtpAction(email);
+          } catch (e) {
+            console.warn("Could not pre-send OTP:", e);
+          }
+          // Switch to verification tab
+          setAuthMode("verify");
         },
         onError: (ctx) => {
           setError(ctx.error.message || 'Failed to sign up');
@@ -78,6 +88,33 @@ export function SignUpForm({
       setEmailLoading(false);
     }
   };
+
+  // If in verify mode, render the verification tab
+  if (authMode === "verify") {
+    return (
+      <div className={cn("flex flex-col gap-4", className)}>
+        <div className="flex items-center justify-between border-b border-border/60 pb-3">
+          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+            Step 2: Verify Your Email
+          </span>
+          <button
+            type="button"
+            onClick={() => setAuthMode("register")}
+            className="text-xs text-primary hover:underline font-medium"
+          >
+            ← Back
+          </button>
+        </div>
+
+        <VerifyEmailForm
+          initialEmail={registeredEmail}
+          onVerified={() => {
+            router.push(`/auth/sign-in?verified=true&email=${encodeURIComponent(registeredEmail)}`);
+          }}
+        />
+      </div>
+    );
+  }
 
   return (
     <form className={cn("flex flex-col gap-6", className)} onSubmit={handleEmailSignUp} {...props}>
@@ -118,7 +155,7 @@ export function SignUpForm({
             <IconBrandGoogle className="mr-2 h-4 w-4" />
             {loading ? 'Redirecting...' : 'Sign Up with Google'}
           </Button>
-          <FieldDescription className="text-center">
+          <FieldDescription className="text-center pt-2">
             Already have an account?{" "}
             <a href="/auth/sign-in" className="underline underline-offset-4">
               Sign in
@@ -127,18 +164,15 @@ export function SignUpForm({
         </Field>
       </FieldGroup>
     </form>
-  )
+  );
 }
 
 export const SignUpPageLayout = () => {
   return (
     <div className="grid w-full h-full lg:grid-cols-2 min-h-screen">
       <div className="flex flex-col gap-4 p-6 md:p-10">
-        <div className="flex justify-center gap-2 md:justify-start">
-
-        </div>
         <div className="flex flex-1 items-center justify-center">
-          <div className="w-full max-w-xs">
+          <div className="w-full max-w-sm">
             <SignUpForm />
           </div>
         </div>
@@ -151,5 +185,5 @@ export const SignUpPageLayout = () => {
         />
       </div>
     </div>
-  )
-}
+  );
+};

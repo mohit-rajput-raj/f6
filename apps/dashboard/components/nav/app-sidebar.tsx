@@ -22,6 +22,15 @@ import {
   IconSettings,
   IconTerminal,
   IconUsers,
+  IconPalette,
+  IconKey,
+  IconCreditCard,
+  IconShieldLock,
+  IconTerminal2,
+  IconKeyboard,
+  IconPuzzle,
+  IconRefresh,
+  IconReceipt,
 } from "@tabler/icons-react";
 
 import { NavDocuments } from "@/components/nav/nav-documents";
@@ -37,6 +46,13 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@repo/ui/components/ui/sidebar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@repo/ui/components/ui/dropdown-menu";
 import { useRouteAuthContextHook } from "@/context/routeContext";
 import { toast } from "sonner";
 
@@ -244,18 +260,14 @@ const data = {
     {
       name: "Billing",
       url: "/billing",
-      icon: IconFileWord,
+      icon: IconReceipt,
     },
     // {
     //   name: "Integration",
     //   url: "/integration",
     //   icon: IconInnerShadowTop,
     // },
-    {
-      name: "Settings",
-      url: "/settings",
-      icon: IconSettings,
-    },
+    // Settings has been moved to the bottom IDE action bar
     // {
     //   name: "Plugins",
     //   url: "/plugs",
@@ -357,6 +369,139 @@ export const AppSidebar = ({ val, ...props }: AppSidebarProps) => {
         </SidebarContent>
       )}
       <SidebarFooter className="flex flex-col gap-2 p-2 border-t border-sidebar-border">
+        {/* IDE-style Settings Popup Button */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full flex items-center justify-between px-2.5 py-2 h-9 text-xs font-medium text-sidebar-foreground hover:bg-sidebar-accent rounded-lg transition-colors cursor-pointer group"
+            >
+              <div className="flex items-center gap-2.5">
+                <IconSettings className="size-4 text-muted-foreground group-hover:text-foreground group-hover:rotate-45 transition-all duration-200" />
+                <span className="font-medium text-xs">Settings</span>
+              </div>
+              <kbd className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground bg-muted/60 rounded border border-border/50">
+                ⌘,
+              </kbd>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent
+            side="top"
+            align="start"
+            sideOffset={8}
+            className="w-64 p-1.5 shadow-xl border bg-popover/95 backdrop-blur-md rounded-xl text-xs z-50"
+          >
+            <div className="px-2 py-1.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+              Preferences & Configuration
+            </div>
+
+            <DropdownMenuItem
+              className="cursor-pointer gap-2 py-2 px-2.5 rounded-lg font-medium focus:bg-accent focus:text-accent-foreground"
+              onClick={() => {
+                const targetProj = val || "projects";
+                const targetId = main_id || dashid || "0";
+                navigate.push(`/${targetProj}/${targetId}/settings`);
+              }}
+            >
+              <IconSettings className="size-4 text-primary" />
+              <span className="flex-1 font-semibold">User Settings</span>
+              <span className="text-[10px] text-muted-foreground font-mono">⌘,</span>
+            </DropdownMenuItem>
+
+            <DropdownMenuItem
+              className="cursor-pointer gap-2 py-1.5 px-2.5 rounded-lg focus:bg-accent focus:text-accent-foreground"
+              onClick={() => {
+                const targetProj = val || "projects";
+                const targetId = main_id || dashid || "0";
+                navigate.push(`/${targetProj}/${targetId}/settings/general/Localization_&_Theme`);
+              }}
+            >
+              <IconPalette className="size-4 text-muted-foreground" />
+              <span className="flex-1">Localization & Theme</span>
+            </DropdownMenuItem>
+
+            <DropdownMenuItem
+              className="cursor-pointer gap-2 py-1.5 px-2.5 rounded-lg focus:bg-accent focus:text-accent-foreground"
+              onClick={() => {
+                const targetProj = val || "projects";
+                const targetId = main_id || dashid || "0";
+                navigate.push(`/${targetProj}/${targetId}/settings/models/API_Keys`);
+              }}
+            >
+              <IconKey className="size-4 text-muted-foreground" />
+              <span className="flex-1">API Keys & Models</span>
+            </DropdownMenuItem>
+
+            <DropdownMenuItem
+              className="cursor-pointer gap-2 py-1.5 px-2.5 rounded-lg focus:bg-accent focus:text-accent-foreground"
+              onClick={() => {
+                const targetProj = val || "projects";
+                const targetId = main_id || dashid || "0";
+                navigate.push(`/${targetProj}/${targetId}/settings/billing`);
+              }}
+            >
+              <IconCreditCard className="size-4 text-muted-foreground" />
+              <span className="flex-1">Billing & Plans</span>
+            </DropdownMenuItem>
+
+            <DropdownMenuItem
+              className="cursor-pointer gap-2 py-1.5 px-2.5 rounded-lg focus:bg-accent focus:text-accent-foreground"
+              onClick={() => {
+                const targetProj = val || "projects";
+                const targetId = main_id || dashid || "0";
+                navigate.push(`/${targetProj}/${targetId}/settings/security`);
+              }}
+            >
+              <IconShieldLock className="size-4 text-muted-foreground" />
+              <span className="flex-1">Security & Sessions</span>
+            </DropdownMenuItem>
+
+            <DropdownMenuSeparator className="my-1" />
+
+            <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wider">
+              IDE Tools & Shortcuts
+            </div>
+
+            <DropdownMenuItem
+              className="cursor-pointer gap-2 py-1.5 px-2.5 rounded-lg text-muted-foreground focus:text-foreground"
+              onClick={() => toast.info("Command Palette shortcut: Ctrl+Shift+P")}
+            >
+              <IconTerminal2 className="size-4" />
+              <span className="flex-1">Command Palette...</span>
+              <span className="text-[10px] font-mono">⇧⌘P</span>
+            </DropdownMenuItem>
+
+            <DropdownMenuItem
+              className="cursor-pointer gap-2 py-1.5 px-2.5 rounded-lg text-muted-foreground focus:text-foreground"
+              onClick={() => toast.info("Keyboard Shortcuts dialog opened")}
+            >
+              <IconKeyboard className="size-4" />
+              <span className="flex-1">Keyboard Shortcuts</span>
+              <span className="text-[10px] font-mono">⌘K ⌘S</span>
+            </DropdownMenuItem>
+
+            <DropdownMenuItem
+              className="cursor-pointer gap-2 py-1.5 px-2.5 rounded-lg text-muted-foreground focus:text-foreground"
+              onClick={() => toast.info("Extensions & Plugin marketplace")}
+            >
+              <IconPuzzle className="size-4" />
+              <span className="flex-1">Extensions & Plugins</span>
+              <span className="text-[10px] font-mono">⇧⌘X</span>
+            </DropdownMenuItem>
+
+            <DropdownMenuSeparator className="my-1" />
+
+            <DropdownMenuItem
+              className="cursor-pointer gap-2 py-1.5 px-2.5 rounded-lg text-muted-foreground focus:text-foreground"
+              onClick={() => toast.success("UNIXL is up to date (v2.4.0-stable)")}
+            >
+              <IconRefresh className="size-4" />
+              <span className="flex-1">Check for Updates...</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
         {userEmail && (
           <div className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg bg-sidebar-accent/50 text-sidebar-accent-foreground min-w-0 border border-sidebar-border/50">
             <div className="w-7 h-7 rounded-full bg-teal-600/20 text-teal-400 border border-teal-500/30 flex items-center justify-center text-xs font-semibold shrink-0">

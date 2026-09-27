@@ -386,6 +386,13 @@ export const TiledOcrManager: React.FC<TiledOcrManagerProps> = ({
         userId,
       });
 
+      if (res.needsPlan) {
+        toast.error("Vision OCR is locked. Please upgrade to Pro or Enterprise.");
+        window.open("/pricing", "_blank");
+        updateTile(tileId, { status: "idle", error: "Subscription plan required" });
+        return;
+      }
+
       if (!res.success || !res.data) {
         throw new Error(res.error || "OCR extraction failed");
       }
@@ -448,6 +455,13 @@ export const TiledOcrManager: React.FC<TiledOcrManagerProps> = ({
           includeBottomNotes: config.directives.includeBottomNotes,
           userId,
         });
+
+        if (res.needsPlan) {
+          toast.error("Vision OCR is locked. Please upgrade to Pro or Enterprise.");
+          window.open("/pricing", "_blank");
+          setIsScanningAll(false);
+          return;
+        }
 
         if (!res.success || !res.data) {
           throw new Error(res.error || "OCR extraction failed");
