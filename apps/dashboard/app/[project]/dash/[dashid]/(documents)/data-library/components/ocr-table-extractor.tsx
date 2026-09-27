@@ -55,6 +55,7 @@ import {
 } from "../lib/secure-ocr-storage";
 import { TiledOcrManager } from "./tiled-ocr-manager";
 import { OcrColumnTools } from "./ocr-column-tools";
+import { useUserSubscription } from "@/lib/use-user-subscription";
 
 // ── Types ──────────────────────────────────────────────────
 
@@ -129,6 +130,8 @@ export const OcrTableExtractor: React.FC<OcrTableExtractorProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string>("");
+
+  const { hasOcrAccess, isLoading: isSubLoading, isPro, isMax } = useUserSubscription();
 
   // Extracted data state
   const [datasetName, setDatasetName] = useState<string>("");
@@ -299,6 +302,12 @@ export const OcrTableExtractor: React.FC<OcrTableExtractorProps> = ({
       return;
     }
 
+    if (!isSubLoading && !hasOcrAccess) {
+      toast.error("Vision OCR is locked. Please upgrade to Pro or Enterprise.");
+      window.open("/pricing", "_blank");
+      return;
+    }
+
     setFileName(file.name);
     const defaultName =
       file.name.replace(/\.[^/.]+$/, "").replace(/[_-]/g, " ") ||
@@ -339,6 +348,12 @@ export const OcrTableExtractor: React.FC<OcrTableExtractorProps> = ({
       return;
     }
 
+    if (!isSubLoading && !hasOcrAccess) {
+      toast.error("Vision OCR is locked. Please upgrade to Pro or Enterprise.");
+      window.open("/pricing", "_blank");
+      return;
+    }
+
     setFileName(file.name);
     const defaultName =
       file.name.replace(/\.[^/.]+$/, "").replace(/[_-]/g, " ") ||
@@ -369,6 +384,14 @@ export const OcrTableExtractor: React.FC<OcrTableExtractorProps> = ({
         replacementRules: settings.replacementRules,
         userId,
       });
+
+      // If user has no active subscription plan, lock and redirect
+      if (res.needsPlan) {
+        toast.error("Vision OCR is locked. Please upgrade to Pro or Enterprise.");
+        window.open("/pricing", "_blank");
+        setIsScanning(false);
+        return;
+      }
 
       // If the API says we need a key, show the popup
       if (res.needsApiKey) {
@@ -607,6 +630,46 @@ export const OcrTableExtractor: React.FC<OcrTableExtractorProps> = ({
           : "rounded-2xl border bg-card/60 backdrop-blur-xs shadow-xs overflow-hidden"
       }`}
     >
+      {/* ── Locked OCR Overlay (Plan Required) ─────────────── */}
+      {!isSubLoading && !hasOcrAccess && (
+        <div className="rounded-2xl border border-amber-500/30 bg-gradient-to-b from-card to-zinc-950/80 backdrop-blur-md p-8 text-center max-w-lg mx-auto my-10 shadow-2xl space-y-5 animate-in fade-in-0 zoom-in-95">
+          <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-500 flex items-center justify-center mx-auto shadow-inner">
+            <Lock className="size-8" />
+          </div>
+          <div className="space-y-2">
+            <Badge variant="outline" className="text-amber-400 border-amber-500/30 bg-amber-500/10 text-xs px-3 py-1 font-semibold">
+              Pro & Enterprise Feature
+            </Badge>
+            <h3 className="text-xl font-bold text-foreground">
+              Vision OCR is Locked
+            </h3>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              Vision OCR table and spreadsheet extraction is exclusive to active subscribers. Upgrade to{" "}
+              <strong className="text-foreground">Pro</strong> ($29/mo) or{" "}
+              <strong className="text-foreground">Enterprise</strong> to extract structured datasets, attendance records, and tabular documents with AI.
+            </p>
+          </div>
+          <div className="flex items-center justify-center gap-3 pt-2">
+            {onCloseDrawer && (
+              <Button
+                variant="outline"
+                onClick={onCloseDrawer}
+                className="cursor-pointer text-xs h-9"
+              >
+                Close
+              </Button>
+            )}
+            <Button
+              onClick={() => window.open("/pricing", "_blank")}
+              className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-xs h-9 gap-1.5 shadow-sm cursor-pointer"
+            >
+              <Sparkles className="size-3.5" />
+              View Pricing & Upgrade
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* ── API Key Missing Popup/Overlay ─────────────── */}
       {showApiKeyPopup && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm">
@@ -639,7 +702,7 @@ export const OcrTableExtractor: React.FC<OcrTableExtractorProps> = ({
                     aistudio.google.com/apikey
                   </a>
                 </li>
-                <li>Create or copy an API key (starts with <code className="bg-amber-500/20 px-1 rounded text-[11px]">AIza...</code>)</li>
+                <li>Create or copy an API key (starts with <code className="bg-amber-500/20 px-1 rounded text-[11px]">AIza...</code> or <code className="bg-amber-500/20 px-1 rounded text-[11px]">AQ...</code>)</li>
                 <li>Add it in your Profile &rarr; Settings &rarr; API Keys</li>
               </ol>
             </div>

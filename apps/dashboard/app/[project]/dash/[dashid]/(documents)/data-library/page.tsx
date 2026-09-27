@@ -58,6 +58,7 @@ import * as XLSX from "xlsx";
 import Spreadsheet from "react-spreadsheet";
 import { useParams } from "next/navigation";
 import { OcrTableExtractor } from "./components/ocr-table-extractor";
+import { useUserSubscription } from "@/lib/use-user-subscription";
 
 interface DataLibraryFileItem {
   id: string;
@@ -82,6 +83,7 @@ const DataLibrary = () => {
   const { data: session } = useSession();
   const userId = session?.user?.id;
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { hasOcrAccess, isLoading: isSubLoading } = useUserSubscription();
 
   const [files, setFiles] = useState<DataLibraryFileItem[]>([]);
   const [loading, setLoading] = useState(true);

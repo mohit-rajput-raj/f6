@@ -2,6 +2,7 @@
 
 import { pypApi } from "@/lib/axios";
 import { getUserLLMKeys } from "./api-key-actions";
+import { getUserSubscriptionDetails } from "@/lib/subscription";
 
 export interface TableOcrResult {
   success: boolean;
@@ -12,6 +13,7 @@ export interface TableOcrResult {
   error?: string;
   source?: "pyp" | "gemini-direct";
   needsApiKey?: boolean; // signals the UI to prompt for an API key
+  needsPlan?: boolean; // signals the UI that user must upgrade to Pro/Enterprise
 }
 
 /**
@@ -102,11 +104,18 @@ export interface ScanTableOptions {
 
 /**
  * Checks if a string looks like a valid Gemini API key.
- * Valid keys start with "AIza" and are typically 39 characters.
+ * Supports legacy AIza... keys, new Google AI Studio AQ.... keys, and any valid key string >= 15 characters.
  */
 function isValidGeminiKey(key: string | null | undefined): key is string {
-  if (!key) return false;
-  return key.startsWith("AIza") && key.length >= 30;
+  if (!key || typeof key !== "string") return false;
+  const trimmed = key.trim();
+  return (
+    trimmed.length >= 15 &&
+    !trimmed.includes(" ") &&
+    (trimmed.startsWith("AIza") ||
+      trimmed.startsWith("AQ.") ||
+      trimmed.length >= 25)
+  );
 }
 
 /**
@@ -164,7 +173,7 @@ function applyReplacementRules(
  * Perform Table OCR on an image.
  * Supports single images as well as sub-grid tiles/chunks.
  * Tries the Python (pyp) FastAPI server first.
- * If unreachable or fails, seamlessly falls back to direct Gemini 2.5 Flash Vision API.
+ * If unreachable or fails, seamlessly falls back to direct Gemini Vision API.
  */
 export async function scanTableImageAction(
   base64Image: string,
@@ -174,10 +183,23 @@ export async function scanTableImageAction(
     return { success: false, error: "No image provided" };
   }
 
+  // Lock OCR if user does not have an active plan (Pro or Enterprise)
+  if (options?.userId) {
+    const subDetails = await getUserSubscriptionDetails(options.userId);
+    if (!subDetails.hasOcrAccess) {
+      return {
+        success: false,
+        error:
+          "Vision OCR is locked. Please upgrade to Pro or Enterprise to extract table data.",
+        needsPlan: true,
+      };
+    }
+  }
+
   // Resolve a valid Gemini API key in order of priority:
-  // 1. Explicitly passed apiKey
-  // 2. User's geminiApiKey from DB (only if it looks like a real Gemini key)
-  // 3. Server-side GEMINI_API_KEY from .env
+  // 1. Explicitly passed apiKey (from client localStorage)
+  // 2. User's geminiApiKey from DB schema
+  // NOTE: We do NOT fall back to process.env.GEMINI_API_KEY — each user must have their own key
   let resolvedApiKey: string | undefined;
 
   if (isValidGeminiKey(options?.apiKey)) {
@@ -195,15 +217,11 @@ export async function scanTableImageAction(
     }
   }
 
-  if (!resolvedApiKey && isValidGeminiKey(process.env.GEMINI_API_KEY)) {
-    resolvedApiKey = process.env.GEMINI_API_KEY;
-  }
-
   if (!resolvedApiKey) {
     return {
       success: false,
       error:
-        "No valid Gemini API key found. Please add your Gemini API key in Settings to use OCR.",
+        "No valid Gemini API key found. Please add your Gemini API key in Settings → API Keys to use OCR.",
       needsApiKey: true,
     };
   }
@@ -236,7 +254,7 @@ export async function scanTableImageAction(
       {
         image_base64: base64Image,
         api_key: resolvedApiKey,
-        model_name: "gemini-2.5-flash",
+        model_name: "gemini-2.0-flash",
         custom_prompt: options?.customPrompt,
         dot_to_a: options?.dotToA ?? false,
         leave_unclear_blank: options?.leaveUnclearBlank ?? true,
@@ -344,35 +362,49 @@ Rules:
 ${specificRules.join("\n")}
 - If no table is visible in the image, return: {"columns": [], "data": []}`;
 
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${resolvedApiKey}`,
+    const reqPayload = {
+      contents: [
+        {
+          parts: [
+            {
+              text: promptText,
+            },
+            {
+              inlineData: {
+                mimeType,
+                data: base64Data,
+              },
+            },
+          ],
+        },
+      ],
+      generationConfig: {
+        temperature: 0,
+        maxOutputTokens: 8192,
+        responseMimeType: "application/json",
+      },
+    };
+
+    let response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${resolvedApiKey}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                {
-                  text: promptText,
-                },
-                {
-                  inlineData: {
-                    mimeType,
-                    data: base64Data,
-                  },
-                },
-              ],
-            },
-          ],
-          generationConfig: {
-            temperature: 0,
-            maxOutputTokens: 8192,
-            responseMimeType: "application/json",
-          },
-        }),
+        body: JSON.stringify(reqPayload),
       },
     );
+
+    // If 2.0 returns 404, fall back to gemini-1.5-flash
+    if (!response.ok && response.status === 404) {
+      response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${resolvedApiKey}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(reqPayload),
+        },
+      );
+    }
 
     if (!response.ok) {
       const errText = await response.text();

@@ -54,8 +54,7 @@ const plans: PricingPlan[] = [
   },
   {
     name: "Max",
-    description:
-      "Maximum scalability, security, and dedicated infrastructure.",
+    description: "Maximum scalability, security, and dedicated infrastructure.",
     price: "$99",
     period: "/mo",
     popular: false,
@@ -75,7 +74,7 @@ const plans: PricingPlan[] = [
 
 export function SubscriptionBillingPage() {
   const [customerState, setCustomerState] = useState<CustomerState | null>(
-    null
+    null,
   );
   const [loading, setLoading] = useState(true);
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
@@ -92,7 +91,6 @@ export function SubscriptionBillingPage() {
       setCustomerState(data);
     } catch (error) {
       console.error("Failed to fetch customer state:", error);
-      // User might not be a Polar customer yet — that's fine
       setCustomerState(null);
     } finally {
       setLoading(false);
@@ -100,10 +98,11 @@ export function SubscriptionBillingPage() {
   };
 
   const activeSubscription = customerState?.subscriptions?.find(
-    (sub: Subscription) => sub.status === "active"
+    (sub: Subscription) => sub.status === "active",
   );
 
   const activePlanProductId = activeSubscription?.productId;
+  const hasActivePlan = Boolean(activePlanProductId);
 
   const handleCheckout = async (slug: string) => {
     try {
@@ -152,7 +151,7 @@ export function SubscriptionBillingPage() {
     }
     return {
       text: plan.buttonText,
-      disabled: false,
+      disabled: hasActivePlan,
       variant: plan.buttonVariant,
     };
   };
@@ -186,26 +185,31 @@ export function SubscriptionBillingPage() {
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-2 items-stretch max-w-3xl mx-auto">
         {plans.map((plan, index) => {
           const isCurrentPlan = activePlanProductId === plan.productId;
+          const isBlurred = hasActivePlan && !isCurrentPlan;
           const btn = getButtonContent(plan);
 
           return (
             <div
               key={index}
-              className={`relative flex flex-col rounded-xl bg-card p-6 border shadow-lg transition-all ${
+              className={`relative flex flex-col rounded-xl bg-card p-6 border shadow-lg transition-all duration-300 ${
                 isCurrentPlan
-                  ? "border-primary ring-2 ring-primary/20 shadow-primary/10"
+                  ? "border-primary ring-2 ring-primary/20 shadow-primary/10 z-10"
                   : plan.popular
                     ? "border-primary/50 hover:border-primary"
                     : "border-border hover:border-muted-foreground/40"
+              } ${
+                isBlurred
+                  ? "blur-[2px] opacity-40 pointer-events-none select-none grayscale-[30%]"
+                  : ""
               }`}
             >
               {isCurrentPlan && (
-                <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full flex items-center gap-1.5">
+                <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full flex items-center gap-1.5 shadow-md">
                   <Crown className="w-3 h-3" />
                   Active Plan
                 </div>
               )}
-              {!isCurrentPlan && plan.popular && (
+              {!hasActivePlan && plan.popular && (
                 <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full">
                   Most Popular
                 </div>

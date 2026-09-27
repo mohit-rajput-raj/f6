@@ -194,24 +194,30 @@ function ApiKeysForm() {
                 disabled={isLoadingLLMKeys || isSavingLLMKeys}
               />
             </div>
-            <div>
-              <label className="text-xs font-medium text-muted-foreground block mb-1">OpenAI API Key</label>
+            <div className="opacity-50">
+              <label className="text-xs font-medium text-muted-foreground mb-1 flex items-center gap-2">
+                OpenAI API Key
+                <Badge variant="secondary" className="text-[10px] py-0 px-1.5 font-normal">Coming Soon</Badge>
+              </label>
               <Input
                 type="password"
                 placeholder="sk-proj-..."
-                value={openaiKey}
-                onChange={(e) => setOpenaiKey(e.target.value)}
-                disabled={isLoadingLLMKeys || isSavingLLMKeys}
+                value=""
+                disabled
+                className="cursor-not-allowed"
               />
             </div>
-            <div>
-              <label className="text-xs font-medium text-muted-foreground block mb-1">Anthropic Claude API Key</label>
+            <div className="opacity-50">
+              <label className="text-xs font-medium text-muted-foreground mb-1 flex items-center gap-2">
+                Anthropic Claude API Key
+                <Badge variant="secondary" className="text-[10px] py-0 px-1.5 font-normal">Coming Soon</Badge>
+              </label>
               <Input
                 type="password"
                 placeholder="sk-ant-..."
-                value={claudeKey}
-                onChange={(e) => setClaudeKey(e.target.value)}
-                disabled={isLoadingLLMKeys || isSavingLLMKeys}
+                value=""
+                disabled
+                className="cursor-not-allowed"
               />
             </div>
           </div>

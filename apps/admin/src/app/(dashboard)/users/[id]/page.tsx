@@ -20,8 +20,12 @@ import {
   CheckCircle2,
   FileCode,
   Calendar,
+  ShieldOff,
+  ShieldAlert,
+  LogOut,
 } from "lucide-react";
 import { fetchUserDetailAction } from "../_actions";
+import { unverifyUserEmail, reverifyUserEmail, revokeAllUserSessions } from "./_actions";
 
 export default function UserDetailPage() {
   const params = useParams();
@@ -33,6 +37,9 @@ export default function UserDetailPage() {
   >("overview");
 
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const [securityActionLoading, setSecurityActionLoading] = useState<string | null>(null);
+  const [showUnverifyConfirm, setShowUnverifyConfirm] = useState(false);
+  const [showRevokeConfirm, setShowRevokeConfirm] = useState(false);
 
   const {
     data: detailResult,
@@ -474,68 +481,256 @@ export default function UserDetailPage() {
 
       {/* ─── Tab 3: Security & Sessions ─── */}
       {activeTab === "security" && (
-        <div className="rounded-xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-900 overflow-hidden">
-          <div className="border-b border-neutral-200 p-4 dark:border-neutral-800">
-            <h3 className="text-sm font-bold text-neutral-900 dark:text-neutral-100">
-              Active & Historical Authentication Sessions
-            </h3>
-            <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
-              Token footprints, devices, and IP addresses registered for this account.
-            </p>
+        <div className="space-y-6">
+          {/* ── Security Controls Panel ── */}
+          <div className="rounded-xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-900 overflow-hidden">
+            <div className="border-b border-neutral-200 p-4 dark:border-neutral-800">
+              <h3 className="text-sm font-bold text-neutral-900 dark:text-neutral-100 flex items-center gap-2">
+                <ShieldAlert className="h-4 w-4 text-neutral-500" />
+                Security Controls
+              </h3>
+              <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
+                Administrative actions that affect this user&apos;s account security and authentication state.
+              </p>
+            </div>
+
+            <div className="p-4 space-y-4">
+              {/* Email Verification Status & Toggle */}
+              <div className="flex flex-col gap-4 rounded-lg border border-neutral-200 p-4 dark:border-neutral-800">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    {user.emailVerified ? (
+                      <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-neutral-100 dark:bg-neutral-800">
+                        <ShieldCheck className="h-4 w-4 text-neutral-700 dark:text-neutral-300" />
+                      </div>
+                    ) : (
+                      <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-100 dark:bg-amber-900/30">
+                        <ShieldOff className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                      </div>
+                    )}
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-semibold text-neutral-900 dark:text-neutral-100">
+                          Email Verification Status
+                        </span>
+                        <span
+                          className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${
+                            user.emailVerified
+                              ? "bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900"
+                              : "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400"
+                          }`}
+                        >
+                          {user.emailVerified ? "VERIFIED" : "UNVERIFIED"}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5">
+                        {user.emailVerified
+                          ? "This user has a verified email. Unverifying will force them to re-verify via email link on their next visit."
+                          : "This user's email is unverified. They will be prompted to verify their email via a verification link."}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="shrink-0">
+                    {!showUnverifyConfirm ? (
+                      <button
+                        onClick={() => setShowUnverifyConfirm(true)}
+                        className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold shadow-sm transition ${
+                          user.emailVerified
+                            ? "border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-400 dark:hover:bg-amber-900/40"
+                            : "border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800"
+                        }`}
+                      >
+                        {user.emailVerified ? (
+                          <>
+                            <ShieldOff className="h-3.5 w-3.5" />
+                            Unverify Email
+                          </>
+                        ) : (
+                          <>
+                            <ShieldCheck className="h-3.5 w-3.5" />
+                            Mark as Verified
+                          </>
+                        )}
+                      </button>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <span className="text-[11px] text-neutral-500 dark:text-neutral-400">
+                          {user.emailVerified ? "Unverify this user?" : "Verify this user?"}
+                        </span>
+                        <button
+                          disabled={securityActionLoading === "verify"}
+                          onClick={async () => {
+                            setSecurityActionLoading("verify");
+                            try {
+                              const res = user.emailVerified
+                                ? await unverifyUserEmail(id)
+                                : await reverifyUserEmail(id);
+                              if (res.success) {
+                                await refetch();
+                              } else {
+                                alert(res.error || "Action failed");
+                              }
+                            } catch (err: any) {
+                              alert(err.message || "Action failed");
+                            } finally {
+                              setSecurityActionLoading(null);
+                              setShowUnverifyConfirm(false);
+                            }
+                          }}
+                          className={`rounded-lg px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition ${
+                            user.emailVerified
+                              ? "bg-amber-600 hover:bg-amber-700"
+                              : "bg-neutral-900 hover:bg-neutral-800 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-neutral-200"
+                          }`}
+                        >
+                          {securityActionLoading === "verify"
+                            ? "Processing..."
+                            : "Confirm"}
+                        </button>
+                        <button
+                          onClick={() => setShowUnverifyConfirm(false)}
+                          className="rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-xs font-semibold text-neutral-600 transition hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-400 dark:hover:bg-neutral-800"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Revoke All Sessions */}
+              <div className="flex flex-col gap-4 rounded-lg border border-neutral-200 p-4 dark:border-neutral-800">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-red-100 dark:bg-red-900/30">
+                      <LogOut className="h-4 w-4 text-red-600 dark:text-red-400" />
+                    </div>
+                    <div>
+                      <span className="text-xs font-semibold text-neutral-900 dark:text-neutral-100">
+                        Force Logout — Revoke All Sessions
+                      </span>
+                      <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5">
+                        Immediately terminates all active sessions. The user will be signed out of every device.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="shrink-0">
+                    {!showRevokeConfirm ? (
+                      <button
+                        onClick={() => setShowRevokeConfirm(true)}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-red-300 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 shadow-sm transition hover:bg-red-100 dark:border-red-700 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/40"
+                      >
+                        <LogOut className="h-3.5 w-3.5" />
+                        Revoke All Sessions
+                      </button>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <span className="text-[11px] text-red-600 dark:text-red-400 font-medium">
+                          This will force logout the user.
+                        </span>
+                        <button
+                          disabled={securityActionLoading === "revoke"}
+                          onClick={async () => {
+                            setSecurityActionLoading("revoke");
+                            try {
+                              const res = await revokeAllUserSessions(id);
+                              if (res.success) {
+                                await refetch();
+                              } else {
+                                alert(res.error || "Action failed");
+                              }
+                            } catch (err: any) {
+                              alert(err.message || "Action failed");
+                            } finally {
+                              setSecurityActionLoading(null);
+                              setShowRevokeConfirm(false);
+                            }
+                          }}
+                          className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-red-700"
+                        >
+                          {securityActionLoading === "revoke" ? "Revoking..." : "Confirm Revoke"}
+                        </button>
+                        <button
+                          onClick={() => setShowRevokeConfirm(false)}
+                          className="rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-xs font-semibold text-neutral-600 transition hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-400 dark:hover:bg-neutral-800"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="border-b border-neutral-200 bg-neutral-50/75 text-neutral-600 dark:border-neutral-800 dark:bg-neutral-800/50 dark:text-neutral-400">
-                <tr>
-                  <th className="py-3 pl-4 pr-3 font-semibold">Session Token</th>
-                  <th className="px-3 py-3 font-semibold">IP Address</th>
-                  <th className="px-3 py-3 font-semibold">User Agent / Platform</th>
-                  <th className="px-3 py-3 font-semibold">Created</th>
-                  <th className="py-3 pl-3 pr-4 font-semibold text-right">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-neutral-200 dark:divide-neutral-800">
-                {security.sessions.length === 0 ? (
+          {/* ── Sessions Table ── */}
+          <div className="rounded-xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-900 overflow-hidden">
+            <div className="border-b border-neutral-200 p-4 dark:border-neutral-800">
+              <h3 className="text-sm font-bold text-neutral-900 dark:text-neutral-100">
+                Active & Historical Authentication Sessions
+              </h3>
+              <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
+                Token footprints, devices, and IP addresses registered for this account.
+              </p>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="border-b border-neutral-200 bg-neutral-50/75 text-neutral-600 dark:border-neutral-800 dark:bg-neutral-800/50 dark:text-neutral-400">
                   <tr>
-                    <td colSpan={5} className="py-8 text-center text-neutral-500">
-                      No sessions recorded.
-                    </td>
+                    <th className="py-3 pl-4 pr-3 font-semibold">Session Token</th>
+                    <th className="px-3 py-3 font-semibold">IP Address</th>
+                    <th className="px-3 py-3 font-semibold">User Agent / Platform</th>
+                    <th className="px-3 py-3 font-semibold">Created</th>
+                    <th className="py-3 pl-3 pr-4 font-semibold text-right">Status</th>
                   </tr>
-                ) : (
-                  security.sessions.map((s: any) => {
-                    const isExpired = new Date(s.expiresAt) < new Date();
-                    return (
-                      <tr key={s.id} className="hover:bg-neutral-50/50 dark:hover:bg-neutral-800/30">
-                        <td className="py-3 pl-4 pr-3 font-mono text-[11px] text-neutral-800 dark:text-neutral-200">
-                          {s.token ? `${s.token.slice(0, 16)}...` : s.id.slice(0, 12)}
-                        </td>
-                        <td className="px-3 py-3 font-mono text-[11px] text-neutral-600 dark:text-neutral-400">
-                          {s.ipAddress || "127.0.0.1"}
-                        </td>
-                        <td className="px-3 py-3 text-neutral-600 dark:text-neutral-300 max-w-xs truncate">
-                          {s.userAgent || "Unknown Client"}
-                        </td>
-                        <td className="px-3 py-3 text-neutral-500">
-                          {new Date(s.createdAt).toLocaleDateString()}
-                        </td>
-                        <td className="py-3 pl-3 pr-4 text-right">
-                          <span
-                            className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${
-                              isExpired
-                                ? "bg-neutral-100 text-neutral-400 dark:bg-neutral-800 dark:text-neutral-500"
-                                : "bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900"
-                            }`}
-                          >
-                            {isExpired ? "EXPIRED" : "ACTIVE"}
-                          </span>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-neutral-200 dark:divide-neutral-800">
+                  {security.sessions.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="py-8 text-center text-neutral-500">
+                        No sessions recorded.
+                      </td>
+                    </tr>
+                  ) : (
+                    security.sessions.map((s: any) => {
+                      const isExpired = new Date(s.expiresAt) < new Date();
+                      return (
+                        <tr key={s.id} className="hover:bg-neutral-50/50 dark:hover:bg-neutral-800/30">
+                          <td className="py-3 pl-4 pr-3 font-mono text-[11px] text-neutral-800 dark:text-neutral-200">
+                            {s.token ? `${s.token.slice(0, 16)}...` : s.id.slice(0, 12)}
+                          </td>
+                          <td className="px-3 py-3 font-mono text-[11px] text-neutral-600 dark:text-neutral-400">
+                            {s.ipAddress || "127.0.0.1"}
+                          </td>
+                          <td className="px-3 py-3 text-neutral-600 dark:text-neutral-300 max-w-xs truncate">
+                            {s.userAgent || "Unknown Client"}
+                          </td>
+                          <td className="px-3 py-3 text-neutral-500">
+                            {new Date(s.createdAt).toLocaleDateString()}
+                          </td>
+                          <td className="py-3 pl-3 pr-4 text-right">
+                            <span
+                              className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${
+                                isExpired
+                                  ? "bg-neutral-100 text-neutral-400 dark:bg-neutral-800 dark:text-neutral-500"
+                                  : "bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900"
+                              }`}
+                            >
+                              {isExpired ? "EXPIRED" : "ACTIVE"}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}
