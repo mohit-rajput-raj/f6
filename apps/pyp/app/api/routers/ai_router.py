@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException, UploadFile, File
 import os
 import base64
 from pydantic import BaseModel
-from typing import List, Any, Optional
+from typing import List, Any, Optional, Dict
 from app.services.agent_service import run_agent
 from app.services.alignment_service import (
     align_and_compute_updates,
@@ -287,3 +287,39 @@ async def detect_codes_endpoint(req: DetectCodesRequest):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+class EmailRecipientItem(BaseModel):
+    key: Optional[str] = ""
+    email: str
+    subject: Optional[str] = "Notification"
+    body: Optional[str] = ""
+    attachments: Optional[List[Dict[str, Any]]] = None
+    is_html: Optional[bool] = True
+
+
+class SendEmailsRequest(BaseModel):
+    recipients: List[EmailRecipientItem]
+    smtp_config: Optional[Dict[str, Any]] = None
+    key_column_name: Optional[str] = "Key"
+
+
+@router.post("/send-emails")
+async def send_emails_endpoint(req: SendEmailsRequest):
+    """
+    Send emails to multiple recipients with attachment support and email regex validation.
+    Returns status table containing [Key, Email, Status, Details, SentAt].
+    """
+    try:
+        from app.services.email_service import process_batch_email_dispatch
+        
+        raw_recipients = [r.dict() for r in req.recipients]
+        result = process_batch_email_dispatch(
+            recipients=raw_recipients,
+            smtp_config=req.smtp_config,
+            key_column_name=req.key_column_name or "Key",
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+

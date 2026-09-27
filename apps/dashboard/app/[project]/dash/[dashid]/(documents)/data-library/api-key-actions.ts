@@ -1,12 +1,6 @@
 "use server";
 
-import { Pool } from "pg";
-
-// Use a direct PostgreSQL connection (same as BetterAuth uses)
-// This bypasses Supabase RLS which blocks writes with the anon key
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-});
+import { supabase } from "@repo/db";
 
 export interface UserLLMKeys {
   geminiApiKey?: string | null;
@@ -17,67 +11,59 @@ export interface UserLLMKeys {
 export async function saveUserLLMKeys(userId: string, keys: UserLLMKeys) {
   if (!userId) throw new Error("User ID is required");
 
-  const setClauses: string[] = [];
-  const values: any[] = [];
-  let paramIndex = 1;
+  const updateData: Record<string, any> = {
+    updatedAt: new Date().toISOString(),
+  };
 
   if (keys.geminiApiKey !== undefined) {
-    setClauses.push(`"geminiApiKey" = $${paramIndex++}`);
-    values.push(keys.geminiApiKey || null);
+    updateData.geminiApiKey = keys.geminiApiKey || null;
   }
   if (keys.openaiApiKey !== undefined) {
-    setClauses.push(`"openaiApiKey" = $${paramIndex++}`);
-    values.push(keys.openaiApiKey || null);
+    updateData.openaiApiKey = keys.openaiApiKey || null;
   }
   if (keys.claudeApiKey !== undefined) {
-    setClauses.push(`"claudeApiKey" = $${paramIndex++}`);
-    values.push(keys.claudeApiKey || null);
+    updateData.claudeApiKey = keys.claudeApiKey || null;
   }
 
-  if (setClauses.length === 0) {
-    throw new Error("No keys provided to update");
+  const { data, error } = await supabase
+    .from("user")
+    .update(updateData)
+    .eq("id", userId)
+    .select("id, geminiApiKey, openaiApiKey, claudeApiKey")
+    .maybeSingle();
+
+  if (error) {
+    console.error("Error saving LLM keys via supabase:", error);
+    throw new Error(error.message || "Failed to save API keys");
   }
 
-  // Always update the updatedAt timestamp
-  setClauses.push(`"updatedAt" = NOW()`);
-
-  values.push(userId);
-
-  const query = `
-    UPDATE "user"
-    SET ${setClauses.join(", ")}
-    WHERE "id" = $${paramIndex}
-    RETURNING "id", "geminiApiKey", "openaiApiKey", "claudeApiKey"
-  `;
-
-  const result = await pool.query(query, values);
-
-  if (result.rowCount === 0) {
-    throw new Error("User not found or update failed");
-  }
-
-  return result.rows[0];
+  return data;
 }
 
 export async function getUserLLMKeys(userId: string): Promise<UserLLMKeys> {
   if (!userId) return {};
 
-  const query = `
-    SELECT "geminiApiKey", "openaiApiKey", "claudeApiKey"
-    FROM "user"
-    WHERE "id" = $1
-  `;
+  try {
+    const { data, error } = await supabase
+      .from("user")
+      .select("geminiApiKey, openaiApiKey, claudeApiKey")
+      .eq("id", userId)
+      .maybeSingle();
 
-  const result = await pool.query(query, [userId]);
+    if (error) {
+      console.warn("Could not fetch user LLM keys from supabase:", error.message);
+      return {};
+    }
 
-  if (result.rows.length === 0) {
+    if (!data) return {};
+
+    return {
+      geminiApiKey: data.geminiApiKey ?? undefined,
+      openaiApiKey: data.openaiApiKey ?? undefined,
+      claudeApiKey: data.claudeApiKey ?? undefined,
+    };
+  } catch (err) {
+    console.warn("Exception fetching user LLM keys:", err);
     return {};
   }
-
-  const user = result.rows[0];
-  return {
-    geminiApiKey: user.geminiApiKey ?? undefined,
-    openaiApiKey: user.openaiApiKey ?? undefined,
-    claudeApiKey: user.claudeApiKey ?? undefined,
-  };
 }

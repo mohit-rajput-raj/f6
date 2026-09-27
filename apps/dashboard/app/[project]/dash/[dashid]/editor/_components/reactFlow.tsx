@@ -87,6 +87,7 @@ import { UpdatedMergedPreviewNode } from "./nodes/output-nodes/updated-merged-pr
 import { AnalyticsStackNode } from "./nodes/output-nodes/analytics-stack-node";
 import { SaveFileNode } from "./nodes/output-nodes/save-file-node";
 import { GetFileNode } from "./nodes/input-nodes/get-file-node";
+import { EmailSenderNode } from "./nodes/output-nodes/email-sender-node";
 
 /**
  * Compares two string arrays for equality by value.
@@ -239,6 +240,9 @@ const Flow = ({ handleRuns }: { handleRuns?: () => void } = {}) => {
       // Files system nodes
       SaveFileNode: SaveFileNode,
       GetFileNode: GetFileNode,
+
+      // Email output node
+      EmailSenderNode: EmailSenderNode,
     }),
     []
   );

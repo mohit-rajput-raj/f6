@@ -2,7 +2,6 @@
 
 import { pypApi } from "@/lib/axios";
 import { getUserLLMKeys } from "./api-key-actions";
-import { getUserSubscriptionDetails } from "@/lib/subscription";
 
 export interface TableOcrResult {
   success: boolean;
@@ -12,69 +11,10 @@ export interface TableOcrResult {
   };
   error?: string;
   source?: "pyp" | "gemini-direct";
-  needsApiKey?: boolean; // signals the UI to prompt for an API key
-  needsPlan?: boolean; // signals the UI that user must upgrade to Pro/Enterprise
+  needsApiKey?: boolean; // Signals the UI to prompt for an API key
+  needsPlan?: boolean; // Signals the UI that user must upgrade to Pro/Enterprise
 }
 
-/**
- * Normalizes table data to ensure consistent rectangular shape and string values.
- */
-function normalizeTableData(
-  rawColumns: any,
-  rawData: any,
-): { columns: string[]; data: (string | null)[][] } {
-  const columns: string[] = Array.isArray(rawColumns)
-    ? rawColumns.map((c, i) =>
-        c !== null && c !== undefined && String(c).trim() !== ""
-          ? String(c).trim()
-          : `Column_${i + 1}`,
-      )
-    : [];
-
-  let rows: (string | null)[][] = [];
-
-  if (Array.isArray(rawData)) {
-    rows = rawData.map((row) => {
-      if (Array.isArray(row)) {
-        const paddedRow = row.map((cell) => {
-          if (cell === null || cell === undefined) return "";
-          const str = String(cell).trim();
-          if (
-            str.toLowerCase() === "null" ||
-            str.toLowerCase() === "na" ||
-            str.toLowerCase() === "n/a"
-          )
-            return "";
-          return str;
-        });
-        // Pad or trim to match columns length
-        while (paddedRow.length < columns.length) {
-          paddedRow.push("");
-        }
-        return paddedRow.slice(0, columns.length);
-      } else if (typeof row === "object" && row !== null) {
-        // If row is a record { col1: val1, col2: val2 }
-        return columns.map((col) => {
-          const val = row[col];
-          if (val === null || val === undefined) return "";
-          const str = String(val).trim();
-          if (
-            str.toLowerCase() === "null" ||
-            str.toLowerCase() === "na" ||
-            str.toLowerCase() === "n/a"
-          )
-            return "";
-          return str;
-        });
-      }
-      return Array(columns.length).fill("");
-    });
-  }
-
-  return { columns, data: rows };
-}
-
-/** A single find→replace rule for post-processing extracted cells */
 export interface ReplacementRule {
   find: string;
   replace: string;
@@ -92,30 +32,58 @@ export interface ScanTableOptions {
   expectedRows?: number;
   tileContext?: string;
   customPrompt?: string;
-  // Legacy toggles (still supported for backward compat)
   dotToA?: boolean;
   leaveUnclearBlank?: boolean;
   handleCrossOuts?: boolean;
   parseMultiTierDates?: boolean;
   includeBottomNotes?: boolean;
-  // New: dynamic replacement rules applied after extraction
   replacementRules?: ReplacementRule[];
 }
 
 /**
- * Checks if a string looks like a valid Gemini API key.
- * Supports legacy AIza... keys, new Google AI Studio AQ.... keys, and any valid key string >= 15 characters.
+ * Normalizes table data to ensure consistent rectangular shape and string values.
  */
-function isValidGeminiKey(key: string | null | undefined): key is string {
-  if (!key || typeof key !== "string") return false;
-  const trimmed = key.trim();
-  return (
-    trimmed.length >= 15 &&
-    !trimmed.includes(" ") &&
-    (trimmed.startsWith("AIza") ||
-      trimmed.startsWith("AQ.") ||
-      trimmed.length >= 25)
-  );
+function normalizeTableData(
+  rawColumns: unknown,
+  rawData: unknown,
+): { columns: string[]; data: (string | null)[][] } {
+  const columns: string[] = Array.isArray(rawColumns)
+    ? rawColumns.map((c, i) =>
+        c != null && String(c).trim() !== ""
+          ? String(c).trim()
+          : `Column_${i + 1}`,
+      )
+    : [];
+
+  if (!Array.isArray(rawData)) {
+    return { columns, data: [] };
+  }
+
+  const rows: (string | null)[][] = rawData.map((row) => {
+    if (Array.isArray(row)) {
+      const paddedRow = row.map((cell) => cleanCellValue(cell));
+      while (paddedRow.length < columns.length) {
+        paddedRow.push("");
+      }
+      return paddedRow.slice(0, columns.length);
+    } else if (typeof row === "object" && row !== null) {
+      return columns.map((col) =>
+        cleanCellValue((row as Record<string, unknown>)[col]),
+      );
+    }
+    return Array(columns.length).fill("");
+  });
+
+  return { columns, data: rows };
+}
+
+/** Helper to clean null/NA equivalents in cell contents */
+function cleanCellValue(val: unknown): string {
+  if (val == null) return "";
+  const str = String(val).trim();
+  const lower = str.toLowerCase();
+  if (lower === "null" || lower === "na" || lower === "n/a") return "";
+  return str;
 }
 
 /**
@@ -129,11 +97,10 @@ function applyReplacementRules(
 
   return data.map((row) =>
     row.map((cell, colIdx) => {
-      if (cell === null || cell === undefined) return cell;
+      if (cell == null) return cell;
       let val = cell;
 
       for (const rule of rules) {
-        // Skip if this rule is column-scoped and this column isn't included
         if (
           rule.columnIndices &&
           rule.columnIndices.length > 0 &&
@@ -143,7 +110,6 @@ function applyReplacementRules(
         }
 
         if (rule.exactMatch !== false) {
-          // Default: exact whole-cell match
           const cellToCompare = rule.caseSensitive ? val : val.toLowerCase();
           const findToCompare = rule.caseSensitive
             ? rule.find
@@ -152,14 +118,14 @@ function applyReplacementRules(
             val = rule.replace;
           }
         } else {
-          // Substring replacement
           if (rule.caseSensitive) {
-            val = val.split(rule.find).join(rule.replace);
+            val = val.replaceAll(rule.find, rule.replace);
           } else {
-            val = val.replace(
-              new RegExp(rule.find.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi"),
-              rule.replace,
+            const escapedFind = rule.find.replace(
+              /[.*+?^${}()|[\]\\]/g,
+              "\\$&",
             );
+            val = val.replace(new RegExp(escapedFind, "gi"), rule.replace);
           }
         }
       }
@@ -171,9 +137,6 @@ function applyReplacementRules(
 
 /**
  * Perform Table OCR on an image.
- * Supports single images as well as sub-grid tiles/chunks.
- * Tries the Python (pyp) FastAPI server first.
- * If unreachable or fails, seamlessly falls back to direct Gemini Vision API.
  */
 export async function scanTableImageAction(
   base64Image: string,
@@ -183,38 +146,21 @@ export async function scanTableImageAction(
     return { success: false, error: "No image provided" };
   }
 
-  // Lock OCR if user does not have an active plan (Pro or Enterprise)
-  if (options?.userId) {
-    const subDetails = await getUserSubscriptionDetails(options.userId);
-    if (!subDetails.hasOcrAccess) {
-      return {
-        success: false,
-        error:
-          "Vision OCR is locked. Please upgrade to Pro or Enterprise to extract table data.",
-        needsPlan: true,
-      };
-    }
-  }
-
-  // Resolve a valid Gemini API key in order of priority:
-  // 1. Explicitly passed apiKey (from client localStorage)
-  // 2. User's geminiApiKey from DB schema
-  // NOTE: We do NOT fall back to process.env.GEMINI_API_KEY — each user must have their own key
-  let resolvedApiKey: string | undefined;
-
-  if (isValidGeminiKey(options?.apiKey)) {
-    resolvedApiKey = options!.apiKey;
-  }
+  // Resolve API key: check options, user DB profile, and server env
+  let resolvedApiKey = options?.apiKey?.trim();
 
   if (!resolvedApiKey && options?.userId) {
     try {
       const userKeys = await getUserLLMKeys(options.userId);
-      if (isValidGeminiKey(userKeys?.geminiApiKey)) {
-        resolvedApiKey = userKeys.geminiApiKey!;
-      }
+      resolvedApiKey = userKeys?.geminiApiKey?.trim();
     } catch (err) {
       console.warn("Could not fetch user geminiApiKey from DB:", err);
     }
+  }
+
+  if (!resolvedApiKey) {
+    resolvedApiKey =
+      process.env.GEMINI_API_KEY?.trim() || process.env.GOOGLE_API_KEY?.trim();
   }
 
   if (!resolvedApiKey) {
@@ -226,16 +172,14 @@ export async function scanTableImageAction(
     };
   }
 
-  // Build replacement rules from legacy toggles + explicit rules
+  // Build replacement rules
   const replacementRules: ReplacementRule[] = [
     ...(options?.replacementRules || []),
   ];
 
-  // Legacy dotToA toggle adds a built-in rule
   if (options?.dotToA) {
     const dotFinds = [".", "•", "·"];
     for (const f of dotFinds) {
-      // Only add if user hasn't already defined a rule for this
       if (!replacementRules.some((r) => r.find === f)) {
         replacementRules.push({
           find: f,
@@ -254,41 +198,36 @@ export async function scanTableImageAction(
       {
         image_base64: base64Image,
         api_key: resolvedApiKey,
-        model_name: "gemini-2.0-flash",
+        model_name: "gemini-3.5-flash-lite",
         custom_prompt: options?.customPrompt,
-        dot_to_a: options?.dotToA ?? false,
+        dot_to_a: options?.dotToA ?? true,
         leave_unclear_blank: options?.leaveUnclearBlank ?? true,
         handle_cross_outs: options?.handleCrossOuts ?? true,
-        parse_multi_tier_dates: options?.parseMultiTierDates ?? false,
+        parse_multi_tier_dates: options?.parseMultiTierDates ?? true,
         include_bottom_notes: options?.includeBottomNotes ?? true,
         is_data_only: options?.isDataOnly ?? false,
         tile_context: options?.tileContext,
       },
-      { timeout: 45000 },
+      { timeout: 60000 },
     );
 
     if (pypResponse.data?.success && pypResponse.data?.data) {
       const { columns, data } = pypResponse.data.data;
       if (Array.isArray(columns)) {
         let normalized = normalizeTableData(columns, data);
-        // Apply user-defined replacement rules
         if (replacementRules.length > 0) {
           normalized = {
             ...normalized,
             data: applyReplacementRules(normalized.data, replacementRules),
           };
         }
-        return {
-          success: true,
-          data: normalized,
-          source: "pyp",
-        };
+        return { success: true, data: normalized, source: "pyp" };
       }
     }
-  } catch (pypErr: any) {
+  } catch (pypErr: unknown) {
     console.warn(
       "Python OCR server unavailable or failed, falling back to direct Gemini API:",
-      pypErr?.message,
+      (pypErr as Error)?.message,
     );
   }
 
@@ -366,15 +305,8 @@ ${specificRules.join("\n")}
       contents: [
         {
           parts: [
-            {
-              text: promptText,
-            },
-            {
-              inlineData: {
-                mimeType,
-                data: base64Data,
-              },
-            },
+            { text: promptText },
+            { inlineData: { mimeType, data: base64Data } },
           ],
         },
       ],
@@ -385,32 +317,44 @@ ${specificRules.join("\n")}
       },
     };
 
-    let response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${resolvedApiKey}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(reqPayload),
-      },
-    );
+    // Model fallback chain: gemini-3.5-flash-lite → gemini-2.5-flash
+    const modelsToTry = ["gemini-3.5-flash-lite", "gemini-2.5-flash"];
+    let response: Response | null = null;
+    let lastErrText = "";
 
-    // If 2.0 returns 404, fall back to gemini-1.5-flash
-    if (!response.ok && response.status === 404) {
+    for (const model of modelsToTry) {
       response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${resolvedApiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${resolvedApiKey}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(reqPayload),
         },
       );
-    }
 
-    if (!response.ok) {
-      const errText = await response.text();
+      if (response.ok) break;
+
+      // Only retry on 404 (model not found); other errors are not model-related
+      if (response.status === 404) {
+        console.warn(`Model ${model} not found, trying next fallback...`);
+        continue;
+      }
+
+      // For non-404 errors, don't retry — it's likely an auth/quota issue
+      lastErrText = await response.text();
       return {
         success: false,
-        error: `Gemini API error (${response.status}): ${errText.slice(0, 200)}`,
+        error: `Gemini API error (${response.status}): ${lastErrText.slice(0, 200)}`,
+      };
+    }
+
+    if (!response || !response.ok) {
+      if (response) {
+        lastErrText = await response.text();
+      }
+      return {
+        success: false,
+        error: `Gemini API error: No compatible model found. ${lastErrText.slice(0, 200)}`,
       };
     }
 
@@ -422,10 +366,10 @@ ${specificRules.join("\n")}
       return { success: false, error: "No response received from OCR engine" };
     }
 
-    let jsonStr = textContent.trim();
-    if (jsonStr.startsWith("```")) {
-      jsonStr = jsonStr.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
-    }
+    const jsonStr = textContent
+      .trim()
+      .replace(/^```(?:json)?\s*/i, "")
+      .replace(/\s*```$/, "");
 
     const parsed = JSON.parse(jsonStr);
     if (!parsed.columns || !Array.isArray(parsed.columns)) {
@@ -436,23 +380,23 @@ ${specificRules.join("\n")}
     }
 
     let normalized = normalizeTableData(parsed.columns, parsed.data || []);
-    // Apply user-defined replacement rules
     if (replacementRules.length > 0) {
       normalized = {
         ...normalized,
         data: applyReplacementRules(normalized.data, replacementRules),
       };
     }
+
     return {
       success: true,
       data: normalized,
       source: "gemini-direct",
     };
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("Direct Gemini OCR error:", err);
     return {
       success: false,
-      error: err?.message || "Failed to process image OCR",
+      error: (err as Error)?.message || "Failed to process image OCR",
     };
   }
 }

@@ -137,6 +137,7 @@ import {
   IconInbox,
   IconDatabase,
   IconSparkles,
+  IconMail,
 } from "@tabler/icons-react";
 import { EditorCanvasTypes } from "@/lib/types";
 import {
@@ -422,6 +423,12 @@ const nodes = [
         type: "SaveFileNode",
         icon: <IconFileExport />,
         description: "Save or overwrite dataset in Files folders",
+      },
+      {
+        title: "Email Dispatcher",
+        type: "EmailSenderNode",
+        icon: <IconMail />,
+        description: "Send emails to recipients with status output & attachments",
       },
     ]
   }

@@ -58,7 +58,7 @@ export function identifyPlan(identifier?: string | null): PlanType {
  * Server-side helper to check a user's subscription status and permissions.
  */
 export async function getUserSubscriptionDetails(
-  userId?: string
+  userId?: string,
 ): Promise<UserSubscriptionDetails> {
   const freeDetails: UserSubscriptionDetails = {
     hasActivePlan: false,
@@ -68,7 +68,7 @@ export async function getUserSubscriptionDetails(
     isPro: false,
     isMax: false,
     maxProjects: 3,
-    hasOcrAccess: false,
+    hasOcrAccess: true,
   };
 
   if (!userId) return freeDetails;

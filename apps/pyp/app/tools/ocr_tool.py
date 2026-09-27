@@ -32,11 +32,8 @@ def extract_table_from_image(
     if not key:
         return {"error": "GEMINI_API_KEY is not configured on server or in user settings"}
 
-    llm = ChatGoogleGenerativeAI(
-        model=model_name or "gemini-2.5-flash",
-        google_api_key=key,
-        temperature=0,
-    )
+    # Model fallback chain
+    models_to_try = [model_name or "gemini-3.5-flash-lite", "gemini-2.5-flash"]
 
     specific_rules = [
         "- Extract ALL rows and columns visible in the image",
@@ -88,33 +85,47 @@ Rules:
         ]
     )
 
-    try:
-        response = llm.invoke([message])
-        text = response.content.strip()
+    last_error = None
+    for current_model in models_to_try:
+        try:
+            llm = ChatGoogleGenerativeAI(
+                model=current_model,
+                google_api_key=key,
+                temperature=0,
+            )
+            response = llm.invoke([message])
+            text = response.content.strip()
 
-        # Clean markdown fences if present
-        if text.startswith("```"):
-            text = text.split("\n", 1)[1] if "\n" in text else text[3:]
-        if text.endswith("```"):
-            text = text[:-3]
-        text = text.strip()
-        if text.startswith("json"):
-            text = text[4:].strip()
+            # Clean markdown fences if present
+            if text.startswith("```"):
+                text = text.split("\n", 1)[1] if "\n" in text else text[3:]
+            if text.endswith("```"):
+                text = text[:-3]
+            text = text.strip()
+            if text.startswith("json"):
+                text = text[4:].strip()
 
-        result = json.loads(text)
-        if "columns" not in result or "data" not in result:
-            return {"error": "Invalid response format from vision model"}
+            result = json.loads(text)
+            if "columns" not in result or "data" not in result:
+                return {"error": "Invalid response format from vision model"}
 
-        # Post-processing: deterministic dot to A replacement
-        if dot_to_a and isinstance(result.get("data"), list):
-            for row in result["data"]:
-                if isinstance(row, list):
-                    for idx, cell in enumerate(row):
-                        if str(cell).strip() in [".", "•", "·", "-"]:
-                            row[idx] = "A"
+            # Post-processing: deterministic dot to A replacement
+            if dot_to_a and isinstance(result.get("data"), list):
+                for row in result["data"]:
+                    if isinstance(row, list):
+                        for idx, cell in enumerate(row):
+                            if str(cell).strip() in [".", "•", "·", "-"]:
+                                row[idx] = "A"
 
-        return result
-    except json.JSONDecodeError:
-        return {"error": f"Failed to parse vision model response as JSON: {text[:200]}"}
-    except Exception as e:
-        return {"error": str(e)}
+            return result
+        except json.JSONDecodeError:
+            return {"error": f"Failed to parse vision model response as JSON: {text[:200]}"}
+        except Exception as e:
+            err_msg = str(e)
+            # If it's a 404 (model not found), try the next model
+            if "404" in err_msg or "not found" in err_msg.lower():
+                last_error = e
+                continue
+            return {"error": err_msg}
+
+    return {"error": f"No compatible model found. Last error: {str(last_error)}"}

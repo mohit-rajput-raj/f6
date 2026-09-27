@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Tabs,
   TabsContent,
@@ -22,6 +22,8 @@ import {
   MousePointerClick,
   FileJson,
   Info,
+  AlertCircle,
+  XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -38,6 +40,15 @@ export function TabsBottom() {
 
   // Extract tabular dataset if available in node.data.result or node.data.text
   const nodeData = (selectedNode?.data as any) || null;
+  const hasError = Boolean(nodeData?.error || (nodeData?.errors && nodeData.errors.length > 0));
+
+  useEffect(() => {
+    if (hasError) {
+      setActiveTab("errors");
+    } else if (nodeData?.result?.columns && Array.isArray(nodeData?.result?.data)) {
+      setActiveTab("table-view");
+    }
+  }, [selectedNodeId, hasError, nodeData?.result]);
   const resultDataset =
     nodeData?.result?.columns && Array.isArray(nodeData?.result?.data)
       ? nodeData.result
@@ -73,6 +84,12 @@ export function TabsBottom() {
               <Badge variant="secondary" className="text-[10px] font-mono px-1.5 py-0 h-5 bg-indigo-500/15 text-indigo-400 border border-indigo-500/20 truncate">
                 {selectedNode.type}
               </Badge>
+              {hasError && (
+                <Badge variant="destructive" className="text-[10px] font-mono px-1.5 py-0 h-5 bg-red-500/15 text-red-500 border border-red-500/30 flex items-center gap-1">
+                  <AlertCircle className="size-3" />
+                  Status 500
+                </Badge>
+              )}
               <span className="text-[10px] text-muted-foreground font-mono truncate max-w-[140px]" title={selectedNode.id}>
                 ID: {selectedNode.id}
               </span>
@@ -131,6 +148,12 @@ export function TabsBottom() {
                     Table ({resultDataset.data.length} rows)
                   </TabsTrigger>
                 )}
+                {hasError && (
+                  <TabsTrigger value="errors" className="text-[11px] h-6 px-2.5 gap-1 data-[state=active]:bg-background text-red-500 font-semibold">
+                    <AlertCircle className="size-3 text-red-500" />
+                    Errors {nodeData?.errors?.length ? `(${nodeData.errors.length})` : ''}
+                  </TabsTrigger>
+                )}
                 <TabsTrigger value="full-node" className="text-[11px] h-6 px-2.5 gap-1 data-[state=active]:bg-background">
                   <Layers className="size-3 text-amber-400" />
                   Full Node Object
@@ -180,6 +203,70 @@ export function TabsBottom() {
                     </tbody>
                   </table>
                 </div>
+              </TabsContent>
+            )}
+
+            {/* Tab Content: Errors View */}
+            {hasError && (
+              <TabsContent value="errors" className="flex-1 m-0 p-3 overflow-auto space-y-3">
+                <div className="flex items-start gap-2.5 p-3 rounded-lg bg-red-500/10 border border-red-500/25 text-red-700 dark:text-red-300">
+                  <AlertCircle className="size-4 shrink-0 mt-0.5 text-red-500" />
+                  <div className="space-y-1">
+                    <div className="font-semibold text-xs text-red-600 dark:text-red-400">
+                      Execution Error (Status 500)
+                    </div>
+                    <div className="text-[11px] leading-relaxed">
+                      {nodeData?.error || "One or more errors occurred while executing this node."}
+                    </div>
+                  </div>
+                </div>
+
+                {Array.isArray(nodeData?.errors) && nodeData.errors.length > 0 && (
+                  <div className="rounded-md border border-border overflow-hidden bg-background">
+                    <div className="px-3 py-1.5 bg-muted/60 border-b flex items-center justify-between text-xs">
+                      <span className="font-semibold text-red-600 dark:text-red-400">
+                        Failed Items ({nodeData.errors.length})
+                      </span>
+                      <Badge variant="outline" className="text-[10px] text-red-500 border-red-500/30">
+                        Status 500
+                      </Badge>
+                    </div>
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="bg-muted/40 border-b text-[11px]">
+                          <th className="px-2.5 py-1 text-left font-medium border-r w-12">#</th>
+                          <th className="px-2.5 py-1 text-left font-medium border-r">Key</th>
+                          <th className="px-2.5 py-1 text-left font-medium border-r">Target / Email</th>
+                          <th className="px-2.5 py-1 text-left font-medium border-r w-16">Status</th>
+                          <th className="px-2.5 py-1 text-left font-medium">Error Reason</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {nodeData.errors.map((errItem: any, idx: number) => (
+                          <tr key={idx} className="border-b last:border-b-0 hover:bg-red-500/5">
+                            <td className="px-2.5 py-1 border-r text-muted-foreground font-mono text-[10px]">
+                              {idx + 1}
+                            </td>
+                            <td className="px-2.5 py-1 border-r font-mono font-medium">
+                              {String(errItem?.key ?? "-")}
+                            </td>
+                            <td className="px-2.5 py-1 border-r font-mono text-muted-foreground truncate max-w-[150px]">
+                              {String(errItem?.email ?? errItem?.target ?? "-")}
+                            </td>
+                            <td className="px-2.5 py-1 border-r">
+                              <Badge variant="destructive" className="text-[9px] px-1 py-0 h-4">
+                                {errItem?.status ?? 500}
+                              </Badge>
+                            </td>
+                            <td className="px-2.5 py-1 text-red-600 dark:text-red-400 font-medium">
+                              {errItem?.error || errItem?.message || "Unknown error"}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </TabsContent>
             )}
 
