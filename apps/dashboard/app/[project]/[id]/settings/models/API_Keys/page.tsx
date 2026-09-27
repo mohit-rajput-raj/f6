@@ -44,10 +44,10 @@ function ApiKeysForm() {
   const [showSecret, setShowSecret] = useState<Record<string, boolean>>({});
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  // LLM Provider Keys State
-  const [geminiKey, setGeminiKey] = useState(() => (typeof window !== "undefined" ? localStorage.getItem("GEMINI_API_KEY") || "" : ""));
-  const [openaiKey, setOpenaiKey] = useState(() => (typeof window !== "undefined" ? localStorage.getItem("OPENAI_API_KEY") || "" : ""));
-  const [claudeKey, setClaudeKey] = useState(() => (typeof window !== "undefined" ? localStorage.getItem("CLAUDE_API_KEY") || "" : ""));
+  // LLM Provider Keys State — stored securely in user DB schema
+  const [geminiKey, setGeminiKey] = useState("");
+  const [openaiKey, setOpenaiKey] = useState("");
+  const [claudeKey, setClaudeKey] = useState("");
   const [isSavingLLMKeys, setIsSavingLLMKeys] = useState(false);
   const [isLoadingLLMKeys, setIsLoadingLLMKeys] = useState(false);
 
@@ -58,19 +58,13 @@ function ApiKeysForm() {
     getUserLLMKeys(sessionData.user.id)
       .then((keysData) => {
         if (keysData.geminiApiKey !== undefined) {
-          const val = keysData.geminiApiKey || "";
-          setGeminiKey(val);
-          if (typeof window !== "undefined") localStorage.setItem("GEMINI_API_KEY", val);
+          setGeminiKey(keysData.geminiApiKey || "");
         }
         if (keysData.openaiApiKey !== undefined) {
-          const val = keysData.openaiApiKey || "";
-          setOpenaiKey(val);
-          if (typeof window !== "undefined") localStorage.setItem("OPENAI_API_KEY", val);
+          setOpenaiKey(keysData.openaiApiKey || "");
         }
         if (keysData.claudeApiKey !== undefined) {
-          const val = keysData.claudeApiKey || "";
-          setClaudeKey(val);
-          if (typeof window !== "undefined") localStorage.setItem("CLAUDE_API_KEY", val);
+          setClaudeKey(keysData.claudeApiKey || "");
         }
       })
       .catch((err) => {
@@ -133,28 +127,22 @@ function ApiKeysForm() {
     e.preventDefault();
     setIsSavingLLMKeys(true);
 
-    if (typeof window !== "undefined") {
-      localStorage.setItem("GEMINI_API_KEY", geminiKey);
-      localStorage.setItem("OPENAI_API_KEY", openaiKey);
-      localStorage.setItem("CLAUDE_API_KEY", claudeKey);
-    }
-
     if (sessionData?.user?.id) {
       try {
         await saveUserLLMKeys(sessionData.user.id, {
-          geminiApiKey: geminiKey,
-          openaiApiKey: openaiKey,
-          claudeApiKey: claudeKey,
+          geminiApiKey: geminiKey.trim(),
+          openaiApiKey: openaiKey.trim(),
+          claudeApiKey: claudeKey.trim(),
         });
         toast.success("AI Model provider keys updated successfully in database!");
-      } catch (err) {
+      } catch (err: any) {
         console.error("DB save failed:", err);
-        toast.error("Failed to save keys to database, saved locally.");
+        toast.error(err?.message || "Failed to save keys to database.");
       } finally {
         setIsSavingLLMKeys(false);
       }
     } else {
-      toast.success("AI Model provider keys saved locally!");
+      toast.error("Please sign in to save your API keys.");
       setIsSavingLLMKeys(false);
     }
   };

@@ -1484,8 +1484,27 @@ export const executeWorkflow = async (
         case "OutputNode2":
         case "baseOutput":
         case "FileOutputNode":
+        case "EmailSenderNode": {
           outputValue = inputValue;
+          if (inputValue && typeof inputValue === "object" && Array.isArray(inputValue.columns)) {
+            setNodes((nds) =>
+              nds.map((node) =>
+                node.id === currentId
+                  ? {
+                      ...node,
+                      data: {
+                        ...node.data,
+                        text: inputValue,
+                        inputColumns: inputValue.columns,
+                        rowCount: inputValue.data?.length ?? 0,
+                      },
+                    }
+                  : node
+              )
+            );
+          }
           break;
+        }
 
         case "TrueFalseNode": {
           // Read checkbox state from desk store
@@ -1760,6 +1779,119 @@ export const executeWorkflow = async (
           }
 
           outputValue = loadedDataset || { columns: [], data: [] };
+          break;
+        }
+
+        case "EmailSenderNode": {
+          const keyEdge = incomingEdges.find(
+            (e: any) => e.targetHandle === "key" || e.targetHandle === "keyColumn"
+          );
+
+          let dynamicKey = "";
+          if (keyEdge) {
+            const rawKey = runtimeData.get(`${keyEdge.source}__${keyEdge.sourceHandle}`) ?? runtimeData.get(keyEdge.source);
+            if (typeof rawKey === "string" && rawKey.trim()) {
+              dynamicKey = rawKey.trim();
+            } else if (rawKey && typeof rawKey === "object") {
+              if (typeof rawKey.text === "string" && rawKey.text.trim()) dynamicKey = rawKey.text.trim();
+              else if (typeof rawKey.value === "string" && rawKey.value.trim()) dynamicKey = rawKey.value.trim();
+            }
+            if (!dynamicKey) {
+              try {
+                const srcNode = nodes.find((n) => n.id === keyEdge.source);
+                if (srcNode?.type === "DeskTextInputNode") {
+                  const { useDeskStore } = await import("@/stores/desk-store");
+                  const store = useDeskStore.getState();
+                  const deskBlockId = srcNode.data?.deskBlockId;
+                  const deskInputId = srcNode.data?.deskInputId || srcNode.id;
+                  let input = deskBlockId ? store.getTextInputById(deskBlockId, deskInputId) : null;
+                  if (!input) {
+                    for (const b of store.blocks) {
+                      const found = b.textInputs?.find((t) => t.id === deskInputId || t.id === srcNode.id);
+                      if (found) { input = found; break; }
+                    }
+                  }
+                  if (input?.value?.trim()) dynamicKey = input.value.trim();
+                  else if (srcNode.data?.value?.trim()) dynamicKey = String(srcNode.data.value).trim();
+                  else if (srcNode.data?.text?.trim()) dynamicKey = String(srcNode.data.text).trim();
+                }
+              } catch {}
+            }
+          }
+
+          const resolvedKey = dynamicKey || nodeData?.keyColumn || "Key";
+          const inputDs = (inputValue?.columns?.length > 0 ? inputValue : nodeData?.text || nodeData?.result) || null;
+
+          if (inputDs && inputDs.columns?.length > 0) {
+            const emailColName = nodeData?.emailColumn || inputDs.columns.find((c: string) => /email|mail/i.test(c)) || inputDs.columns[0];
+            const emailColIdx = inputDs.columns.indexOf(emailColName);
+            const keyColIdx = inputDs.columns.indexOf(resolvedKey);
+
+            if (emailColIdx !== -1) {
+              const { sendBatchEmailsAction } = await import(
+                "@/app/[project]/dash/[dashid]/editor/_actions/email-actions"
+              );
+
+              const recipientJobs = inputDs.data.map((row: any[], rIdx: number) => {
+                const emailVal = String(row[emailColIdx] ?? "").trim();
+                const keyVal = keyColIdx !== -1 
+                  ? String(row[keyColIdx] ?? "") 
+                  : dynamicKey 
+                  ? `${dynamicKey}_${rIdx + 1}` 
+                  : `Row_${rIdx + 1}`;
+
+                let renderedSub = nodeData?.subjectTemplate || "Update Notification for {{Name}}";
+                let renderedBody = nodeData?.bodyTemplate || "<p>Update for Key: {{Key}}</p>";
+
+                inputDs.columns.forEach((col: string, idx: number) => {
+                  const val = String(row[idx] ?? "");
+                  const reg = new RegExp(`\\{\\{${col}\\}\\}`, "gi");
+                  renderedSub = renderedSub.replace(reg, val);
+                  renderedBody = renderedBody.replace(reg, val);
+                });
+                renderedSub = renderedSub.replace(/\{\{Key\}\}/gi, keyVal);
+                renderedBody = renderedBody.replace(/\{\{Key\}\}/gi, keyVal);
+
+                return {
+                  key: keyVal,
+                  email: emailVal,
+                  subject: renderedSub,
+                  body: renderedBody,
+                  is_html: true,
+                };
+              });
+
+              const emailRes = await sendBatchEmailsAction({
+                recipients: recipientJobs,
+                smtpConfig: nodeData?.smtpConfig,
+                keyColumnName: resolvedKey,
+              });
+
+              outputValue = emailRes.table;
+
+              setNodes((nds) =>
+                nds.map((node) =>
+                  node.id === currentId
+                    ? {
+                        ...node,
+                        data: {
+                          ...node.data,
+                          result: emailRes.table,
+                          text: emailRes.table,
+                          rowCount: emailRes.table.data?.length ?? 0,
+                          error: emailRes.errors.length > 0 ? `${emailRes.errors.length} email(s) encountered delivery errors (status 500)` : undefined,
+                          errors: emailRes.errors,
+                          lastExecutionSummary: emailRes.summary,
+                        },
+                      }
+                    : node
+                )
+              );
+              break;
+            }
+          }
+
+          outputValue = nodeData?.result || inputValue || { columns: [resolvedKey, "Status"], data: [] };
           break;
         }
 

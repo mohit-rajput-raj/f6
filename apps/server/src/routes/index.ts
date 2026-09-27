@@ -5,6 +5,7 @@ import teamRoutes from "../modules/team/team.routes.js";
 import notificationRoutes from "../modules/notification/notification.routes.js";
 import usersRoutes from "../modules/admin/users/users.routes.js";
 import subscribersRoutes from "../modules/admin/subscribers/subscribers.routes.js";
+import emailRoutes from "../modules/email/email.routes.js";
 
 const router: Router = Router();
 
@@ -18,6 +19,7 @@ router.use("/workflows", workflowRoutes);
 router.use("/desk", deskRoutes);
 router.use("/team", teamRoutes);
 router.use("/notifications", notificationRoutes);
+router.use("/email", emailRoutes);
 
 // ─── Admin Routes ───────────────────────────────────────────
 router.use("/admin", usersRoutes);

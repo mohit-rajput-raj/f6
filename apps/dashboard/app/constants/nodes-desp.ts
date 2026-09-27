@@ -86,4 +86,7 @@ export const EditorCanvasDefaultCardTypes: Record<string, { description: string;
   // Files system nodes
   SaveFileNode: { description: 'Save or overwrite dataset in project Files folder', type: 'Output' },
   GetFileNode: { description: 'Load dataset from project Files folder by name', type: 'Input' },
+
+  // Email
+  EmailSenderNode: { description: 'Send emails to recipients from selected columns with attachments (PDF/CSV/Excel/Images)', type: 'Output' },
 }

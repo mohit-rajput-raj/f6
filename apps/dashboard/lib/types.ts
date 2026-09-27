@@ -166,6 +166,7 @@ export type EditorCanvasTypes =
   | 'AnalyticsStackNode'
   | 'SaveFileNode'
   | 'GetFileNode'
+  | 'EmailSenderNode'
   | 'Email'
   | 'Condition'
   | 'AI'
