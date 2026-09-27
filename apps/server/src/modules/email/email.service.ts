@@ -74,18 +74,23 @@ export class EmailService {
   public createTransporter(smtp: SmtpConfig): Transporter<SMTPTransport.SentMessageInfo> {
     const port = smtp.port || 587;
     const isSecure = port === 465;
+    // Strip spaces if user copied Google App Password as "abcd efgh ijkl mnop"
+    const cleanedPassword = smtp.password ? smtp.password.replace(/\s+/g, "") : "";
 
     return nodemailer.createTransport({
       host: smtp.host || "smtp.gmail.com",
       port,
       secure: isSecure,
       auth: {
-        user: smtp.user,
-        pass: smtp.password,
+        user: smtp.user?.trim(),
+        pass: cleanedPassword,
       },
       tls: {
         rejectUnauthorized: false, // allow self-signed / intranet certs
       },
+      connectionTimeout: 10000, // 10s connection timeout
+      greetingTimeout: 10000,
+      socketTimeout: 15000,
     });
   }
 
