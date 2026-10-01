@@ -1,33 +1,30 @@
-'use client'
-import React, { useContext, useEffect, useState } from 'react'
-import { Skeleton } from '@repo/ui/components/ui/skeleton';
-import { useSession } from '@/lib/auth-client';
-
+"use client";
+import React, { useContext, useEffect, useState } from "react";
+import { Skeleton } from "@repo/ui/components/ui/skeleton";
+import { useSession } from "@/lib/auth-client";
 
 type InitialValuesProps = {
-  main_id: string,
-  dash_id: string,
-  setDashid: React.Dispatch<React.SetStateAction<string>>,
-  setmainid: React.Dispatch<React.SetStateAction<string>>,
-  isLoaded: boolean
-}
+  main_id: string;
+  dash_id: string;
+  setDashid: React.Dispatch<React.SetStateAction<string>>;
+  setmainid: React.Dispatch<React.SetStateAction<string>>;
+  isLoaded: boolean;
+};
 
 const InitialValues: InitialValuesProps = {
-  main_id: "0", 
+  main_id: "0",
   dash_id: "0",
   setDashid: () => undefined,
   setmainid: () => undefined,
-  isLoaded: false
-}
+  isLoaded: false,
+};
 
-const authContext = React.createContext(InitialValues)
+const authContext = React.createContext(InitialValues);
 
-const { Provider } = authContext
+const { Provider } = authContext;
 
 const AuthRoutesIdProvider = ({ children }: { children: React.ReactNode }) => {
-
-  console.log(typeof window)
-  const [isLoaded, setIsLoaded] = useState<boolean>(false)
+  const [isLoaded, setIsLoaded] = useState<boolean>(false);
   useEffect(() => {
     setIsLoaded(true);
   }, []);
@@ -39,27 +36,28 @@ const AuthRoutesIdProvider = ({ children }: { children: React.ReactNode }) => {
 
   useEffect(() => {
     if (isPending) {
-      return
+      return;
     }
     if (session?.user) {
       setmainid(session?.user.id);
     }
   }, [session]);
 
-  const values = { main_id, dash_id, setDashid, setmainid, isLoaded }
+  const values = { main_id, dash_id, setDashid, setmainid, isLoaded };
 
-
-  return <Provider value={values}>
-    {isLoaded ? children : <Skeleton />}
-  </Provider>
-}
+  return (
+    <Provider value={values}>{isLoaded ? children : <Skeleton />}</Provider>
+  );
+};
 
 export const useRouteAuthContextHook = () => {
-  const state = useContext(authContext)
+  const state = useContext(authContext);
   if (state === InitialValues) {
-    throw new Error("useRouteAuthContextHook must be used within AuthRoutesIdProvider")
+    throw new Error(
+      "useRouteAuthContextHook must be used within AuthRoutesIdProvider",
+    );
   }
-  return state
-}
+  return state;
+};
 
-export default AuthRoutesIdProvider
+export default AuthRoutesIdProvider;
