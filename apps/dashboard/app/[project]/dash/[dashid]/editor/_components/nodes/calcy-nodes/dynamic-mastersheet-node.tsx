@@ -9,8 +9,9 @@ import { Badge } from "@repo/ui/components/ui/badge";
 import { useMasterSheetStore } from "@/stores/master-sheet-store";
 import { useDeskStore } from "@/stores/desk-store";
 import { useSession } from "@/lib/auth-client";
+import { useParams } from "next/navigation";
 import { getUserLLMKeys, saveUserLLMKeys } from "@/app/[project]/dash/[dashid]/(documents)/data-library/api-key-actions";
-import { upsertMasterSheetByName, addMasterSheetHistory } from "@/app/[project]/dash/[dashid]/(documents)/data-library/master-sheet-actions";
+import { upsertMasterSheetByName, addMasterSheetHistory, getMasterSheets } from "@/app/[project]/dash/[dashid]/(documents)/data-library/master-sheet-actions";
 import { useDynamicAlignSchema } from "../../../_actions/editor.queryes";
 import { toast } from "sonner";
 import { NodeMenu } from "../node-menu";
@@ -18,6 +19,8 @@ import { IconTrash } from "@tabler/icons-react";
 import { useDeleteNode } from "../settings/triggers";
 
 export function DynamicMasterSheetNode({ id, data }: any) {
+  const params = useParams();
+  const dashid = (params?.dashid as string) || "";
   const { setNodes } = useReactFlow();
   const { data: sessionData } = useSession();
   const userId = sessionData?.user?.id;
@@ -237,6 +240,24 @@ export function DynamicMasterSheetNode({ id, data }: any) {
     }
   }, [userId, provider]);
 
+  // Auto-load master sheet into store on first mount if not loaded yet
+  useEffect(() => {
+    if (Object.keys(sheetsObj).length === 0 && (dashid || userId)) {
+      getMasterSheets(dashid, userId)
+        .then((sheets) => {
+          if (Array.isArray(sheets) && sheets.length > 0) {
+            const store = useMasterSheetStore.getState();
+            sheets.forEach((s: any) => {
+              if (s?.name && s?.data) {
+                store.setSheetData(s.name, s.data, s.id);
+              }
+            });
+          }
+        })
+        .catch(console.warn);
+    }
+  }, [dashid, userId, sheetsObj]);
+
   // Sync state changes back to ReactFlow node data
   const updateNodeData = (field: string, value: any) => {
     setNodes((nds) =>
@@ -282,10 +303,11 @@ export function DynamicMasterSheetNode({ id, data }: any) {
   };
 
   const handleAlign = async () => {
-    const effectivePath = data?.incomingTargetPath || targetPath || "";
-    const effectiveSheet = data?.incomingSheetName || selectedSheet || "Sheet1";
+    const effectivePath = (data?.incomingTargetPath || targetPath || effectiveTargetPath || "").trim();
+    const effectiveSheet = (data?.incomingSheetName || selectedSheet || effectiveSheetName || "Sheet1").trim();
+    const effectivePrompt = (data?.incomingCustomPrompt || customPrompt || effectiveCustomPrompt || HARDCODED_DEFAULT_PROMPT).trim();
 
-    // 1. Resolve master grid (Syncfusion full grid first, then workbook JSON, then fallback)
+    // 1. Resolve master grid (Syncfusion full grid first, then store, then auto-fetch from DB)
     const store = useMasterSheetStore.getState();
     const deskStore = (await import("@/stores/desk-store")).useDeskStore.getState();
     const {
@@ -307,6 +329,26 @@ export function DynamicMasterSheetNode({ id, data }: any) {
       deskStore.masterSheetPreview ||
       data?.masterGrid?.data ||
       data?.masterGrid;
+
+    // First attempt auto-recovery: If store is not yet loaded, actively fetch from DB
+    if (!currentSheetRaw && (dashid || userId)) {
+      try {
+        const fetchedSheets = await getMasterSheets(dashid, userId);
+        if (Array.isArray(fetchedSheets) && fetchedSheets.length > 0) {
+          fetchedSheets.forEach((s: any) => {
+            if (s?.name && s?.data) {
+              store.setSheetData(s.name, s.data, s.id);
+            }
+          });
+          const target = fetchedSheets.find((s: any) => s.name === effectiveSheet) || fetchedSheets[0];
+          if (target?.data) {
+            currentSheetRaw = target.data;
+          }
+        }
+      } catch (fetchErr) {
+        console.warn("Could not auto-fetch master sheets on first attempt:", fetchErr);
+      }
+    }
 
     if (masterGrid.length === 0 && currentSheetRaw) {
       const wb = unwrapSyncfusionJson(currentSheetRaw) || currentSheetRaw;
@@ -358,7 +400,15 @@ export function DynamicMasterSheetNode({ id, data }: any) {
       return;
     }
 
-    const effectivePrompt = data?.incomingCustomPrompt || customPrompt || "Match Enrollment ID in column 1. Calculate present count and update total and attended classes for target path.";
+    const resolvedApiKey = (
+      apiKey?.trim() ||
+      (typeof window !== "undefined"
+        ? localStorage.getItem(`${provider.toUpperCase()}_API_KEY`) ||
+          localStorage.getItem("GEMINI_API_KEY") ||
+          ""
+        : "") ||
+      undefined
+    );
 
     alignMutation.mutate(
       {
@@ -368,7 +418,7 @@ export function DynamicMasterSheetNode({ id, data }: any) {
         custom_prompt: effectivePrompt,
         sheet_name: effectiveSheet,
         provider: provider,
-        api_key: apiKey ? apiKey.trim() : undefined,
+        api_key: resolvedApiKey,
         model: model || "gemini-2.5-flash",
       },
       {
@@ -402,7 +452,12 @@ export function DynamicMasterSheetNode({ id, data }: any) {
         },
         onError: (err: any) => {
           console.error("Dynamic alignment error:", err);
-          toast.error("Alignment failed: " + (err?.response?.data?.detail || err?.message || err));
+          const detail =
+            err?.response?.data?.detail ||
+            err?.response?.data?.error ||
+            err?.message ||
+            String(err);
+          toast.error("Alignment failed: " + detail);
         },
       }
     );
@@ -491,6 +546,20 @@ export function DynamicMasterSheetNode({ id, data }: any) {
       setSelectedSheet(data.incomingSheetName);
     }
   }, [data?.incomingSheetName]);
+
+  // Sync incoming target path from connected handle or desk store
+  useEffect(() => {
+    if (effectiveTargetPath && effectiveTargetPath !== targetPath) {
+      setTargetPath(effectiveTargetPath);
+    }
+  }, [effectiveTargetPath]);
+
+  // Sync incoming custom prompt from connected handle or desk store
+  useEffect(() => {
+    if (effectiveCustomPrompt && effectiveCustomPrompt !== customPrompt) {
+      setCustomPrompt(effectiveCustomPrompt);
+    }
+  }, [effectiveCustomPrompt]);
 
   return (
     <div className="w-84 rounded-xl border border-indigo-500/40 bg-card shadow-xl text-foreground transition-all">
@@ -655,7 +724,12 @@ export function DynamicMasterSheetNode({ id, data }: any) {
         {alignMutation.isError && (
           <div className="p-2 rounded bg-destructive/10 text-destructive text-[10px] flex items-center gap-1.5">
             <AlertCircle className="size-3 shrink-0" />
-            <span>{(alignMutation.error as any)?.message || "Alignment failed"}</span>
+            <span className="line-clamp-2">
+              {(alignMutation.error as any)?.response?.data?.detail ||
+                (alignMutation.error as any)?.response?.data?.error ||
+                (alignMutation.error as any)?.message ||
+                "Alignment failed"}
+            </span>
           </div>
         )}
 

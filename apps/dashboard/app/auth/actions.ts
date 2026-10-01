@@ -22,16 +22,26 @@ export async function sendVerificationOtpAction(email: string) {
       .maybeSingle();
 
     if (userError) {
-      console.error("[sendVerificationOtpAction] DB error looking up user:", userError);
+      console.error(
+        "[sendVerificationOtpAction] DB error looking up user:",
+        userError,
+      );
       return { success: false, error: "Database error looking up account" };
     }
 
     if (!user) {
-      return { success: false, error: "No account found with this email address" };
+      return {
+        success: false,
+        error: "No account found with this email address",
+      };
     }
 
     if (user.emailVerified) {
-      return { success: true, alreadyVerified: true, message: "This email is already verified" };
+      return {
+        success: true,
+        alreadyVerified: true,
+        message: "This email is already verified",
+      };
     }
 
     // 2. Generate 6-digit OTP
@@ -46,15 +56,13 @@ export async function sendVerificationOtpAction(email: string) {
 
     // 4. Insert new verification record into Better Auth's verification table
     const id = crypto.randomUUID();
-    const { error: insertError } = await supabase
-      .from("verification")
-      .insert({
-        id,
-        identifier: normalizedEmail,
-        value: otpCode,
-        expiresAt,
-        createdAt: new Date().toISOString(),
-      });
+    const { error: insertError } = await supabase.from("verification").insert({
+      id,
+      identifier: normalizedEmail,
+      value: otpCode,
+      expiresAt,
+      createdAt: new Date().toISOString(),
+    });
 
     if (insertError) {
       console.error("[sendVerificationOtpAction] Insert error:", insertError);
@@ -89,20 +97,14 @@ export async function sendVerificationOtpAction(email: string) {
         });
         if (res.ok) {
           emailSentToInbox = true;
-          console.log(`[Email Service] Verification OTP sent via Resend to ${normalizedEmail}`);
         }
       } catch (e) {
         console.error("[Email Service] Resend error:", e);
       }
     }
 
-    console.log(`\n======================================================`);
-    console.log(`[Email Verification] Code for ${normalizedEmail}: ${otpCode}`);
     if (!emailSentToInbox) {
-      console.log(`[Email Verification] Real email NOT sent to Gmail because RESEND_API_KEY is not set in .env.`);
-      console.log(`[Email Verification] Use OTP code: ${otpCode} directly on the screen.`);
     }
-    console.log(`======================================================\n`);
 
     return {
       success: true,
@@ -114,7 +116,10 @@ export async function sendVerificationOtpAction(email: string) {
     };
   } catch (err: any) {
     console.error("[sendVerificationOtpAction] Exception:", err);
-    return { success: false, error: err.message || "Failed to send verification code" };
+    return {
+      success: false,
+      error: err.message || "Failed to send verification code",
+    };
   }
 }
 
@@ -123,7 +128,10 @@ export async function sendVerificationOtpAction(email: string) {
  */
 export async function verifyEmailOtpAction(email: string, code: string) {
   if (!email || !code) {
-    return { success: false, error: "Email and verification code are required" };
+    return {
+      success: false,
+      error: "Email and verification code are required",
+    };
   }
 
   const normalizedEmail = email.toLowerCase().trim();
@@ -138,11 +146,18 @@ export async function verifyEmailOtpAction(email: string, code: string) {
       .maybeSingle();
 
     if (userError || !user) {
-      return { success: false, error: "Account not found for this email address" };
+      return {
+        success: false,
+        error: "Account not found for this email address",
+      };
     }
 
     if (user.emailVerified) {
-      return { success: true, message: "Email is already verified!", alreadyVerified: true };
+      return {
+        success: true,
+        message: "Email is already verified!",
+        alreadyVerified: true,
+      };
     }
 
     // 2. Fetch active verification records
@@ -156,14 +171,20 @@ export async function verifyEmailOtpAction(email: string, code: string) {
     }
 
     const matched = verifications?.find(
-      (v) => (v.value === cleanCode || v.id === cleanCode) && new Date(v.expiresAt) > new Date()
+      (v) =>
+        (v.value === cleanCode || v.id === cleanCode) &&
+        new Date(v.expiresAt) > new Date(),
     );
 
     // Accept matched token, or standard dev bypass code "123456"
     const isValid = Boolean(matched) || cleanCode === "123456";
 
     if (!isValid) {
-      return { success: false, error: "Invalid or expired verification code. Please request a new one." };
+      return {
+        success: false,
+        error:
+          "Invalid or expired verification code. Please request a new one.",
+      };
     }
 
     // 3. Delete used verification token
@@ -182,12 +203,16 @@ export async function verifyEmailOtpAction(email: string, code: string) {
 
     if (updateError) {
       console.error("[verifyEmailOtpAction] Update error:", updateError);
-      return { success: false, error: updateError.message || "Failed to update verification status" };
+      return {
+        success: false,
+        error: updateError.message || "Failed to update verification status",
+      };
     }
 
     return {
       success: true,
-      message: "Email verified successfully! You can now log into your account.",
+      message:
+        "Email verified successfully! You can now log into your account.",
     };
   } catch (err: any) {
     console.error("[verifyEmailOtpAction] Exception:", err);

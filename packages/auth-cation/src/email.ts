@@ -22,7 +22,11 @@ export async function sendEmail({
   html,
   url,
   code,
-}: SendEmailOptions): Promise<{ success: boolean; error?: string; provider?: string }> {
+}: SendEmailOptions): Promise<{
+  success: boolean;
+  error?: string;
+  provider?: string;
+}> {
   const resendApiKey = process.env.RESEND_API_KEY;
   const fromEmail = process.env.EMAIL_FROM || "onboarding@resend.dev";
 
@@ -82,25 +86,19 @@ export async function sendEmail({
 
       const resData = await res.json();
       if (res.ok) {
-        console.log(`[Email Service] Successfully delivered email via Resend to ${to} (ID: ${resData.id})`);
         return { success: true, provider: "resend" };
       } else {
         console.error("[Email Service] Resend error:", resData);
       }
     } catch (err: any) {
-      console.error("[Email Service] Failed to send via Resend API:", err?.message || err);
+      console.error(
+        "[Email Service] Failed to send via Resend API:",
+        err?.message || err,
+      );
     }
   }
 
   // 2. Fallback / Dev output
-  console.log("\n================================================================================");
-  console.log(`📧 [EMAIL DELIVERY - DEV MODE / NO RESEND_API_KEY CONFIGURED]`);
-  console.log(`To: ${to}`);
-  console.log(`Subject: ${subject}`);
-  if (code) console.log(`🔑 Verification OTP Code: ${code}`);
-  if (url) console.log(`🔗 Verification Link: ${url}`);
-  console.log(`💡 NOTE: To deliver REAL emails directly to your Gmail inbox, add RESEND_API_KEY to your .env file.`);
-  console.log("================================================================================\n");
 
   return { success: true, provider: "local-dev" };
 }

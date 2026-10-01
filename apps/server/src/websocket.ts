@@ -15,60 +15,71 @@ export class WebSocketManager {
   public initialize(server: HTTPServer) {
     this.wss = new WebSocketServer({ server, path: "/ws" });
 
-    this.wss.on("connection", (ws: AuthenticatedWebSocket, req: IncomingMessage) => {
-      const url = new URL(req.url || "", `http://${req.headers.host || "localhost"}`);
-      const userId = url.searchParams.get("userId");
+    this.wss.on(
+      "connection",
+      (ws: AuthenticatedWebSocket, req: IncomingMessage) => {
+        const url = new URL(
+          req.url || "",
+          `http://${req.headers.host || "localhost"}`,
+        );
+        const userId = url.searchParams.get("userId");
 
-      ws.isAlive = true;
-
-      if (userId) {
-        ws.userId = userId;
-        this.registerClient(userId, ws);
-      }
-
-      ws.on("pong", () => {
         ws.isAlive = true;
-      });
 
-      ws.on("message", (data: string | Buffer) => {
-        try {
-          const message = JSON.parse(data.toString());
-          
-          // Handle client authentication message if userId wasn't in URL
-          if (message.type === "AUTHENTICATE" && message.userId) {
-            ws.userId = message.userId;
-            this.registerClient(message.userId, ws);
-            ws.send(JSON.stringify({ type: "AUTHENTICATED", userId: message.userId }));
-          }
-
-          // Ping mechanism
-          if (message.type === "PING") {
-            ws.send(JSON.stringify({ type: "PONG" }));
-          }
-        } catch {
-          // Ignore invalid JSON payloads
+        if (userId) {
+          ws.userId = userId;
+          this.registerClient(userId, ws);
         }
-      });
 
-      ws.on("close", () => {
-        if (ws.userId) {
-          this.unregisterClient(ws.userId, ws);
-        }
-      });
+        ws.on("pong", () => {
+          ws.isAlive = true;
+        });
 
-      ws.on("error", (err) => {
-        console.error(`[ws] Client socket error:`, err);
-      });
+        ws.on("message", (data: string | Buffer) => {
+          try {
+            const message = JSON.parse(data.toString());
 
-      // Send initial welcome/connected confirmation
-      ws.send(
-        JSON.stringify({
-          type: "CONNECTED",
-          message: "Real-time notifications WebSocket connected",
-          userId: ws.userId || null,
-        })
-      );
-    });
+            // Handle client authentication message if userId wasn't in URL
+            if (message.type === "AUTHENTICATE" && message.userId) {
+              ws.userId = message.userId;
+              this.registerClient(message.userId, ws);
+              ws.send(
+                JSON.stringify({
+                  type: "AUTHENTICATED",
+                  userId: message.userId,
+                }),
+              );
+            }
+
+            // Ping mechanism
+            if (message.type === "PING") {
+              ws.send(JSON.stringify({ type: "PONG" }));
+            }
+          } catch {
+            // Ignore invalid JSON payloads
+          }
+        });
+
+        ws.on("close", () => {
+          if (ws.userId) {
+            this.unregisterClient(ws.userId, ws);
+          }
+        });
+
+        ws.on("error", (err) => {
+          console.error(`[ws] Client socket error:`, err);
+        });
+
+        // Send initial welcome/connected confirmation
+        ws.send(
+          JSON.stringify({
+            type: "CONNECTED",
+            message: "Real-time notifications WebSocket connected",
+            userId: ws.userId || null,
+          }),
+        );
+      },
+    );
 
     // Heartbeat to clean up dead connections every 30 seconds
     this.heartbeatInterval = setInterval(() => {
@@ -83,8 +94,6 @@ export class WebSocketManager {
         ws.ping();
       });
     }, 30000);
-
-    console.log("[ws] ✓ Real-time WebSocket server initialized on /ws");
   }
 
   private registerClient(userId: string, ws: AuthenticatedWebSocket) {
@@ -92,7 +101,6 @@ export class WebSocketManager {
       this.clients.set(userId, new Set());
     }
     this.clients.get(userId)!.add(ws);
-    console.log(`[ws] User connected: ${userId} (${this.clients.get(userId)?.size || 0} active sockets)`);
   }
 
   private unregisterClient(userId: string, ws: AuthenticatedWebSocket) {
@@ -103,7 +111,6 @@ export class WebSocketManager {
         this.clients.delete(userId);
       }
     }
-    console.log(`[ws] User disconnected: ${userId}`);
   }
 
   /**
