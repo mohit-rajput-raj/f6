@@ -23,15 +23,20 @@ export class DeskTextInputExecutor implements INodeExecutor {
   constructor(private deskResolver: DeskInputResolver) {}
 
   async execute(ctx: ExecutionContext): Promise<string> {
-    const deskBlockId = ctx.nodeData?.deskBlockId;
+    const deskBlockId = ctx.nodeData?.deskBlockId || ctx.blockId;
     const deskInputId = ctx.nodeData?.deskInputId || ctx.nodeId;
 
     if (deskBlockId && deskInputId) {
       const val = await this.deskResolver.getTextInput(deskBlockId, deskInputId);
-      if (val) return val;
+      if (val && val.trim()) return val.trim();
     }
 
-    return ctx.nodeData?.text ?? "";
+    const fallback =
+      ctx.nodeData?.value ||
+      ctx.nodeData?.text ||
+      ctx.nodeData?.placeholder ||
+      "";
+    return typeof fallback === "string" ? fallback.trim() : "";
   }
 }
 
@@ -41,16 +46,16 @@ export class DeskSheetExecutor implements INodeExecutor {
   constructor(private deskResolver: DeskInputResolver) {}
 
   async execute(ctx: ExecutionContext): Promise<Dataset> {
-    const deskBlockId = ctx.nodeData?.deskBlockId;
-    const deskSheetId = ctx.nodeData?.deskSheetId;
+    const deskBlockId = ctx.nodeData?.deskBlockId || ctx.blockId;
+    const deskSheetId = ctx.nodeData?.deskSheetId || ctx.nodeId;
 
-    if (deskBlockId && deskSheetId) {
-      const data = await this.deskResolver.getSheetData(deskBlockId, deskSheetId);
-      if (data.columns.length > 0) return data;
+    if (deskBlockId) {
+      const data = await this.deskResolver.getSheetData(deskBlockId, deskSheetId || "");
+      if (data && Array.isArray(data.columns) && data.columns.length > 0) return data;
     }
 
     const fileData = ctx.nodeData?.text;
-    if (fileData && typeof fileData === "object" && fileData.columns) {
+    if (fileData && typeof fileData === "object" && Array.isArray(fileData.columns) && fileData.columns.length > 0) {
       return fileData as Dataset;
     }
     return { columns: [], data: [] };

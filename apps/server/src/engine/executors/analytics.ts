@@ -157,6 +157,88 @@ export class MasterSheetPreviewExecutor implements INodeExecutor {
   }
 }
 
+function applyComputedUpdatesToGrid(
+  baseColumns: string[],
+  baseData: any[][],
+  updates: any[],
+  targetPath?: string,
+  groupColumns?: Array<{ col_idx: number; header: string }>
+): { columns: string[]; data: any[][] } {
+  const pathPrefix = targetPath || "Path";
+
+  let previewColumns: string[];
+  if (Array.isArray(groupColumns) && groupColumns.length > 0) {
+    previewColumns = [
+      "S.No",
+      "Enrollment",
+      "Name",
+      ...groupColumns.map((g) =>
+        g.header ? `${pathPrefix}:${g.header}` : `${pathPrefix}:Col_${g.col_idx + 1}`
+      ),
+    ];
+  } else {
+    previewColumns = [
+      "S.No",
+      "Enrollment",
+      "Name",
+      `${pathPrefix}:Total`,
+      `${pathPrefix}:Attended`,
+      `${pathPrefix}:%`,
+    ];
+  }
+
+  if (!Array.isArray(updates) || updates.length === 0) {
+    return {
+      columns: previewColumns,
+      data: [],
+    };
+  }
+
+  const previewData = updates.map((u, idx) => {
+    const sNo = u.s_no !== undefined ? u.s_no : idx + 1;
+    const enroll = u.enrollment || "";
+    const name = u.student_name || "";
+
+    if (Array.isArray(groupColumns) && groupColumns.length > 0) {
+      const colVals = groupColumns.map((g) => {
+        if (u.cell_updates && u.cell_updates[g.col_idx] !== undefined) {
+          return u.cell_updates[g.col_idx];
+        }
+        if (g.col_idx === u.total_col_idx && u.total_new_value !== undefined)
+          return u.total_new_value;
+        if (g.col_idx === u.attended_col_idx && u.attended_new_value !== undefined)
+          return u.attended_new_value;
+        if (g.col_idx === u.percentage_col_idx && u.percentage_new_value !== undefined)
+          return u.percentage_new_value;
+        return "";
+      });
+      return [sNo, enroll, name, ...colVals];
+    }
+
+    const total =
+      u.total_new_value !== undefined && u.total_new_value !== null
+        ? u.total_new_value
+        : "";
+    const attended =
+      u.attended_new_value !== undefined && u.attended_new_value !== null
+        ? u.attended_new_value
+        : "";
+    let pct = u.percentage_new_value;
+    if (pct === undefined || pct === null) {
+      pct = total
+        ? Math.round(((Number(attended) || 0) / (Number(total) || 1)) * 100)
+        : 0;
+    }
+
+    return [sNo, enroll, name, total, attended, pct];
+  });
+
+  return {
+    columns: previewColumns,
+    data: previewData,
+  };
+}
+
 // ── UpdatedMergedPreviewNode ────────────────────────────────
 export class UpdatedMergedPreviewExecutor implements INodeExecutor {
   type = "UpdatedMergedPreviewNode";
@@ -171,6 +253,7 @@ export class UpdatedMergedPreviewExecutor implements INodeExecutor {
       ctx.inputs.get("tableName");
     const dataInput =
       ctx.inputs.get("in") ??
+      ctx.inputs.get("updates") ??
       ctx.inputs.get("default") ??
       ctx.inputs.values().next().value;
 
@@ -188,6 +271,10 @@ export class UpdatedMergedPreviewExecutor implements INodeExecutor {
     const baseOutput = dataInput || ctx.nodeData?.result || EMPTY;
     const outputValue = {
       ...baseOutput,
+      columns: Array.isArray(baseOutput.columns) ? baseOutput.columns : [],
+      data: Array.isArray(baseOutput.data) ? baseOutput.data : [],
+      updates: Array.isArray(baseOutput.updates) ? baseOutput.updates : [],
+      alignment: baseOutput.alignment || null,
       targetPath: effectivePath || baseOutput.targetPath || "",
       stackName: effectivePath || baseOutput.stackName || "",
     };
@@ -232,7 +319,7 @@ export class DynamicMasterSheetExecutor implements INodeExecutor {
       csvString = dataInput;
     } else if (dataInput?.columns && dataInput?.data) {
       const headers = dataInput.columns.join(",");
-      const rows = dataInput.data.map((r: any[]) => r.join(",")).join("\n");
+      const rows = dataInput.data.map((r: any[]) => (Array.isArray(r) ? r.join(",") : String(r))).join("\n");
       csvString = `${headers}\n${rows}`;
     }
 
@@ -269,6 +356,8 @@ export class DynamicMasterSheetExecutor implements INodeExecutor {
 
     let updates: any[] = [];
     let alignment: any = null;
+    let groupColumns: any[] | undefined = undefined;
+    let dataStartRow: number | undefined = undefined;
 
     // Call AI alignment API if we have CSV data
     if (csvString) {
@@ -292,19 +381,31 @@ export class DynamicMasterSheetExecutor implements INodeExecutor {
         if (resData?.success && Array.isArray(resData.updates)) {
           updates = resData.updates;
           alignment = resData.alignment;
+          groupColumns = resData.group_columns;
+          dataStartRow = resData.data_start_row;
         }
       } catch (err: any) {
         console.warn("AI alignment API failed:", err?.message);
       }
     }
 
+    const mergedDataset = applyComputedUpdatesToGrid(
+      [],
+      [],
+      updates,
+      pathString || "Attendance",
+      groupColumns
+    );
+
     const result = {
+      ...mergedDataset,
       updates,
       alignment,
+      groupColumns,
+      dataStartRow,
       sheetName: sheetString,
       targetPath: pathString,
-      columns: [],
-      data: [],
+      stackName: pathString,
     };
 
     await this.deskResolver.setMergedPreview(result);

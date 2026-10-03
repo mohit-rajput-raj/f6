@@ -7,6 +7,7 @@ import React, {
   useState,
   useMemo,
 } from "react";
+import type { ActiveRun } from "@/stores/execution.store";
 import {
   Play,
   Settings,
@@ -22,6 +23,11 @@ import {
   Plus,
   Pencil,
   Inbox,
+  AlertCircle,
+  Copy,
+  Check,
+  RotateCcw,
+  Zap,
 } from "lucide-react";
 import { Input } from "@repo/ui/components/ui/input";
 import { Button } from "@/components/ui/components";
@@ -32,10 +38,19 @@ import {
 } from "@repo/ui/components/ui/resizable";
 import { Badge } from "@repo/ui/components/ui/badge";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@repo/ui/components/ui/dialog";
+import {
   useDeskStore,
   type DeskBlockState,
   type Dataset,
   type IncomingTabData,
+  type PushedFileRecord,
 } from "@/stores/desk-store";
 import { toast } from "sonner";
 import { useRouter, usePathname } from "next/navigation";
@@ -115,6 +130,13 @@ interface DeskBlockProps {
   dashid: string;
   userId?: string;
   onExecute: (blockId: string) => void;
+  onServerExecute?: (
+    blockId: string,
+    options?: { pushedFileRecord?: PushedFileRecord; customSheets?: any[] },
+  ) => void;
+  onCancelServerRun?: (blockId: string) => void;
+  serverRunId?: string;
+  serverRun?: ActiveRun;
   onAddTab: (bigBlockId: string) => Promise<string | undefined>;
   onRenameTab: (blockId: string, newName: string) => Promise<void>;
   onDeleteTab: (blockId: string) => Promise<void>;
@@ -131,6 +153,10 @@ export function DeskBlock({
   dashid,
   userId,
   onExecute,
+  onServerExecute,
+  onCancelServerRun,
+  serverRunId,
+  serverRun,
   onAddTab,
   onRenameTab,
   onDeleteTab,
@@ -200,6 +226,21 @@ export function DeskBlock({
     return useDeskStore.getState().getIncomingDataForTab(activeChild.id);
   }, [incomingDataByTab, activeChild?.id, activeChild?.name]);
 
+  // ─── Current Execution Error ─────────────────────────────
+  const currentError = useMemo(() => {
+    return (
+      activeChild?.executionError ||
+      block.executionError ||
+      (serverRun?.status === "error" && serverRun?.error
+        ? {
+            message: serverRun.error,
+            code: "SERVER_RUN_ERROR",
+            timestamp: serverRun.completedAt || new Date().toISOString(),
+          }
+        : null)
+    );
+  }, [activeChild?.executionError, block.executionError, serverRun]);
+
   const outputPreviewData = activeChild?.outputPreview ?? null;
   const activeSheet = activeChild?.sheets.find(
     (s) => s.id === activePreviewTab,
@@ -209,11 +250,13 @@ export function DeskBlock({
   );
 
   const previewData: Dataset | null =
-    activePreviewTab === "output_preview"
-      ? outputPreviewData
-      : activeIncoming
-        ? activeIncoming.data
-        : (activeSheet?.data ?? null);
+    activePreviewTab === "errors"
+      ? null
+      : activePreviewTab === "output_preview"
+        ? outputPreviewData
+        : activeIncoming
+          ? activeIncoming.data
+          : (activeSheet?.data ?? null);
 
   const spreadsheetKey = useMemo(() => {
     const id = activeChild?.id || "tab";
@@ -230,10 +273,19 @@ export function DeskBlock({
     activeIncoming?.updatedAt,
   ]);
 
-  // Auto-select output_preview if it has data, or fallback to first sheet with data
+  // Auto-switch to "errors" tab if an error occurs
+  useEffect(() => {
+    if (currentError) {
+      setActivePreviewTab("errors");
+    }
+  }, [currentError]);
+
+  // Auto-select output_preview if it has data and no active error, or fallback to first sheet with data
   useEffect(() => {
     if (!activeChild) return;
-    if (
+    if (currentError) {
+      setActivePreviewTab("errors");
+    } else if (
       outputPreviewData &&
       outputPreviewData.columns &&
       outputPreviewData.columns.length > 0
@@ -241,12 +293,13 @@ export function DeskBlock({
       setActivePreviewTab("output_preview");
     } else if (
       activeChild.sheets.length > 0 &&
-      activePreviewTab !== "output_preview"
+      activePreviewTab !== "output_preview" &&
+      activePreviewTab !== "errors"
     ) {
       const sheetWithData = activeChild.sheets.find((s) => s.data);
       if (sheetWithData) setActivePreviewTab(sheetWithData.id);
     }
-  }, [activeChild, outputPreviewData]);
+  }, [activeChild, outputPreviewData, currentError]);
 
   // ─── Add new tab (uses callback from page.tsx) ─────────────
   const handleAddTab = useCallback(async () => {
@@ -281,6 +334,27 @@ export function DeskBlock({
     }
   }, [renamingTabId, renameValue, onRenameTab]);
 
+  // ─── Pending Push Data for Confirmation Dialog ─────────────
+  const [pendingPushData, setPendingPushData] = useState<{
+    file: { name: string; size?: number };
+    sheetId: string;
+    sheetName: string;
+    dataset: Dataset;
+    blockId: string;
+  } | null>(null);
+
+  // ─── Combined Pushed Files for this Block / Tab ────────────
+  const allPushedFiles = useMemo(() => {
+    const childFiles = activeChild?.pushedFiles || [];
+    const blockFiles = block.pushedFiles || [];
+    const map = new Map<string, PushedFileRecord>();
+    for (const f of childFiles) map.set(f.id, f);
+    for (const f of blockFiles) if (!map.has(f.id)) map.set(f.id, f);
+    return Array.from(map.values()).sort(
+      (a, b) => new Date(b.pushedAt).getTime() - new Date(a.pushedAt).getTime()
+    );
+  }, [activeChild?.pushedFiles, block.pushedFiles]);
+
   // ─── File upload for sheets ─────────────────────────────
   const handleSheetFileUpload = useCallback(
     (
@@ -296,10 +370,30 @@ export function DeskBlock({
         const text = reader.result as string;
         const parsed = parseCSV(text);
         if (parsed.columns.length > 0) {
-          updateSheetData(blockId, sheetId, parsed);
-          setBlockOutput(blockId, null); // reset old output preview since new data was uploaded
-          setActivePreviewTab(sheetId);
-          toast.success(`Loaded ${parsed.data.length} rows`);
+          const isServerRunning = Boolean(
+            serverRunId &&
+              (activeChild?.isExecuting ||
+                (serverRun &&
+                  (serverRun.status === "running" ||
+                    serverRun.status === "paused")))
+          );
+
+          if (isServerRunning) {
+            const sheetName =
+              activeChild?.sheets.find((s) => s.id === sheetId)?.name || "Sheet";
+            setPendingPushData({
+              file: { name: file.name, size: file.size },
+              sheetId,
+              sheetName,
+              dataset: parsed,
+              blockId,
+            });
+          } else {
+            updateSheetData(blockId, sheetId, parsed);
+            setBlockOutput(blockId, null); // reset old output preview since new data was uploaded
+            setActivePreviewTab(sheetId);
+            toast.success(`Loaded ${parsed.data.length} rows`);
+          }
         } else {
           toast.error("Could not parse file — ensure it's a valid CSV");
         }
@@ -307,7 +401,7 @@ export function DeskBlock({
       };
       reader.readAsText(file);
     },
-    [updateSheetData, setBlockOutput],
+    [updateSheetData, setBlockOutput, serverRunId, activeChild, serverRun],
   );
 
   // ─── Sheet Data Upload Modal ───────────────────────────────
@@ -327,13 +421,34 @@ export function DeskBlock({
   const handleDatasetLoaded = useCallback(
     (dataset: Dataset, sourceName: string) => {
       if (!uploadModalTarget || !activeChild) return;
-      updateSheetData(activeChild.id, uploadModalTarget.sheetId, dataset);
-      setBlockOutput(activeChild.id, null);
-      setActivePreviewTab(uploadModalTarget.sheetId);
-      toast.success(
-        `Loaded ${dataset.data.length} rows × ${dataset.columns.length} cols from "${sourceName}"`,
-      );
+      const targetSheetId = uploadModalTarget.sheetId;
+      const targetSheetName = uploadModalTarget.sheetName;
       setUploadModalTarget(null);
+
+      const isServerRunning = Boolean(
+        serverRunId &&
+          (activeChild.isExecuting ||
+            (serverRun &&
+              (serverRun.status === "running" ||
+                serverRun.status === "paused")))
+      );
+
+      if (isServerRunning) {
+        setPendingPushData({
+          file: { name: sourceName, size: 0 },
+          sheetId: targetSheetId,
+          sheetName: targetSheetName,
+          dataset,
+          blockId: activeChild.id,
+        });
+      } else {
+        updateSheetData(activeChild.id, targetSheetId, dataset);
+        setBlockOutput(activeChild.id, null);
+        setActivePreviewTab(targetSheetId);
+        toast.success(
+          `Loaded ${dataset.data.length} rows × ${dataset.columns.length} cols from "${sourceName}"`,
+        );
+      }
     },
     [
       uploadModalTarget,
@@ -341,8 +456,52 @@ export function DeskBlock({
       updateSheetData,
       setBlockOutput,
       setActivePreviewTab,
+      serverRunId,
+      serverRun,
     ],
   );
+
+  // ─── Confirm Push to Server Instance ────────────────────────
+  const handleConfirmPush = useCallback(() => {
+    if (!pendingPushData || !activeChild) return;
+    const { file, sheetId, sheetName, dataset, blockId } = pendingPushData;
+
+    // 1. Update the sheet data locally in store
+    updateSheetData(blockId, sheetId, dataset);
+    setBlockOutput(blockId, null);
+
+    // 2. Prepare customSheets list with the updated sheet
+    const customSheets = activeChild.sheets.map((s) =>
+      s.id === sheetId ? { ...s, data: dataset } : s
+    );
+
+    // 3. Create PushedFileRecord
+    const record: PushedFileRecord = {
+      id: `push_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      sheetId,
+      sheetName,
+      fileName: file.name,
+      fileSize: file.size,
+      rowCount: dataset.data.length,
+      columnCount: dataset.columns.length,
+      status: "processing",
+      runId: serverRunId,
+      pushedAt: new Date().toISOString(),
+    };
+
+    // 4. Trigger server execution with pushedFileRecord and updated sheets
+    if (onServerExecute) {
+      onServerExecute(blockId, {
+        pushedFileRecord: record,
+        customSheets,
+      });
+    }
+
+    // 5. Open Pushed Files tab so user sees execution in real-time
+    setActivePreviewTab("pushed_files");
+    toast.success(`Pushed "${file.name}" to running server instance`);
+    setPendingPushData(null);
+  }, [pendingPushData, activeChild, updateSheetData, setBlockOutput, onServerExecute, serverRunId]);
 
   // ─── Load previous BigBlock output into a sheet ────────────
   const handleLoadPreviousIntoSheet = useCallback(
@@ -525,29 +684,116 @@ export function DeskBlock({
             BigBlock {blockIndex + 1}
           </span>
           {activeChild?.isExecuting && (
-            <Badge variant="secondary" className="text-[10px] animate-pulse">
-              <Loader2 className="size-3 animate-spin mr-1" />
-              Running...
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-gradient-to-r from-emerald-500/10 to-blue-500/10 border border-emerald-500/20">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
+              <span className="text-[10px] font-semibold text-emerald-400">
+                {serverRunId ? "Server Running" : "Local Running"}
+              </span>
+              {serverRun && (
+                <span className="text-[10px] font-mono text-muted-foreground">
+                  {serverRun.completedNodes}/{serverRun.totalNodes}
+                </span>
+              )}
+            </div>
+          )}
+          {serverRun && !activeChild?.isExecuting && (
+            <Badge variant="outline" className="text-[10px] font-mono gap-1">
+              {serverRun.completedNodes}/{serverRun.totalNodes} •{" "}
+              <span className={serverRun.status === "completed" ? "text-emerald-500" : serverRun.status === "error" ? "text-red-500" : "text-blue-500"}>
+                {serverRun.status}
+              </span>
+            </Badge>
+          )}
+          {currentError && (
+            <Badge
+              variant="destructive"
+              className="text-[10px] cursor-pointer hover:bg-red-600 transition flex items-center gap-1 font-mono shadow-sm"
+              onClick={() => setActivePreviewTab("errors")}
+              title="Click to view error in Errors tab"
+            >
+              <AlertCircle className="size-3" />
+              {currentError.code || "Error"}
             </Badge>
           )}
         </div>
         <div className="flex items-center gap-1.5">
           {activeChild && (
             <>
-              <Button
-                variant="default"
-                size="sm"
-                className="h-7 gap-1 text-xs font-semibold shadow-sm"
-                onClick={() => onExecute(activeChild.id)}
-                disabled={activeChild.isExecuting}
-              >
-                {activeChild.isExecuting ? (
-                  <Loader2 className="size-3 animate-spin" />
-                ) : (
-                  <Play className="size-3" />
-                )}
-                Execute
-              </Button>
+              {/* ── Execution Button Group ── */}
+              <div className="flex items-center rounded-lg border border-border overflow-hidden shadow-sm">
+                {/* Local Execute */}
+                <button
+                  onClick={() => onExecute(activeChild.id)}
+                  disabled={activeChild.isExecuting}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold transition-all duration-200 ${
+                    activeChild.isExecuting && !serverRunId
+                      ? "bg-blue-500/15 text-blue-400 cursor-wait"
+                      : activeChild.isExecuting
+                        ? "bg-muted/50 text-muted-foreground cursor-not-allowed opacity-50"
+                        : "bg-muted/50 text-foreground hover:bg-primary hover:text-primary-foreground"
+                  }`}
+                >
+                  {activeChild.isExecuting && !serverRunId ? (
+                    <Loader2 className="size-3.5 animate-spin" />
+                  ) : (
+                    <Play className="size-3.5 fill-current" />
+                  )}
+                  {activeChild.isExecuting && !serverRunId ? "Running..." : "Local"}
+                </button>
+
+                {/* Divider */}
+                <div className="w-px h-5 bg-border" />
+
+                {/* Server Execute / Running / Cancel */}
+                {serverRunId ? (
+                  <div className="flex items-center">
+                    <div
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-emerald-500/15 text-emerald-400 select-none cursor-default"
+                      title="Server execution running"
+                    >
+                      <span className="relative flex h-2 w-2">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                      </span>
+                      <Zap className="size-3.5 fill-current" />
+                      <span>Running</span>
+                    </div>
+
+                    {onCancelServerRun && (
+                      <>
+                        <div className="w-px h-5 bg-border" />
+                        <button
+                          type="button"
+                          onClick={() => onCancelServerRun(activeChild.id || block.id)}
+                          className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold bg-red-500/10 text-red-400 hover:bg-red-500/25 hover:text-red-300 transition-colors cursor-pointer"
+                          title="Stop server execution"
+                        >
+                          <span className="text-[10px] leading-none">⏹</span>
+                          <span>Stop</span>
+                        </button>
+                      </>
+                    )}
+                  </div>
+                ) : onServerExecute ? (
+                  <button
+                    onClick={() => onServerExecute(activeChild.id)}
+                    disabled={activeChild.isExecuting}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold transition-all duration-200 ${
+                      activeChild.isExecuting
+                        ? "bg-muted/50 text-muted-foreground cursor-not-allowed opacity-50"
+                        : "bg-muted/50 text-emerald-500 hover:bg-emerald-600 hover:text-white"
+                    }`}
+                  >
+                    <Zap className="size-3.5" />
+                    Server
+                  </button>
+                ) : null}
+              </div>
+
+              {/* ── Settings Dropdown ── */}
               {!isGuest && !isViewer && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -1124,6 +1370,46 @@ export function DeskBlock({
                         </button>
                       ),
                     )}
+
+                    {/* Errors Tab */}
+                    <button
+                      onClick={() => setActivePreviewTab("errors")}
+                      className={`text-[10px] px-2.5 py-1 rounded-md transition-all whitespace-nowrap font-medium flex items-center gap-1.5 ${
+                        activePreviewTab === "errors"
+                          ? "bg-red-500/15 text-red-600 dark:text-red-400 border border-red-500/30 font-semibold shadow-sm"
+                          : currentError
+                            ? "bg-red-500/10 text-red-500 hover:bg-red-500/20 border border-red-500/20 animate-pulse font-semibold"
+                            : "bg-background text-muted-foreground hover:text-foreground hover:bg-muted border border-border"
+                      }`}
+                    >
+                      <AlertCircle className={`size-3 ${currentError ? "text-red-500" : "text-muted-foreground"}`} />
+                      Errors
+                      {currentError && (
+                        <span className="px-1 py-0 text-[8px] rounded bg-red-500 text-white font-bold leading-tight">
+                          1
+                        </span>
+                      )}
+                    </button>
+
+                    {/* Pushed Files Tab */}
+                    <button
+                      onClick={() => setActivePreviewTab("pushed_files")}
+                      className={`text-[10px] px-2.5 py-1 rounded-md transition-all whitespace-nowrap font-medium flex items-center gap-1.5 ${
+                        activePreviewTab === "pushed_files"
+                          ? "bg-purple-500/15 text-purple-600 dark:text-purple-400 border border-purple-500/30 font-semibold shadow-sm"
+                          : allPushedFiles.length > 0
+                            ? "bg-background text-foreground hover:bg-muted border border-border"
+                            : "bg-background text-muted-foreground hover:text-foreground hover:bg-muted border border-border"
+                      }`}
+                    >
+                      <FileUp className="size-3 text-purple-500" />
+                      Pushed Files
+                      {allPushedFiles.length > 0 && (
+                        <span className="px-1 py-0 text-[8px] rounded bg-purple-500/20 text-purple-700 dark:text-purple-300 font-mono font-bold">
+                          {allPushedFiles.length}
+                        </span>
+                      )}
+                    </button>
                   </div>
 
                   {previewData && previewData.columns && (
@@ -1137,70 +1423,344 @@ export function DeskBlock({
                   )}
                 </div>
 
-                <div className="flex-1 min-h-0 overflow-hidden relative">
-                  <ErrorBoundary
-                    fallback={
-                      <div className="flex items-center justify-center h-full text-xs text-muted-foreground">
-                        Loading spreadsheet view...
-                      </div>
-                    }
-                  >
-                    <div
-                      className={`w-full h-full ${previewData && previewData.columns && previewData.columns.length > 0 ? "block" : "hidden"}`}
-                    >
-                      <SpreadsheetComponent
-                        key={spreadsheetKey}
-                        ref={spreadsheetRef}
-                        created={onSpreadsheetCreated}
-                        className="w-full h-full"
-                        height="100%"
-                        width="100%"
-                        allowEditing={false}
-                        showRibbon={false}
-                        allowOpen={true}
-                        allowSave={false}
-                        sheets={[{ name: "Sheet1", showGridLines: true }]}
-                      />
-                    </div>
-                  </ErrorBoundary>
+                {activePreviewTab === "errors" ? (
+                  /* ─── Errors Tab Content ─── */
+                  <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-3 bg-muted/10">
+                    {currentError ? (
+                      <div className="space-y-3">
+                        {/* Error Card */}
+                        <div className="p-4 rounded-xl border border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-300 space-y-3 shadow-sm">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <div className="p-1.5 rounded-lg bg-red-500/20 text-red-500">
+                                <AlertCircle className="size-4" />
+                              </div>
+                              <div>
+                                <h4 className="text-xs font-bold text-red-600 dark:text-red-400">
+                                  Workflow Execution Error
+                                </h4>
+                                <span className="text-[10px] text-muted-foreground">
+                                  {currentError.timestamp
+                                    ? new Date(currentError.timestamp).toLocaleTimeString()
+                                    : "Just now"}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <Badge variant="destructive" className="text-[10px] font-mono px-2 py-0.5">
+                                {currentError.code || "INTERNAL_ERROR"}
+                              </Badge>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 px-2 text-[10px] text-muted-foreground hover:text-foreground hover:bg-red-500/15"
+                                onClick={() => {
+                                  if (activeChild) {
+                                    useDeskStore.getState().clearBlockError(activeChild.id);
+                                  }
+                                  useDeskStore.getState().clearBlockError(block.id);
+                                }}
+                              >
+                                Clear
+                              </Button>
+                            </div>
+                          </div>
 
-                  {(!previewData ||
-                    !previewData.columns ||
-                    previewData.columns.length === 0) && (
-                    <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-3 p-6 text-center">
-                      <div className="p-3.5 rounded-2xl bg-muted border border-border text-muted-foreground">
-                        <Table2 className="size-7 opacity-70" />
-                      </div>
-                      <div className="max-w-xs space-y-1">
-                        <p className="text-xs font-semibold text-foreground">
-                          {activePreviewTab === "output_preview"
-                            ? "No Output Preview Data Yet"
-                            : "No Sheet Data to Preview"}
-                        </p>
-                        <p className="text-[10px] text-muted-foreground leading-relaxed">
-                          {activePreviewTab === "output_preview"
-                            ? "Run the block workflow to generate and view preview data from your Output Preview nodes."
-                            : "Upload a CSV file to a sheet on the left panel, or load data from the previous BigBlock."}
-                        </p>
-                      </div>
-                      {activePreviewTab === "output_preview" && (
-                        <Button
-                          size="sm"
-                          onClick={() => onExecute(activeChild.id)}
-                          disabled={activeChild.isExecuting}
-                          className="h-7 text-xs gap-1.5 font-semibold shadow-sm"
-                        >
-                          {activeChild.isExecuting ? (
-                            <Loader2 className="size-3 animate-spin" />
-                          ) : (
-                            <Play className="size-3 fill-current" />
+                          <div className="text-xs font-semibold text-foreground bg-background/80 rounded-md p-2.5 border border-red-500/20 font-mono">
+                            {currentError.message}
+                          </div>
+
+                          {(currentError.nodeId || currentError.nodeType) && (
+                            <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
+                              {currentError.nodeType && (
+                                <span>
+                                  Node Type: <strong className="text-foreground">{currentError.nodeType}</strong>
+                                </span>
+                              )}
+                              {currentError.nodeId && (
+                                <span>
+                                  Node ID: <code className="bg-muted px-1.5 py-0.5 rounded text-foreground font-mono">{currentError.nodeId}</code>
+                                </span>
+                              )}
+                            </div>
                           )}
-                          Execute Workflow
-                        </Button>
-                      )}
+
+                          {currentError.details && (
+                            <div className="space-y-1">
+                              <div className="flex items-center justify-between">
+                                <span className="text-[10px] font-semibold text-muted-foreground">
+                                  Diagnostic Details:
+                                </span>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-5 px-1.5 text-[9px] gap-1"
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(
+                                      typeof currentError.details === "string"
+                                        ? currentError.details
+                                        : JSON.stringify(currentError.details, null, 2)
+                                    );
+                                    toast.success("Error details copied to clipboard");
+                                  }}
+                                >
+                                  <Copy className="size-2.5" />
+                                  Copy
+                                </Button>
+                              </div>
+                              <div className="rounded-md border border-border/80 bg-zinc-950 p-2.5 text-zinc-300 font-mono text-[10px] max-h-48 overflow-auto">
+                                <pre className="whitespace-pre-wrap word-break-all">
+                                  {typeof currentError.details === "string"
+                                    ? currentError.details
+                                    : JSON.stringify(currentError.details, null, 2)}
+                                </pre>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Quick Actions in Error View */}
+                          <div className="pt-2 border-t border-red-500/20 flex items-center justify-between">
+                            <span className="text-[10px] text-muted-foreground">
+                              Modify nodes in editor or retry:
+                            </span>
+                            <div className="flex items-center gap-1.5">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-6 text-[10px] gap-1 font-semibold"
+                                onClick={() => onExecute(activeChild.id)}
+                                disabled={activeChild.isExecuting}
+                              >
+                                <Play className="size-2.5" />
+                                Retry Local
+                              </Button>
+                              {onServerExecute && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-6 text-[10px] gap-1 font-semibold border-emerald-600 text-emerald-600 hover:bg-emerald-600 hover:text-white"
+                                  onClick={() => onServerExecute(activeChild.id)}
+                                  disabled={activeChild.isExecuting}
+                                >
+                                  ⚡ Retry Server
+                                </Button>
+                              )}
+                              {!isGuest && !isViewer && (
+                                <Button
+                                  variant="secondary"
+                                  size="sm"
+                                  className="h-6 text-[10px] gap-1 font-semibold"
+                                  onClick={() => openEditor(activeChild)}
+                                >
+                                  <Edit2 className="size-2.5" />
+                                  Open Editor
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      /* Clean Empty State */
+                      <div className="flex flex-col items-center justify-center h-full min-h-[220px] text-muted-foreground gap-3 text-center">
+                        <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-500">
+                          <CheckSquare className="size-7" />
+                        </div>
+                        <div className="space-y-1 max-w-xs">
+                          <p className="text-xs font-semibold text-foreground">
+                            No Execution Errors
+                          </p>
+                          <p className="text-[10px] text-muted-foreground leading-relaxed">
+                            No issues encountered. All workflow executions for this block have run cleanly.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : activePreviewTab === "pushed_files" ? (
+                  /* ─── Pushed Files History Content ─── */
+                  <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-3 bg-muted/10">
+                    <div className="flex items-center justify-between pb-2 border-b border-border">
+                      <div className="flex items-center gap-2">
+                        <div className="p-1.5 rounded-lg bg-purple-500/15 text-purple-600 dark:text-purple-400">
+                          <FileUp className="size-4" />
+                        </div>
+                        <div>
+                          <h4 className="text-xs font-bold text-foreground">
+                            Pushed Files History
+                          </h4>
+                          <p className="text-[10px] text-muted-foreground">
+                            Datasets pushed to active server workflow instances
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {serverRunId && (
+                          <Badge variant="outline" className="text-[10px] border-emerald-500 text-emerald-600 bg-emerald-500/10 font-mono">
+                            ⚡ Hot Server Instance Active
+                          </Badge>
+                        )}
+                        <Badge variant="secondary" className="text-[10px] font-mono">
+                          {allPushedFiles.length} file{allPushedFiles.length === 1 ? "" : "s"}
+                        </Badge>
+                      </div>
                     </div>
-                  )}
-                </div>
+
+                    {allPushedFiles.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center h-full min-h-[260px] text-muted-foreground gap-3 text-center p-6">
+                        <div className="p-3.5 rounded-2xl bg-purple-500/10 border border-purple-500/20 text-purple-600 dark:text-purple-400">
+                          <FileUp className="size-7" />
+                        </div>
+                        <div className="space-y-1 max-w-sm">
+                          <p className="text-xs font-semibold text-foreground">
+                            No Pushed Files Yet
+                          </p>
+                          <p className="text-[11px] text-muted-foreground leading-relaxed">
+                            When an execution is running on the server and you upload or drop a new dataset into any sheet, you can push it directly to the live instance. All processed files and their execution status (success / failed) will appear here.
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {allPushedFiles.map((record) => (
+                          <div
+                            key={record.id}
+                            className="p-3 rounded-xl border border-border bg-card hover:border-border/80 transition-all shadow-sm space-y-2"
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <div className="p-2 rounded-lg bg-muted text-foreground shrink-0">
+                                  <Table2 className="size-4 text-purple-500" />
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-xs font-bold text-foreground truncate" title={record.fileName}>
+                                      {record.fileName}
+                                    </span>
+                                    <Badge variant="secondary" className="text-[9px] px-1.5 py-0 font-medium shrink-0">
+                                      📊 {record.sheetName}
+                                    </Badge>
+                                  </div>
+                                  <span className="text-[10px] text-muted-foreground">
+                                    {record.pushedAt
+                                      ? new Date(record.pushedAt).toLocaleString()
+                                      : "Recently"}
+                                  </span>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-2 shrink-0">
+                                {record.status === "processing" ? (
+                                  <Badge className="bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/30 text-[10px] gap-1 font-mono">
+                                    <Loader2 className="size-3 animate-spin" />
+                                    Processing
+                                  </Badge>
+                                ) : record.status === "success" ? (
+                                  <Badge className="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 text-[10px] gap-1 font-mono">
+                                    <Check className="size-3" />
+                                    Success
+                                  </Badge>
+                                ) : (
+                                  <Badge variant="destructive" className="text-[10px] gap-1 font-mono">
+                                    <AlertCircle className="size-3" />
+                                    Failed
+                                  </Badge>
+                                )}
+
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 px-2 text-[10px] text-muted-foreground hover:text-foreground"
+                                  onClick={() => setActivePreviewTab(record.sheetId)}
+                                  title="View sheet data in preview"
+                                >
+                                  View Sheet
+                                </Button>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center justify-between text-[10px] text-muted-foreground pt-1 border-t border-border/50">
+                              <span>
+                                Dimensions: <strong className="text-foreground">{record.rowCount} rows</strong> × <strong className="text-foreground">{record.columnCount} cols</strong>
+                              </span>
+                              {record.error && (
+                                <span className="text-red-500 text-[10px] font-mono truncate max-w-xs" title={record.error}>
+                                  Reason: {record.error}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  /* ─── Spreadsheet / Data Preview View ─── */
+                  <div className="flex-1 min-h-0 overflow-hidden relative">
+                    <ErrorBoundary
+                      fallback={
+                        <div className="flex items-center justify-center h-full text-xs text-muted-foreground">
+                          Loading spreadsheet view...
+                        </div>
+                      }
+                    >
+                      <div
+                        className={`w-full h-full ${previewData && previewData.columns && previewData.columns.length > 0 ? "block" : "hidden"}`}
+                      >
+                        <SpreadsheetComponent
+                          key={spreadsheetKey}
+                          ref={spreadsheetRef}
+                          created={onSpreadsheetCreated}
+                          className="w-full h-full"
+                          height="100%"
+                          width="100%"
+                          allowEditing={false}
+                          showRibbon={false}
+                          allowOpen={true}
+                          allowSave={false}
+                          sheets={[{ name: "Sheet1", showGridLines: true }]}
+                        />
+                      </div>
+                    </ErrorBoundary>
+
+                    {(!previewData ||
+                      !previewData.columns ||
+                      previewData.columns.length === 0) && (
+                      <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-3 p-6 text-center">
+                        <div className="p-3.5 rounded-2xl bg-muted border border-border text-muted-foreground">
+                          <Table2 className="size-7 opacity-70" />
+                        </div>
+                        <div className="max-w-xs space-y-1">
+                          <p className="text-xs font-semibold text-foreground">
+                            {activePreviewTab === "output_preview"
+                              ? "No Output Preview Data Yet"
+                              : "No Sheet Data to Preview"}
+                          </p>
+                          <p className="text-[10px] text-muted-foreground leading-relaxed">
+                            {activePreviewTab === "output_preview"
+                              ? "Run the block workflow to generate and view preview data from your Output Preview nodes."
+                              : "Upload a CSV file to a sheet on the left panel, or load data from the previous BigBlock."}
+                          </p>
+                        </div>
+                        {activePreviewTab === "output_preview" && (
+                          <Button
+                            size="sm"
+                            onClick={() => onExecute(activeChild.id)}
+                            disabled={activeChild.isExecuting}
+                            className="h-7 text-xs gap-1.5 font-semibold shadow-sm"
+                          >
+                            {activeChild.isExecuting ? (
+                              <Loader2 className="size-3 animate-spin" />
+                            ) : (
+                              <Play className="size-3 fill-current" />
+                            )}
+                            Execute Workflow
+                          </Button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </ResizablePanel>
           </ResizablePanelGroup>
@@ -1219,6 +1779,86 @@ export function DeskBlock({
           sheetName={uploadModalTarget.sheetName}
           onSelectDataset={handleDatasetLoaded}
         />
+      )}
+
+      {/* ─── Push File to Running Server Confirmation Dialog ─── */}
+      {pendingPushData && (
+        <Dialog
+          open={pendingPushData !== null}
+          onOpenChange={(open) => {
+            if (!open) setPendingPushData(null);
+          }}
+        >
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <div className="flex items-center gap-2 mb-1">
+                <div className="p-2 rounded-xl bg-purple-500/15 text-purple-600 dark:text-purple-400 border border-purple-500/30">
+                  <FileUp className="size-5" />
+                </div>
+                <div>
+                  <DialogTitle className="text-base font-bold">
+                    Push File to Running Server Instance?
+                  </DialogTitle>
+                  <DialogDescription className="text-xs text-muted-foreground mt-0.5">
+                    This block has an active workflow execution running on the server.
+                  </DialogDescription>
+                </div>
+              </div>
+            </DialogHeader>
+
+            <div className="space-y-3 py-2">
+              <div className="rounded-xl border border-border bg-muted/40 p-3 space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground">Dataset File:</span>
+                  <span className="font-semibold text-foreground truncate max-w-[200px]" title={pendingPushData.file.name}>
+                    {pendingPushData.file.name}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground">Target Sheet:</span>
+                  <Badge variant="secondary" className="text-[10px] font-mono">
+                    📊 {pendingPushData.sheetName}
+                  </Badge>
+                </div>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground">Dimensions:</span>
+                  <Badge variant="outline" className="text-[10px] font-mono">
+                    {pendingPushData.dataset.data.length} rows × {pendingPushData.dataset.columns.length} columns
+                  </Badge>
+                </div>
+              </div>
+
+              <div className="p-3 rounded-lg border border-purple-500/20 bg-purple-500/5 text-purple-800 dark:text-purple-300 text-xs space-y-1">
+                <p className="font-semibold flex items-center gap-1.5">
+                  <Zap className="size-3.5 fill-current text-purple-500" />
+                  Live Server Execution Mode
+                </p>
+                <p className="text-[11px] leading-relaxed text-muted-foreground">
+                  Confirming will immediately send this dataset into the workflow running on your backend server. The file will be logged in this block&apos;s <strong>Pushed Files</strong> history tab with its execution status.
+                </p>
+              </div>
+            </div>
+
+            <DialogFooter className="gap-2 sm:gap-0 mt-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPendingPushData(null)}
+                className="text-xs"
+              >
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleConfirmPush}
+                className="text-xs gap-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-semibold shadow-md"
+              >
+                <FileUp className="size-3.5" />
+                Confirm &amp; Push to Server
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   );

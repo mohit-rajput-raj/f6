@@ -23,4 +23,7 @@ router.get("/:runId/status", asyncHandler(executionController.status));
 // List runs for a workflow
 router.get("/runs/:workflowId", asyncHandler(executionController.listRuns));
 
+// List active runs for a project/dash
+router.get("/active/:dashid", asyncHandler(executionController.activeRuns));
+
 export default router;

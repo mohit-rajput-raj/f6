@@ -27,6 +27,20 @@ export interface CheckboxField {
   nodeId: string; // the TrueFalseNode id in editor
 }
 
+export interface PushedFileRecord {
+  id: string;
+  sheetId: string;
+  sheetName: string;
+  fileName: string;
+  fileSize?: number;
+  rowCount: number;
+  columnCount: number;
+  status: "pending" | "processing" | "success" | "failed";
+  error?: string;
+  runId?: string;
+  pushedAt: string;
+}
+
 export interface DeskBlockData {
   id: string;
   name: string;
@@ -40,6 +54,7 @@ export interface DeskBlockData {
   sheets: DeskSheet[];
   outputPreview: Dataset | null;
   checkboxFields: CheckboxField[];
+  pushedFiles?: PushedFileRecord[];
 }
 
 // ─── Get all blocks for a project ───────────────────────────
@@ -63,6 +78,7 @@ export async function getDeskBlocks(projectWorkflowId: string): Promise<DeskBloc
     sheets: (b.sheets as unknown as DeskSheet[]) ?? [],
     outputPreview: (b.outputPreview as unknown as Dataset) ?? null,
     checkboxFields: (b.checkboxFields as unknown as CheckboxField[]) ?? [],
+    pushedFiles: (b.pushedFiles as unknown as PushedFileRecord[]) ?? [],
   }));
 }
 
@@ -261,12 +277,9 @@ export async function initializeDefaultDesk(
     return getDeskBlocks(projectWorkflowId);
   }
 
-  // Create first root BigBlock
-  const rootBlock = await createDeskBlock(projectWorkflowId, userId, 0, undefined, "BigBlock 1");
-  // Create first child tab
-  const childTab = await createDeskBlock(projectWorkflowId, userId, 0, rootBlock.id, "Tab 1");
-
-  return [rootBlock, childTab];
+  // No blocks exist yet — return empty array.
+  // User can create blocks manually via the "+ Add Block" button.
+  return [];
 }
 
 // ─── Update block inputs ────────────────────────────────────
@@ -375,6 +388,69 @@ export async function getDeskBlock(blockId: string): Promise<DeskBlockData | nul
     sheets: (b.sheets as unknown as DeskSheet[]) ?? [],
     outputPreview: (b.outputPreview as unknown as Dataset) ?? null,
     checkboxFields: (b.checkboxFields as unknown as CheckboxField[]) ?? [],
+    pushedFiles: (b.pushedFiles as unknown as PushedFileRecord[]) ?? [],
   };
+}
+
+// ─── Pushed Files History ───────────────────────────────────
+export async function pushFileToBlockHistory(
+  blockId: string,
+  fileRecord: PushedFileRecord
+): Promise<PushedFileRecord[]> {
+  const { data: b } = await supabase
+    .from("desk_block")
+    .select("pushedFiles")
+    .eq("id", blockId)
+    .single();
+
+  const existing: PushedFileRecord[] = (b?.pushedFiles as any) || [];
+  const updated = [fileRecord, ...existing.filter((f) => f.id !== fileRecord.id)].slice(0, 50);
+
+  await supabase
+    .from("desk_block")
+    .update({ pushedFiles: updated as any, updatedAt: new Date().toISOString() })
+    .eq("id", blockId);
+
+  return updated;
+}
+
+export async function updatePushedFileStatus(
+  blockId: string,
+  fileId: string,
+  status: "success" | "failed",
+  error?: string
+): Promise<PushedFileRecord[]> {
+  const { data: b } = await supabase
+    .from("desk_block")
+    .select("pushedFiles")
+    .eq("id", blockId)
+    .single();
+
+  const existing: PushedFileRecord[] = (b?.pushedFiles as any) || [];
+  const updated = existing.map((f) =>
+    f.id === fileId ? { ...f, status, error: error ?? f.error } : f
+  );
+
+  await supabase
+    .from("desk_block")
+    .update({ pushedFiles: updated as any, updatedAt: new Date().toISOString() })
+    .eq("id", blockId);
+
+  return updated;
+}
+
+export async function getActiveDeskRuns(dashid: string): Promise<any[]> {
+  const { data: runs, error } = await supabase
+    .from("workflow_run")
+    .select("*")
+    .eq("dashid", dashid)
+    .in("status", ["running", "paused"])
+    .order("startedAt", { ascending: false });
+
+  if (error) {
+    console.error("Failed to fetch active runs:", error);
+    return [];
+  }
+  return runs || [];
 }
 

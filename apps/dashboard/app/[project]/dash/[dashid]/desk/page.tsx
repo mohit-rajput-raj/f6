@@ -21,6 +21,10 @@ import {
   updateDeskBlockInputs,
   updateDeskBlockOutput,
   deleteDeskBlock,
+  getActiveDeskRuns,
+  pushFileToBlockHistory,
+  updatePushedFileStatus,
+  type PushedFileRecord,
 } from "./desk-block-actions";
 import { useMasterSheetStore } from "@/stores/master-sheet-store";
 import { usePathname, useRouter, useParams } from "next/navigation";
@@ -32,6 +36,9 @@ import { UpdatedMergedPreview } from "./_components/UpdatedMergedPreview";
 import { executeWorkflow } from "../editor/_components/nodes/executions/nodeExecutions";
 import { getWorkFlow } from "../editor/_actions/editor.service";
 import { HelixLoader, RoseLoader } from "curls-loaders";
+import { runWorkflow, cancelWorkflow, getRunStatus } from "@/lib/server-api";
+import { useExecutionSocket, type WorkflowEvent } from "@/lib/use-execution-socket";
+import { useExecutionStore } from "@/stores/execution.store";
 
 // ─── Main Component ─────────────────────────────────────────
 export default function DeskPage() {
@@ -57,6 +64,8 @@ export default function DeskPage() {
   const addBlock = useDeskStore((s) => s.addBlock);
   const setBlockOutput = useDeskStore((s) => s.setBlockOutput);
   const setBlockExecuting = useDeskStore((s) => s.setBlockExecuting);
+  const setBlockError = useDeskStore((s) => s.setBlockError);
+  const clearBlockError = useDeskStore((s) => s.clearBlockError);
   const setOcrResult = useDeskStore((s) => s.setOcrResult);
   const setOcrProcessing = useDeskStore((s) => s.setOcrProcessing);
 
@@ -80,26 +89,67 @@ export default function DeskPage() {
     queryFn: async () => {
       setProjectWorkflowId(dashid);
 
-      // Parallel fetch: access check + blocks initialization
-      const [access, dbBlocks] = await Promise.all([
+      // Parallel fetch: access check + blocks initialization + active server runs
+      const [access, dbBlocks, activeRuns] = await Promise.all([
         userEmail ? getSharedDeskAccess(dashid, userEmail) : null,
         initializeDefaultDesk(dashid, userId!),
+        getActiveDeskRuns(dashid).catch(() => []),
       ]);
 
       if (access) setDeskAccess(access);
 
-      const mappedBlocks = dbBlocks.map((b) => ({
-        ...b,
-        actionButtons: [] as any[],
-        isExecuting: false,
-      }));
-      setBlocks(mappedBlocks);
+      // Build active runs lookup (blockId -> runId) so running state survives browser refresh
+      const runningMap: Record<string, string> = {};
+      (activeRuns || []).forEach((r: any) => {
+        if (r.blockId) {
+          runningMap[r.blockId] = r.id;
+          // Register run in execution store so progress bar & nodes state hydrate
+          useExecutionStore.getState().addRun({
+            runId: r.id,
+            workflowId: r.workflowId,
+            totalNodes: Object.keys(r.nodeStates || {}).length || 1,
+          });
+          if (r.nodeStates) {
+            for (const [nodeId, nState] of Object.entries(r.nodeStates as Record<string, any>)) {
+              useExecutionStore.getState().updateNodeState(r.id, nodeId, nState);
+            }
+          }
+        }
+      });
 
-      return { access, blocks: mappedBlocks };
+      const mappedBlocks = dbBlocks.map((b) => {
+        const isRunActive = Boolean(
+          runningMap[b.id] || (b.parentId && runningMap[b.parentId])
+        );
+        const pFiles = b.pushedFiles?.map((pf) =>
+          !isRunActive && pf.status === "processing"
+            ? { ...pf, status: "success" as const }
+            : pf
+        );
+        return {
+          ...b,
+          pushedFiles: pFiles,
+          actionButtons: [] as any[],
+          isExecuting: isRunActive,
+        };
+      });
+
+      setBlocks(mappedBlocks);
+      setServerRunningBlocks(runningMap);
+
+      // Restore merged preview if any block has outputPreview with updates
+      const blockWithMerged = mappedBlocks.find(
+        (b: any) => b.outputPreview && (b.outputPreview as any).updates?.length > 0
+      );
+      if (blockWithMerged) {
+        useDeskStore.getState().setMergedPreview(blockWithMerged.outputPreview as any);
+      }
+
+      return { access, blocks: mappedBlocks, activeRuns };
     },
     enabled: !!dashid && !!userId,
-    staleTime: 5 * 60 * 1000, // don't refetch for 5 min
-    refetchOnMount: false,
+    staleTime: 0,
+    refetchOnMount: "always",
     refetchOnWindowFocus: false,
   });
 
@@ -107,6 +157,7 @@ export default function DeskPage() {
   useEffect(() => {
     setIsLoading(isDeskQueryLoading);
   }, [isDeskQueryLoading, setIsLoading]);
+
 
   // ─── Auto-save block state to DB (debounced, targeted) ────
   const saveTimerRef = useRef<Record<string, ReturnType<typeof setTimeout>>>(
@@ -216,6 +267,11 @@ export default function DeskPage() {
       if (!block) return;
 
       setBlockExecuting(blockId, true);
+      // Clear previous errors
+      setBlockError(blockId, null);
+      if (block.parentId) {
+        setBlockError(block.parentId, null);
+      }
       // Immediately reset previous output preview so old data doesn't linger while executing
       setBlockOutput(blockId, null);
       if (block.parentId) {
@@ -226,6 +282,13 @@ export default function DeskPage() {
         // Load the block's editor workflow
         const workflow = await getWorkFlow(block.editorWorkflowId);
         if (!workflow?.definition) {
+          const errObj = {
+            message: "No workflow found for this block",
+            code: "WORKFLOW_NOT_FOUND",
+            timestamp: new Date().toISOString(),
+          };
+          setBlockError(blockId, errObj);
+          if (block.parentId) setBlockError(block.parentId, errObj);
           toast.error("No workflow found for this block");
           return;
         }
@@ -235,9 +298,17 @@ export default function DeskPage() {
         const edges = def?.reactFlow?.edges ?? [];
 
         if (nodes.length === 0) {
-          toast.info(
-            "No nodes in this block's editor. Add nodes via Settings.",
-          );
+          const errObj = {
+            message: "Workflow has no nodes",
+            code: "INTERNAL_ERROR",
+            details: {
+              reason: "This block has an empty editor workflow canvas. Open the editor and add nodes to build your workflow.",
+            },
+            timestamp: new Date().toISOString(),
+          };
+          setBlockError(blockId, errObj);
+          if (block.parentId) setBlockError(block.parentId, errObj);
+          toast.error("Workflow has no nodes");
           return;
         }
 
@@ -260,6 +331,23 @@ export default function DeskPage() {
           mockSetNodes,
           sessionData?.user?.id,
         );
+
+        // Check if any node returned an error during execution
+        const failedNode = currentNodes.find(
+          (n: any) => n.data?.error || (Array.isArray(n.data?.errors) && n.data.errors.length > 0)
+        );
+        if (failedNode) {
+          const errObj = {
+            message: failedNode.data?.error || `${failedNode.type || 'Node'} execution error`,
+            code: "NODE_ERROR",
+            nodeId: failedNode.id,
+            nodeType: failedNode.type,
+            details: failedNode.data?.errors || failedNode.data?.error,
+            timestamp: new Date().toISOString(),
+          };
+          setBlockError(blockId, errObj);
+          if (block.parentId) setBlockError(block.parentId, errObj);
+        }
 
         // Save updated execution states/results back to workflow definition so editor stays updated
         try {
@@ -308,15 +396,385 @@ export default function DeskPage() {
           }
         }
 
-        toast.success(`Block executed successfully`);
+        if (!failedNode) {
+          toast.success(`Block executed successfully`);
+        } else {
+          toast.error(`Block executed with node errors`);
+        }
       } catch (err: any) {
         console.error("Block execution failed:", err);
+        const errObj = {
+          message: err?.message || "Execution failed",
+          code: err?.code || "EXECUTION_ERROR",
+          details: err?.stack || err,
+          timestamp: new Date().toISOString(),
+        };
+        setBlockError(blockId, errObj);
+        if (block.parentId) setBlockError(block.parentId, errObj);
         toast.error(err?.message || "Execution failed");
       } finally {
         setBlockExecuting(blockId, false);
       }
     },
-    [setBlockExecuting, setBlockOutput],
+    [setBlockExecuting, setBlockOutput, setBlockError, sessionData?.user?.id],
+  );
+
+  // ── Execute a block on SERVER ─────────────────────────────
+  const addRun = useExecutionStore((s) => s.addRun);
+  const updateNodeState = useExecutionStore((s) => s.updateNodeState);
+  const updateRunStatus = useExecutionStore((s) => s.updateRunStatus);
+  const addRunError = useExecutionStore((s) => s.addRunError);
+  const executionRuns = useExecutionStore((s) => s.runs);
+
+  // Track which blockId is running on server
+  const [serverRunningBlocks, setServerRunningBlocks] = useState<Record<string, string>>({}); // blockId -> runId
+
+  // ── Helper to cleanly complete a server run and update all stores & DB ──
+  const completeRun = useCallback(
+    async (runId: string, output?: any) => {
+      updateRunStatus(runId, "completed");
+
+      let finalOutput = output;
+      if (!finalOutput) {
+        try {
+          const res = await getRunStatus(runId);
+          if (res.success && res.data?.output) finalOutput = res.data.output;
+        } catch {
+          // ignore
+        }
+      }
+
+      const allBlocks = useDeskStore.getState().blocks;
+      const matchingBlockIds = Object.entries(serverRunningBlocks)
+        .filter(([_, rId]) => rId === runId)
+        .map(([bId]) => bId);
+
+      for (const bId of matchingBlockIds) {
+        setBlockExecuting(bId, false);
+        if (finalOutput) {
+          setBlockOutput(bId, finalOutput);
+          await updateDeskBlockOutput(bId, finalOutput);
+          // If finalOutput has updates or targetPath, populate mergedPreview store for UpdatedMergedPreview component
+          if (finalOutput.updates || finalOutput.alignment || finalOutput.targetPath || finalOutput.stackName) {
+            useDeskStore.getState().setMergedPreview(finalOutput);
+          }
+        }
+        const blk = allBlocks.find((b) => b.id === bId);
+        if (blk?.parentId) {
+          setBlockExecuting(blk.parentId, false);
+          if (finalOutput) {
+            setBlockOutput(blk.parentId, finalOutput);
+            useDeskStore.getState().setTabOutput(blk.parentId, blk.name, finalOutput);
+            await updateDeskBlockOutput(blk.parentId, finalOutput);
+          }
+        }
+
+        const procFiles = blk?.pushedFiles?.filter((f) => f.status === "processing") || [];
+        for (const pf of procFiles) {
+          useDeskStore.getState().updatePushedFileStatus(bId, pf.id, "success");
+          updatePushedFileStatus(bId, pf.id, "success").catch(console.error);
+        }
+        if (blk?.parentId) {
+          const parentBlk = allBlocks.find((b) => b.id === blk.parentId);
+          const pProcFiles = parentBlk?.pushedFiles?.filter((f) => f.status === "processing") || [];
+          for (const pf of pProcFiles) {
+            useDeskStore.getState().updatePushedFileStatus(blk.parentId, pf.id, "success");
+            updatePushedFileStatus(blk.parentId, pf.id, "success").catch(console.error);
+          }
+        }
+      }
+
+      setServerRunningBlocks((prev) => {
+        const next = { ...prev };
+        for (const [bId, rId] of Object.entries(next)) {
+          if (rId === runId) delete next[bId];
+        }
+        return next;
+      });
+    },
+    [serverRunningBlocks, setBlockExecuting, setBlockOutput, updateRunStatus],
+  );
+
+  // ── Helper to fail a server run ──
+  const failRun = useCallback(
+    async (runId: string, error?: string) => {
+      updateRunStatus(runId, "error", { error });
+      const wfErrObj = {
+        message: error || "Server execution failed",
+        code: "WORKFLOW_ERROR",
+        timestamp: new Date().toISOString(),
+      };
+      const allBlocks = useDeskStore.getState().blocks;
+      const matchingBlockIds = Object.entries(serverRunningBlocks)
+        .filter(([_, rId]) => rId === runId)
+        .map(([bId]) => bId);
+
+      for (const bId of matchingBlockIds) {
+        setBlockExecuting(bId, false);
+        setBlockError(bId, wfErrObj);
+        const blk = allBlocks.find((b) => b.id === bId);
+        if (blk?.parentId) {
+          setBlockExecuting(blk.parentId, false);
+          setBlockError(blk.parentId, wfErrObj);
+        }
+        const procFiles = blk?.pushedFiles?.filter((f) => f.status === "processing") || [];
+        for (const pf of procFiles) {
+          useDeskStore.getState().updatePushedFileStatus(bId, pf.id, "failed", error);
+          updatePushedFileStatus(bId, pf.id, "failed", error).catch(console.error);
+        }
+      }
+
+      setServerRunningBlocks((prev) => {
+        const next = { ...prev };
+        for (const [bId, rId] of Object.entries(next)) {
+          if (rId === runId) delete next[bId];
+        }
+        return next;
+      });
+    },
+    [serverRunningBlocks, setBlockExecuting, setBlockError, updateRunStatus],
+  );
+
+  const handleExecutionEvent = useCallback(
+    (event: WorkflowEvent) => {
+      const { runId, nodeId, nodeType, data, error, timestamp } = event;
+      const rawType = (event.type as string) || "";
+      const type = rawType.includes(":") ? rawType.replace(":", "_") : rawType;
+
+      switch (type) {
+        case "node_started":
+          if (nodeId) updateNodeState(runId, nodeId, { nodeType: nodeType || "unknown", status: "running", startedAt: timestamp });
+          break;
+        case "node_completed":
+          if (nodeId) updateNodeState(runId, nodeId, { status: "completed", output: data, completedAt: timestamp });
+          break;
+        case "node_error":
+          if (nodeId) {
+            updateNodeState(runId, nodeId, { status: "error", error, completedAt: timestamp });
+            addRunError({ nodeId, nodeType: nodeType || "unknown", error: error || "Unknown error", timestamp });
+          }
+          break;
+        case "node_skipped":
+          if (nodeId) updateNodeState(runId, nodeId, { status: "skipped" });
+          break;
+        case "workflow_completed":
+          completeRun(runId, data);
+          toast.success("Server execution completed");
+          break;
+        case "workflow_error":
+          failRun(runId, error || "Server execution failed");
+          toast.error(`Server execution failed: ${error || "Unknown"}`);
+          break;
+        case "workflow_paused":
+          updateRunStatus(runId, "paused", { pausedRequest: data });
+          toast.info("Workflow paused — waiting for input");
+          break;
+        case "workflow_cancelled":
+          updateRunStatus(runId, "cancelled");
+          setServerRunningBlocks((prev) => {
+            const next = { ...prev };
+            for (const [bId, rId] of Object.entries(next)) {
+              if (rId === runId) { delete next[bId]; setBlockExecuting(bId, false); }
+            }
+            return next;
+          });
+          toast.info("Server execution cancelled");
+          break;
+      }
+    },
+    [updateNodeState, updateRunStatus, addRunError, setBlockExecuting, completeRun, failRun],
+  );
+
+  useExecutionSocket({
+    userId,
+    enabled: !!userId,
+    onEvent: handleExecutionEvent,
+  });
+
+  // ── Resume polling for active runs found on mount (survives browser refresh) ──
+  const hasResumedPollingRef = useRef(false);
+  useEffect(() => {
+    if (hasResumedPollingRef.current) return;
+    if (!_deskData?.activeRuns?.length) return;
+
+    hasResumedPollingRef.current = true;
+    const activeRuns = _deskData.activeRuns.filter(
+      (r: any) => r.status === "running" || r.status === "paused"
+    );
+
+    for (const run of activeRuns) {
+      const runId = run.id;
+      let pollCount = 0;
+      const pollInterval = setInterval(async () => {
+        pollCount++;
+        try {
+          const statusRes = await getRunStatus(runId);
+          if (statusRes.success && statusRes.data) {
+            const runData = statusRes.data;
+            if (runData.status === "completed") {
+              clearInterval(pollInterval);
+              await completeRun(runId, runData.output);
+              toast.success("Server execution completed");
+            } else if (runData.status === "error" || runData.status === "cancelled") {
+              clearInterval(pollInterval);
+              await failRun(runId, runData.error || "Server execution failed");
+            }
+          }
+        } catch {
+          // network retry
+        }
+        if (pollCount > 150) clearInterval(pollInterval); // timeout after ~2 minutes
+      }, 800);
+    }
+  }, [_deskData?.activeRuns, completeRun, failRun]);
+
+  const handleServerExecuteBlock = useCallback(
+    async (
+      blockId: string,
+      options?: {
+        pushedFileRecord?: PushedFileRecord;
+        customSheets?: any[];
+      }
+    ) => {
+      const block = useDeskStore.getState().blocks.find((b) => b.id === blockId);
+      if (!block || !userId) return;
+
+      setBlockExecuting(blockId, true);
+      if (block.parentId) setBlockExecuting(block.parentId, true);
+      setBlockOutput(blockId, null);
+      if (block.parentId) setBlockOutput(block.parentId, null);
+      setBlockError(blockId, null);
+      if (block.parentId) setBlockError(block.parentId, null);
+
+      // If a file was pushed to running instance, save immediately to history
+      if (options?.pushedFileRecord) {
+        useDeskStore.getState().addPushedFile(blockId, options.pushedFileRecord);
+        if (block.parentId) {
+          useDeskStore.getState().addPushedFile(block.parentId, options.pushedFileRecord);
+        }
+        pushFileToBlockHistory(blockId, options.pushedFileRecord).catch(console.error);
+        if (block.parentId) {
+          pushFileToBlockHistory(block.parentId, options.pushedFileRecord).catch(console.error);
+        }
+      }
+
+      const activeSheets = options?.customSheets || block.sheets || [];
+
+      // Persist inputs to DB immediately so server resolvers and page reloads have the fresh data
+      updateDeskBlockInputs(blockId, {
+        textInputs: block.textInputs,
+        sheets: activeSheets,
+        checkboxFields: block.checkboxFields,
+      }).catch(console.error);
+
+      const deskInputs = {
+        textInputs: block.textInputs?.map((t) => ({ id: t.id, value: t.value })) || [],
+        sheets: activeSheets.map((s) => ({ id: s.id, data: s.data })) || [],
+        checkboxFields: block.checkboxFields?.map((c) => ({ id: c.id, checked: c.checked })) || [],
+        actionButtons: block.actionButtons?.map((a) => ({ id: a.id, triggered: a.triggered })) || [],
+      };
+
+      const result = await runWorkflow({
+        workflowId: block.editorWorkflowId,
+        userId,
+        dashid,
+        blockId,
+        deskInputs,
+      });
+
+      if (result.success && result.data?.runId) {
+        const runId = result.data.runId;
+        const workflow = await getWorkFlow(block.editorWorkflowId);
+        const nodeCount = (workflow?.definition as any)?.reactFlow?.nodes?.length ?? 0;
+        addRun({ runId, workflowId: block.editorWorkflowId, totalNodes: nodeCount });
+        setServerRunningBlocks((prev) => ({
+          ...prev,
+          [blockId]: runId,
+          ...(block.parentId ? { [block.parentId]: runId } : {}),
+        }));
+        toast.success(`Server run started (${runId.slice(0, 8)}…)`);
+
+        // ACTIVE POLLING HEARTBEAT:
+        // Polling guarantees fast UI updates (every 800ms) without waiting on WebSocket delivery
+        let pollCount = 0;
+        const pollInterval = setInterval(async () => {
+          pollCount++;
+          try {
+            const statusRes = await getRunStatus(runId);
+            if (statusRes.success && statusRes.data) {
+              const runData = statusRes.data;
+              if (runData.status === "completed") {
+                clearInterval(pollInterval);
+                await completeRun(runId, runData.output);
+                toast.success("Server execution completed");
+              } else if (runData.status === "error" || runData.status === "cancelled") {
+                clearInterval(pollInterval);
+                await failRun(runId, runData.error || "Server execution failed");
+              }
+            }
+          } catch {
+            // network retry
+          }
+          if (pollCount > 150) clearInterval(pollInterval); // timeout after 2 minutes
+        }, 800);
+      } else {
+        setBlockExecuting(blockId, false);
+        if (block.parentId) setBlockExecuting(block.parentId, false);
+
+        if (options?.pushedFileRecord) {
+          const errMsg = result.error || "Server execution failed to start";
+          useDeskStore.getState().updatePushedFileStatus(blockId, options.pushedFileRecord.id, "failed", errMsg);
+          updatePushedFileStatus(blockId, options.pushedFileRecord.id, "failed", errMsg).catch(console.error);
+          if (block.parentId) {
+            useDeskStore.getState().updatePushedFileStatus(block.parentId, options.pushedFileRecord.id, "failed", errMsg);
+            updatePushedFileStatus(block.parentId, options.pushedFileRecord.id, "failed", errMsg).catch(console.error);
+          }
+        }
+
+        const errObj = {
+          message: result.error || "Server execution failed to start",
+          code: result.errorObj?.code || "INTERNAL_ERROR",
+          details: result.errorObj?.details || result.errorObj,
+          timestamp: new Date().toISOString(),
+        };
+        setBlockError(blockId, errObj);
+        if (block.parentId) setBlockError(block.parentId, errObj);
+        toast.error(`Server run failed: ${result.error || "Unknown error"}`);
+      }
+    },
+    [userId, dashid, setBlockExecuting, setBlockOutput, setBlockError, addRun, completeRun, failRun],
+  );
+
+  const handleCancelServerBlock = useCallback(
+    async (blockId: string) => {
+      let runId = serverRunningBlocks[blockId];
+      if (!runId) {
+        // If blockId is parent, search child blocks
+        const childRuns = useDeskStore.getState().blocks
+          .filter((b) => b.parentId === blockId)
+          .map((b) => serverRunningBlocks[b.id])
+          .filter(Boolean);
+        if (childRuns.length > 0) runId = childRuns[0];
+      }
+      if (!runId) return;
+
+      const result = await cancelWorkflow(runId);
+      if (result.success) {
+        setBlockExecuting(blockId, false);
+        setServerRunningBlocks((prev) => {
+          const n = { ...prev };
+          for (const [k, v] of Object.entries(n)) {
+            if (v === runId) {
+              delete n[k];
+              setBlockExecuting(k, false);
+            }
+          }
+          return n;
+        });
+        toast.info("Server execution cancelled");
+      }
+    },
+    [serverRunningBlocks, setBlockExecuting],
   );
 
   // ─── Add a child tab to a BigBlock ────────────────────────
@@ -630,6 +1088,20 @@ export default function DeskPage() {
                     dashid={dashid}
                     userId={userId}
                     onExecute={handleExecuteBlock}
+                    onServerExecute={handleServerExecuteBlock}
+                    onCancelServerRun={handleCancelServerBlock}
+                    serverRunId={
+                      serverRunningBlocks[block.id] ||
+                      (blocks.find((b) => b.parentId === block.id && serverRunningBlocks[b.id])
+                        ? serverRunningBlocks[blocks.find((b) => b.parentId === block.id && serverRunningBlocks[b.id])!.id]
+                        : undefined)
+                    }
+                    serverRun={
+                      (serverRunningBlocks[block.id] && executionRuns[serverRunningBlocks[block.id]]) ||
+                      (blocks.find((b) => b.parentId === block.id && serverRunningBlocks[b.id])
+                        ? executionRuns[serverRunningBlocks[blocks.find((b) => b.parentId === block.id && serverRunningBlocks[b.id])!.id]]
+                        : undefined)
+                    }
                     onAddTab={handleAddTab}
                     onRenameTab={handleRenameTab}
                     onDeleteTab={handleDeleteTab}
