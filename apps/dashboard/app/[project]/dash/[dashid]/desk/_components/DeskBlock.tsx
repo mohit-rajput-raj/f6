@@ -1002,10 +1002,7 @@ export function DeskBlock({
                             <button
                               type="button"
                               onClick={() =>
-                                handleOpenUploadModal(
-                                  sheet.id,
-                                  sheet.name,
-                                )
+                                handleOpenUploadModal(sheet.id, sheet.name)
                               }
                               disabled={isGuest}
                               className="flex items-center gap-1.5 text-[10px] text-muted-foreground cursor-pointer hover:text-foreground transition font-medium disabled:opacity-50 disabled:cursor-not-allowed"
