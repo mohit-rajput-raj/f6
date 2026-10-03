@@ -314,6 +314,11 @@ export class WorkflowInstance {
       } else {
         this.runtimeData.set(currentId, outputValue);
         this.runtimeData.set(`${currentId}__out`, outputValue);
+        if (outputValue && typeof outputValue === "object") {
+          for (const [key, val] of Object.entries(outputValue)) {
+            this.runtimeData.set(`${currentId}__${key}`, val);
+          }
+        }
       }
 
       // ── Mark completed ──
@@ -328,7 +333,7 @@ export class WorkflowInstance {
 
       // ── Emit block output if this node has a blockId ──
       const blockId = currentNode.data?.deskBlockId || this.config.blockId;
-      if (blockId && outputValue?.columns) {
+      if (blockId && outputValue && (outputValue.columns || outputValue.updates)) {
         this.emit({ type: "block:output", runId: this.runId, blockId, output: outputValue });
       }
 

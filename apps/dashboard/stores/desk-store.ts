@@ -74,6 +74,29 @@ export interface MergedPreviewTabData {
   mergeConfig?: Record<string, MergeOperationConfig> | null;
 }
 
+export interface DeskBlockError {
+  message: string;
+  code?: string;
+  details?: any;
+  nodeId?: string;
+  nodeType?: string;
+  timestamp: string;
+}
+
+export interface PushedFileRecord {
+  id: string;
+  sheetId: string;
+  sheetName: string;
+  fileName: string;
+  fileSize?: number;
+  rowCount: number;
+  columnCount: number;
+  status: "pending" | "processing" | "success" | "failed";
+  error?: string;
+  runId?: string;
+  pushedAt: string;
+}
+
 export interface DeskBlockState {
   id: string;
   name: string;
@@ -90,6 +113,8 @@ export interface DeskBlockState {
   checkboxFields: CheckboxField[];
   actionButtons: ActionButton[];
   isExecuting: boolean;
+  executionError?: DeskBlockError | null;
+  pushedFiles?: PushedFileRecord[];
 }
 
 // ─── Store Interface ────────────────────────────────────────
@@ -170,6 +195,30 @@ interface DeskState {
 
   // ─── Per-block Execution ───
   setBlockExecuting: (blockId: string, v: boolean) => void;
+  setBlockError: (
+    blockId: string,
+    error:
+      | {
+          message: string;
+          code?: string;
+          details?: any;
+          nodeId?: string;
+          nodeType?: string;
+          timestamp?: string;
+        }
+      | string
+      | null,
+  ) => void;
+  clearBlockError: (blockId: string) => void;
+
+  // ─── Pushed Files Actions ───
+  addPushedFile: (blockId: string, record: PushedFileRecord) => void;
+  updatePushedFileStatus: (
+    blockId: string,
+    fileId: string,
+    status: "success" | "failed",
+    error?: string,
+  ) => void;
 
   // ─── Master Sheet & AI Merged Preview ───
   masterSheetPreview: Dataset | null;
@@ -570,6 +619,59 @@ export const useDeskStore = create<DeskState>()((set, get) => ({
       blocks: mapBlock(s.blocks, blockId, (b) => ({
         ...b,
         isExecuting: v,
+      })),
+    })),
+
+  setBlockError: (blockId, error) =>
+    set((s) => ({
+      blocks: mapBlock(s.blocks, blockId, (b) => ({
+        ...b,
+        executionError: !error
+          ? null
+          : typeof error === "string"
+            ? {
+                message: error,
+                code: "INTERNAL_ERROR",
+                timestamp: new Date().toISOString(),
+              }
+            : {
+                message: error.message,
+                code: error.code || "INTERNAL_ERROR",
+                details: error.details,
+                nodeId: error.nodeId,
+                nodeType: error.nodeType,
+                timestamp: error.timestamp || new Date().toISOString(),
+              },
+      })),
+    })),
+
+  clearBlockError: (blockId) =>
+    set((s) => ({
+      blocks: mapBlock(s.blocks, blockId, (b) => ({
+        ...b,
+        executionError: null,
+      })),
+    })),
+
+  // ─── Pushed Files Actions ─────────────────────────────────
+  addPushedFile: (blockId, record) =>
+    set((s) => ({
+      blocks: mapBlock(s.blocks, blockId, (b) => {
+        const existing = b.pushedFiles || [];
+        return {
+          ...b,
+          pushedFiles: [record, ...existing.filter((f) => f.id !== record.id)].slice(0, 50),
+        };
+      }),
+    })),
+
+  updatePushedFileStatus: (blockId, fileId, status, error) =>
+    set((s) => ({
+      blocks: mapBlock(s.blocks, blockId, (b) => ({
+        ...b,
+        pushedFiles: (b.pushedFiles || []).map((f) =>
+          f.id === fileId ? { ...f, status, error: error ?? f.error } : f,
+        ),
       })),
     })),
 

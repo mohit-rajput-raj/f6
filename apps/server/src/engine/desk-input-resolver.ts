@@ -20,11 +20,17 @@ export class ServerDeskInputResolver implements DeskInputResolver {
   ) {}
 
   async getTextInput(blockId: string, inputId: string): Promise<string> {
-    // Check preloaded first
-    const preloaded = this.preloaded?.textInputs?.find(
+    // Check preloaded first by exact ID
+    let preloaded = this.preloaded?.textInputs?.find(
       (t) => t.id === inputId
     );
-    if (preloaded) return preloaded.value;
+    if (preloaded?.value && preloaded.value.trim()) return preloaded.value;
+
+    // Fallback if only 1 text input in preloaded
+    if (!preloaded && this.preloaded?.textInputs && this.preloaded.textInputs.length === 1) {
+      const single = this.preloaded.textInputs[0];
+      if (single?.value && single.value.trim()) return single.value;
+    }
 
     // Fallback to DB
     const { data: block } = await supabase
@@ -33,28 +39,68 @@ export class ServerDeskInputResolver implements DeskInputResolver {
       .eq("id", blockId)
       .maybeSingle();
 
-    if (!block?.textInputs) return "";
-    const input = (block.textInputs as any[]).find(
-      (t: any) => t.id === inputId
-    );
-    return input?.value ?? "";
+    if (block?.textInputs && Array.isArray(block.textInputs)) {
+      const input = (block.textInputs as any[]).find(
+        (t: any) => t.id === inputId
+      ) || (block.textInputs.length === 1 ? (block.textInputs as any[])[0] : null);
+      if (input?.value && String(input.value).trim()) return String(input.value).trim();
+      if (input?.placeholder && String(input.placeholder).trim()) return String(input.placeholder).trim();
+    }
+    return "";
   }
 
   async getSheetData(blockId: string, sheetId: string): Promise<Dataset> {
-    // Check preloaded first
-    const preloaded = this.preloaded?.sheets?.find((s) => s.id === sheetId);
-    if (preloaded) return preloaded.data;
+    // 1. Check preloaded first by exact sheetId
+    let preloaded = this.preloaded?.sheets?.find((s) => s.id === sheetId);
+    if (preloaded?.data && Array.isArray(preloaded.data.columns) && preloaded.data.columns.length > 0) {
+      return preloaded.data;
+    }
 
-    // Fallback to DB
+    // 2. If not found by exact ID, find any preloaded sheet that has data
+    if (this.preloaded?.sheets && this.preloaded.sheets.length > 0) {
+      const withData = this.preloaded.sheets.find(
+        (s) => s.data && Array.isArray(s.data.columns) && s.data.columns.length > 0
+      );
+      if (withData?.data) return withData.data;
+    }
+
+    // 3. Fallback to DB query on this block
     const { data: block } = await supabase
       .from("desk_block")
-      .select("sheets")
+      .select("sheets, parentId")
       .eq("id", blockId)
       .maybeSingle();
 
-    if (!block?.sheets) return { columns: [], data: [] };
-    const sheet = (block.sheets as any[]).find((s: any) => s.id === sheetId);
-    return sheet?.data ?? { columns: [], data: [] };
+    if (block?.sheets && Array.isArray(block.sheets)) {
+      let sheet = (block.sheets as any[]).find((s: any) => s.id === sheetId);
+      if (!sheet || !sheet.data || !Array.isArray(sheet.data.columns) || sheet.data.columns.length === 0) {
+        sheet = (block.sheets as any[]).find(
+          (s: any) => s.data && Array.isArray(s.data.columns) && s.data.columns.length > 0
+        );
+      }
+      if (sheet?.data && Array.isArray(sheet.data.columns) && sheet.data.columns.length > 0) {
+        return sheet.data;
+      }
+    }
+
+    // 4. Fallback: check parent block or child tabs in DB
+    if (block?.parentId) {
+      const { data: parentBlock } = await supabase
+        .from("desk_block")
+        .select("sheets")
+        .eq("id", block.parentId)
+        .maybeSingle();
+      if (parentBlock?.sheets && Array.isArray(parentBlock.sheets)) {
+        const pSheet = (parentBlock.sheets as any[]).find(
+          (s: any) => s.data && Array.isArray(s.data.columns) && s.data.columns.length > 0
+        );
+        if (pSheet?.data && Array.isArray(pSheet.data.columns) && pSheet.data.columns.length > 0) {
+          return pSheet.data;
+        }
+      }
+    }
+
+    return { columns: [], data: [] };
   }
 
   async getCheckboxValue(

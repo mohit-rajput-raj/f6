@@ -123,19 +123,20 @@ export class WorkflowManager {
     // 8. Execute in background (non-blocking!)
     instance
       .execute()
-      .then(() => {
-        this.updateRunStatus(
+      .then(async () => {
+        await this.updateRunStatus(
           runId,
           instance.currentStatus,
           instance.currentOutput,
           instance.currentError,
+          request.blockId,
         );
         // Clean up completed instances after 5 minutes
         setTimeout(() => this.instances.delete(runId), 5 * 60 * 1000);
       })
-      .catch((err) => {
+      .catch(async (err) => {
         console.error(`[WorkflowManager] Run ${runId} failed:`, err);
-        this.updateRunStatus(runId, "error", null, err.message);
+        await this.updateRunStatus(runId, "error", null, err.message, request.blockId);
         setTimeout(() => this.instances.delete(runId), 5 * 60 * 1000);
       });
 
@@ -240,6 +241,19 @@ export class WorkflowManager {
     return runs || [];
   }
 
+  // ── Active Runs for Project ──────────────────────────────────
+
+  async getActiveRuns(dashid: string): Promise<any[]> {
+    const { data: runs } = await supabase
+      .from("workflow_run")
+      .select("*")
+      .eq("dashid", dashid)
+      .in("status", ["running", "paused"])
+      .order("startedAt", { ascending: false });
+
+    return runs || [];
+  }
+
   // ── Private Helpers ─────────────────────────────────────────
 
   private buildRegistry(deskResolver: ServerDeskInputResolver): NodeRegistry {
@@ -261,9 +275,28 @@ export class WorkflowManager {
   private handleEvent(userId: string, event: WorkflowEvent): void {
     // Send event to user via WebSocket
     try {
+      const eventType = (event.type as string) || "";
+      const normalizedType = eventType.includes(":")
+        ? eventType.replace(":", "_")
+        : eventType;
+
+      // Translate node:status to node_completed / node_started / node_error
+      let translatedType = normalizedType;
+      const anyEvent = event as any;
+      if (eventType === "node:status" && anyEvent.status) {
+        if (anyEvent.status === "completed") translatedType = "node_completed";
+        else if (anyEvent.status === "running") translatedType = "node_started";
+        else if (anyEvent.status === "error") translatedType = "node_error";
+      }
+
       webSocketManager.sendToUser(userId, {
         type: "workflow_event",
-        payload: event,
+        payload: {
+          ...event,
+          type: translatedType,
+          originalType: eventType,
+          data: anyEvent.output ?? anyEvent.result ?? anyEvent.data,
+        },
       });
     } catch (err) {
       console.error("[WorkflowManager] WebSocket send error:", err);
@@ -296,6 +329,7 @@ export class WorkflowManager {
     status: WorkflowRunStatus,
     output?: any,
     error?: string | null,
+    blockId?: string,
   ): Promise<void> {
     try {
       const update: any = { status, updatedAt: new Date().toISOString() };
@@ -310,6 +344,94 @@ export class WorkflowManager {
       if (error !== undefined) update.error = error;
 
       await supabase.from("workflow_run").update(update).eq("id", runId);
+
+      // Directly update desk_block in DB so status does not rely solely on open WebSocket
+      if (blockId) {
+        if (status === "completed") {
+          const updateObj: any = { updatedAt: new Date().toISOString() };
+          if (output) updateObj.outputPreview = output;
+
+          const { data: blk } = await supabase
+            .from("desk_block")
+            .select("pushedFiles, parentId")
+            .eq("id", blockId)
+            .single();
+
+          if (blk) {
+            const pFiles = (blk.pushedFiles as any[]) || [];
+            updateObj.pushedFiles = pFiles.map((f) =>
+              f.status === "processing" || f.runId === runId
+                ? { ...f, status: "success" }
+                : f
+            );
+            await supabase
+              .from("desk_block")
+              .update(updateObj)
+              .eq("id", blockId);
+
+            if (blk.parentId) {
+              const parentUpdateObj: any = { updatedAt: new Date().toISOString() };
+              if (output) parentUpdateObj.outputPreview = output;
+              const { data: pBlk } = await supabase
+                .from("desk_block")
+                .select("pushedFiles")
+                .eq("id", blk.parentId)
+                .single();
+              if (pBlk) {
+                const parentPFiles = (pBlk.pushedFiles as any[]) || [];
+                parentUpdateObj.pushedFiles = parentPFiles.map((f) =>
+                  f.status === "processing" || f.runId === runId
+                    ? { ...f, status: "success" }
+                    : f
+                );
+              }
+              await supabase
+                .from("desk_block")
+                .update(parentUpdateObj)
+                .eq("id", blk.parentId);
+            }
+          }
+        } else if (status === "error") {
+          const { data: blk } = await supabase
+            .from("desk_block")
+            .select("pushedFiles, parentId")
+            .eq("id", blockId)
+            .single();
+
+          if (blk) {
+            const pFiles = (blk.pushedFiles as any[]) || [];
+            const updatedPFiles = pFiles.map((f) =>
+              f.status === "processing" || f.runId === runId
+                ? { ...f, status: "failed", error }
+                : f
+            );
+            await supabase
+              .from("desk_block")
+              .update({ pushedFiles: updatedPFiles, updatedAt: new Date().toISOString() })
+              .eq("id", blockId);
+
+            if (blk.parentId) {
+              const { data: pBlk } = await supabase
+                .from("desk_block")
+                .select("pushedFiles")
+                .eq("id", blk.parentId)
+                .single();
+              if (pBlk) {
+                const parentPFiles = (pBlk.pushedFiles as any[]) || [];
+                const updatedParentPFiles = parentPFiles.map((f) =>
+                  f.status === "processing" || f.runId === runId
+                    ? { ...f, status: "failed", error }
+                    : f
+                );
+                await supabase
+                  .from("desk_block")
+                  .update({ pushedFiles: updatedParentPFiles, updatedAt: new Date().toISOString() })
+                  .eq("id", blk.parentId);
+              }
+            }
+          }
+        }
+      }
     } catch (err) {
       console.warn("[WorkflowManager] Could not update run status:", err);
     }

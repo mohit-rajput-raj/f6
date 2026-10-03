@@ -81,6 +81,16 @@ export class ExecutionController {
     const runs = await workflowManager.listRuns(workflowId, limit);
     res.json({ success: true, data: runs });
   }
+
+  /**
+   * GET /execution/active/:dashid
+   * List active (running/paused) runs for a project/dash
+   */
+  async activeRuns(req: Request, res: Response) {
+    const dashid = req.params.dashid!;
+    const runs = await workflowManager.getActiveRuns(dashid);
+    res.json({ success: true, data: runs });
+  }
 }
 
 export const executionController = new ExecutionController();
