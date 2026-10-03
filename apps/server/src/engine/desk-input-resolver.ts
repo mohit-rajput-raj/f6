@@ -19,6 +19,19 @@ export class ServerDeskInputResolver implements DeskInputResolver {
     }
   ) {}
 
+  updateInputs(inputs?: {
+    textInputs?: Array<{ id: string; value: string }>;
+    sheets?: Array<{ id: string; data: Dataset }>;
+    checkboxFields?: Array<{ id: string; checked: boolean }>;
+    actionButtons?: Array<{ id: string; triggered: boolean }>;
+  }) {
+    if (!inputs) return;
+    this.preloaded = {
+      ...this.preloaded,
+      ...inputs,
+    };
+  }
+
   async getTextInput(blockId: string, inputId: string): Promise<string> {
     // Check preloaded first by exact ID
     let preloaded = this.preloaded?.textInputs?.find(
