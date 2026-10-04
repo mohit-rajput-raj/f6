@@ -16,6 +16,15 @@ app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 app.use(globalLimiter);
 
+// ─── Health Check & Root Routes ───────────────────────────
+app.get("/", (_req, res) => {
+  res.json({ message: "UNIXL Server is running", status: "ok", timestamp: new Date().toISOString() });
+});
+
+app.get("/health", (_req, res) => {
+  res.json({ status: "ok", timestamp: new Date().toISOString() });
+});
+
 // ─── API Routes ─────────────────────────────────────────────
 app.use("/api/v1", apiRoutes);
 
@@ -23,17 +32,18 @@ app.use("/api/v1", apiRoutes);
 app.use(notFoundHandler);
 app.use(errorHandler);
 
-// ─── WebSockets Initialization ─────────────────────────────
-webSocketManager.initialize(server);
+// ─── WebSockets Initialization (Non-Serverless) ─────────────
+if (!process.env.VERCEL) {
+  webSocketManager.initialize(server);
 
-
-
-// ─── Start HTTP Server ──────────────────────────────────────
-server.listen(config.port, () => {
-  console.log(`[server] ✓ Running on http://localhost:${config.port}`);
-  console.log(`[server] ✓ API base: http://localhost:${config.port}/api/v1`);
-  console.log(`[server] ✓ WebSockets: ws://localhost:${config.port}/ws`);
-  console.log(`[server] ✓ Python server: ${config.pypServerUrl}`);
-});
+  // ─── Start HTTP Server (Standalone Mode) ───────────────────
+  server.listen(config.port, () => {
+    console.log(`[server] ✓ Running on http://localhost:${config.port}`);
+    console.log(`[server] ✓ API base: http://localhost:${config.port}/api/v1`);
+    console.log(`[server] ✓ WebSockets: ws://localhost:${config.port}/ws`);
+    console.log(`[server] ✓ Python server: ${config.pypServerUrl}`);
+  });
+}
 
 export default app;
+
