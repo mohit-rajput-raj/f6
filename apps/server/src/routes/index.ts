@@ -1,12 +1,12 @@
 import { Router } from "express";
-// import workflowRoutes from "../modules/workflow/workflow.routes.js";
+import workflowRoutes from "../modules/workflow/workflow.routes.js";
 import deskRoutes from "../modules/desk/desk.routes.js";
 import teamRoutes from "../modules/team/team.routes.js";
 import notificationRoutes from "../modules/notification/notification.routes.js";
 import usersRoutes from "../modules/admin/users/users.routes.js";
 import subscribersRoutes from "../modules/admin/subscribers/subscribers.routes.js";
 import emailRoutes from "../modules/email/email.routes.js";
-// import executionRoutes from "../modules/execution/execution.routes.js";
+import executionRoutes from "../modules/execution/execution.routes.js";
 
 const router: Router = Router();
 
@@ -16,8 +16,8 @@ router.get("/health", (_req, res) => {
 });
 
 // ─── Modular API Routes ─────────────────────────────────────
-// router.use("/workflows", workflowRoutes);
-// router.use("/execution", executionRoutes);
+router.use("/workflows", workflowRoutes);
+router.use("/execution", executionRoutes);
 router.use("/desk", deskRoutes);
 router.use("/team", teamRoutes);
 router.use("/notifications", notificationRoutes);
