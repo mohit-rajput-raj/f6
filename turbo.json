@@ -2,6 +2,7 @@
   "$schema": "https://turborepo.com/schema.json",
   "ui": "tui",
   "globalEnv": [
+    "DATABASE_URL",
     "ADMIN_PASSKEY",
     "POLAR_ACCESS_TOKEN",
     "POLAR_SERVER",
@@ -22,7 +23,28 @@
     "NEXT_PUBLIC_AUTH_BASE_URL",
     "CLOUDINARY_CLOUD_NAME",
     "CLOUDINARY_API_KEY",
-    "CLOUDINARY_API_SECRET"
+    "CLOUDINARY_API_SECRET",
+    "RAZORPAY_KEY_ID",
+    "RAZORPAY_KEY_SECRET",
+    "PORT",
+    "CORS_ORIGIN",
+    "PYP_SERVER_URL",
+    "SUPABASE_URL",
+    "NEXT_PUBLIC_SUPABASE_URL",
+    "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
+    "SUPABASE_ANON_KEY",
+    "SUPABASE_SERVICE_ROLE_KEY",
+    "SMTP_FROM",
+    "SMTP_USER",
+    "SMTP_PORT",
+    "SMTP_HOST",
+    "SMTP_PASSWORD",
+    "SMTP_PASS",
+    "UPSTASH_REDIS_REST_URL",
+    "UPSTASH_REDIS_REST_TOKEN",
+    "REDIS_URL",
+    "RESEND_API_KEY",
+    "EMAIL_FROM"
   ],
   "tasks": {
     
