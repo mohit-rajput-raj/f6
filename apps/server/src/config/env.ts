@@ -16,22 +16,22 @@ export const config = {
   smtpFrom: process.env.SMTP_FROM,
 };
 
-const redisUrl = process.env.REDIS_URL;
+// const redisUrl = process.env.REDIS_URL;
 
-if (!redisUrl) {
-  console.warn("[server] Warning: REDIS_URL is not defined in environment variables.");
-}
+// if (!redisUrl) {
+//   console.warn("[server] Warning: REDIS_URL is not defined in environment variables.");
+// }
 
-export const connection = redisUrl
-  ? new Redis(redisUrl, {
-      maxRetriesPerRequest: null,
-      lazyConnect: true,
-      enableReadyCheck: false,
-    })
-  : (null as unknown as Redis);
+// export const connection = redisUrl
+//   ? new Redis(redisUrl, {
+//       maxRetriesPerRequest: null,
+//       lazyConnect: true,
+//       enableReadyCheck: false,
+//     })
+//   : (null as unknown as Redis);
 
-if (connection && typeof connection.on === "function") {
-  connection.on("error", (err) => {
-    console.error("[Redis] Connection error:", err.message);
-  });
-}
+// if (connection && typeof connection.on === "function") {
+//   connection.on("error", (err) => {
+//     console.error("[Redis] Connection error:", err.message);
+//   });
+// }
