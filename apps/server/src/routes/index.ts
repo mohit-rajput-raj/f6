@@ -1,30 +1,45 @@
+// import { Router } from "express";
+// import workflowRoutes from "../modules/workflow/workflow.routes.js";
+// import deskRoutes from "../modules/desk/desk.routes.js";
+// import teamRoutes from "../modules/team/team.routes.js";
+// import notificationRoutes from "../modules/notification/notification.routes.js";
+// import usersRoutes from "../modules/admin/users/users.routes.js";
+// import subscribersRoutes from "../modules/admin/subscribers/subscribers.routes.js";
+// import emailRoutes from "../modules/email/email.routes.js";
+// import executionRoutes from "../modules/execution/execution.routes.js";
+
+// const router: Router = Router();
+
+// // ─── Health Check ───────────────────────────────────────────
+// router.get("/health", (_req, res) => {
+//   res.json({ status: "ok", timestamp: new Date().toISOString() });
+// });
+
+// // ─── Modular API Routes ─────────────────────────────────────
+// router.use("/workflows", workflowRoutes);
+// router.use("/execution", executionRoutes);
+// router.use("/desk", deskRoutes);
+// router.use("/team", teamRoutes);
+// router.use("/notifications", notificationRoutes);
+// router.use("/email", emailRoutes);
+
+// // ─── Admin Routes ───────────────────────────────────────────
+// router.use("/admin", usersRoutes);
+// router.use("/admin/subscribers", subscribersRoutes);
+
+// export default router;
+// src/routes/index.ts
+
 import { Router } from "express";
-import workflowRoutes from "../modules/workflow/workflow.routes.js";
-import deskRoutes from "../modules/desk/desk.routes.js";
-import teamRoutes from "../modules/team/team.routes.js";
-import notificationRoutes from "../modules/notification/notification.routes.js";
-import usersRoutes from "../modules/admin/users/users.routes.js";
-import subscribersRoutes from "../modules/admin/subscribers/subscribers.routes.js";
-import emailRoutes from "../modules/email/email.routes.js";
-import executionRoutes from "../modules/execution/execution.routes.js";
 
 const router: Router = Router();
 
-// ─── Health Check ───────────────────────────────────────────
-router.get("/health", (_req, res) => {
-  res.json({ status: "ok", timestamp: new Date().toISOString() });
+router.get("/", (_req, res) => {
+  res.json({
+    status: "ok",
+    message: "API routes working",
+    timestamp: new Date().toISOString(),
+  });
 });
-
-// ─── Modular API Routes ─────────────────────────────────────
-router.use("/workflows", workflowRoutes);
-router.use("/execution", executionRoutes);
-router.use("/desk", deskRoutes);
-router.use("/team", teamRoutes);
-router.use("/notifications", notificationRoutes);
-router.use("/email", emailRoutes);
-
-// ─── Admin Routes ───────────────────────────────────────────
-router.use("/admin", usersRoutes);
-router.use("/admin/subscribers", subscribersRoutes);
 
 export default router;
