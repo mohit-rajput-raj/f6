@@ -2,29 +2,29 @@
   "name": "@repo/workflow-engine",
   "version": "1.0.0",
   "type": "module",
-  "main": "./src/index.ts",
-  "types": "./src/index.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./src/index.ts",
-      "import": "./src/index.ts",
-      "default": "./src/index.ts"
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
     },
     "./types": {
-      "types": "./src/types.ts",
-      "import": "./src/types.ts",
-      "default": "./src/types.ts"
+      "types": "./dist/types.d.ts",
+      "import": "./dist/types.js",
+      "default": "./dist/types.js"
     },
     "./functions": {
-      "types": "./src/functions.ts",
-      "import": "./src/functions.ts",
-      "default": "./src/functions.ts"
+      "types": "./dist/functions.d.ts",
+      "import": "./dist/functions.js",
+      "default": "./dist/functions.js"
     }
   },
   "typesVersions": {
     "*": {
-      "types": ["./src/types.ts"],
-      "functions": ["./src/functions.ts"]
+      "types": ["./dist/types.d.ts"],
+      "functions": ["./dist/functions.d.ts"]
     }
   },
   "scripts": {
