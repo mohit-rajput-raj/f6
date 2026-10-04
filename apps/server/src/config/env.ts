@@ -19,9 +19,19 @@ export const config = {
 const redisUrl = process.env.REDIS_URL;
 
 if (!redisUrl) {
-  throw new Error("REDIS_URL is required");
+  console.warn("[server] Warning: REDIS_URL is not defined in environment variables.");
 }
 
-export const connection = new Redis(redisUrl, {
-  maxRetriesPerRequest: null,
-});
+export const connection = redisUrl
+  ? new Redis(redisUrl, {
+      maxRetriesPerRequest: null,
+      lazyConnect: true,
+      enableReadyCheck: false,
+    })
+  : (null as unknown as Redis);
+
+if (connection && typeof connection.on === "function") {
+  connection.on("error", (err) => {
+    console.error("[Redis] Connection error:", err.message);
+  });
+}
