@@ -18,7 +18,11 @@ app.use(globalLimiter);
 
 // ─── Health Check & Root Routes ───────────────────────────
 app.get("/", (_req, res) => {
-  res.json({ message: "UNIXL Server is running", status: "ok", timestamp: new Date().toISOString() });
+  res.json({
+    message: "UNIXL Server is running",
+    status: "ok",
+    timestamp: new Date().toISOString(),
+  });
 });
 
 app.get("/health", (_req, res) => {
@@ -46,4 +50,3 @@ if (!process.env.VERCEL) {
 }
 
 export default app;
-
