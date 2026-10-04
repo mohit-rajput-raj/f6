@@ -131,7 +131,8 @@
         "CLOUDINARY_API_SECRET"
       ],
       "cache": false,
-      "persistent": true
+      "persistent": true,
+      "interruptible": true
     }
   }
 }

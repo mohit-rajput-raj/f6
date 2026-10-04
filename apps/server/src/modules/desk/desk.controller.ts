@@ -64,6 +64,34 @@ export class DeskController {
     const result = await deskService.deleteBlock(blockId);
     res.json({ success: true, data: result });
   }
+
+  async verifyBlockPassword(req: Request, res: Response) {
+    const blockId = req.params.blockId as string;
+    const { password } = req.body;
+    const result = await deskService.verifyBlockPassword(blockId, password);
+    res.json({ success: true, data: result });
+  }
+
+  async updateBlockSecurity(req: Request, res: Response) {
+    const blockId = req.params.blockId as string;
+    const { coOwnerEmail, password, isPasswordProtected } = req.body;
+    const result = await deskService.updateBlockSecurity(blockId, {
+      coOwnerEmail,
+      password,
+      isPasswordProtected,
+    });
+    res.json({ success: true, data: result });
+  }
+
+  async updateBlockSettings(req: Request, res: Response) {
+    const blockId = req.params.blockId as string;
+    const { settings, name, reservedColumns } = req.body;
+    const result = await deskService.updateBlockSettings(blockId, settings, {
+      name,
+      reservedColumns,
+    });
+    res.json({ success: true, data: result });
+  }
 }
 
 export const deskController = new DeskController();

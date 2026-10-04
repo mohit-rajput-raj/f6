@@ -1,4 +1,5 @@
 import dotenv from "dotenv";
+import Redis from "ioredis";
 dotenv.config();
 
 export const config = {
@@ -14,3 +15,13 @@ export const config = {
   smtpPassword: process.env.SMTP_PASSWORD || process.env.SMTP_PASS,
   smtpFrom: process.env.SMTP_FROM,
 };
+
+const redisUrl = process.env.REDIS_URL;
+
+if (!redisUrl) {
+  throw new Error("REDIS_URL is required");
+}
+
+export const connection = new Redis(redisUrl, {
+  maxRetriesPerRequest: null,
+});

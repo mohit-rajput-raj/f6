@@ -242,10 +242,16 @@ model DeskBlock {
   treeDepth         Int      @default(0) // 0 for root (b1), 1 for children (b2), etc.
   reservedColumns   String[] @default([]) // Columns this block is allowed to write to in MasterSheet
 
+  coOwnerEmail        String?
+  isPasswordProtected Boolean  @default(false)
+  passwordHash        String?
+  settings            Json?    @default("{}")
+
   textInputs     Json? // [{id, placeholder, value}]
   sheets         Json? // [{id, name, data: {columns, data}}]
   outputPreview  Json? // {columns, data}
   checkboxFields Json? // [{id, label, checked}]
+  pushedFiles    Json?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

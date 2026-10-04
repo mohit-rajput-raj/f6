@@ -1,0 +1,819 @@
+"use client";
+
+import React, { useState, useEffect } from "react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@repo/ui/components/ui/dialog";
+import { Input } from "@repo/ui/components/ui/input";
+import { Button } from "@/components/ui/components";
+import { Badge } from "@repo/ui/components/ui/badge";
+import {
+  Settings,
+  Shield,
+  UserCheck,
+  Lock,
+  Unlock,
+  KeyRound,
+  Sliders,
+  Webhook,
+  Activity,
+  AlertTriangle,
+  Check,
+  Eye,
+  EyeOff,
+  Loader2,
+  Trash2,
+  Cpu,
+  RefreshCw,
+  Clock,
+  Sparkles,
+  Users,
+} from "lucide-react";
+import { toast } from "sonner";
+import {
+  setBlockSecurity,
+  updateBlockSettings,
+} from "../desk-block-actions";
+import { getDeskCollaborators } from "../desk-share-actions";
+import { useDeskStore, type DeskBlockState } from "@/stores/desk-store";
+
+interface BlockSettingsModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  block: DeskBlockState;
+  dashid: string;
+  currentUserEmail?: string;
+  isOwner?: boolean;
+  onDeleteTab?: (childId: string) => Promise<void>;
+  onRenameTab?: (childId: string, name: string) => Promise<void>;
+}
+
+type TabKey = "general" | "coowner" | "security" | "webhooks" | "compute" | "audit" | "danger";
+
+export function BlockSettingsModal({
+  isOpen,
+  onClose,
+  block,
+  dashid,
+  currentUserEmail,
+  isOwner,
+  onDeleteTab,
+  onRenameTab,
+}: BlockSettingsModalProps) {
+  const [activeTab, setActiveTab] = useState<TabKey>("general");
+  const [tabName, setTabName] = useState(block.name || "");
+  const [coOwnerEmail, setCoOwnerEmail] = useState(block.coOwnerEmail || "");
+  const [isPasswordProtected, setIsPasswordProtected] = useState(
+    Boolean(block.isPasswordProtected)
+  );
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [collaborators, setCollaborators] = useState<Array<{ invitedEmail: string; permission: string }>>([]);
+
+  const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  // Store actions
+  const setBlockSecurityStore = useDeskStore((s) => s.setBlockSecurity);
+  const setBlockSettingsStore = useDeskStore((s) => s.setBlockSettings);
+
+  // Dummy settings state
+  const [webhookUrl, setWebhookUrl] = useState("https://api.internal-mesh.io/v1/blocks/webhook");
+  const [timeoutSeconds, setTimeoutSeconds] = useState("120");
+  const [memoryLimit, setMemoryLimit] = useState("512MB");
+  const [concurrency, setConcurrency] = useState("2");
+  const [autoRetry, setAutoRetry] = useState(true);
+
+  useEffect(() => {
+    if (isOpen) {
+      setTabName(block.name || "");
+      setCoOwnerEmail(block.coOwnerEmail || "");
+      setIsPasswordProtected(Boolean(block.isPasswordProtected));
+      setPassword("");
+      setConfirmPassword("");
+
+      // Fetch team collaborators to suggest for co-ownership
+      if (dashid) {
+        getDeskCollaborators(undefined, dashid)
+          .then((res: any[]) => {
+            setCollaborators(res || []);
+          })
+          .catch(() => {});
+      }
+    }
+  }, [isOpen, block, dashid]);
+
+  const handleSaveGeneral = async () => {
+    setIsSaving(true);
+    try {
+      if (tabName.trim() && tabName !== block.name && onRenameTab) {
+        await onRenameTab(block.id, tabName.trim());
+      }
+      await updateBlockSettings(block.id, {
+        updatedAt: new Date().toISOString(),
+      }, { name: tabName.trim() });
+      toast.success("General block settings updated");
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to save settings");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleSaveCoOwner = async () => {
+    setIsSaving(true);
+    try {
+      const emailToSet = coOwnerEmail.trim() || null;
+      await setBlockSecurity(block.id, {
+        coOwnerEmail: emailToSet,
+      });
+      setBlockSecurityStore(block.id, { coOwnerEmail: emailToSet });
+      toast.success(
+        emailToSet
+          ? `Assigned ${emailToSet} as Co-Owner of this block`
+          : "Removed Co-Owner from this block"
+      );
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to update co-owner");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleSaveSecurity = async () => {
+    if (isPasswordProtected && password) {
+      if (password !== confirmPassword) {
+        toast.error("Passwords do not match");
+        return;
+      }
+      if (password.length < 4) {
+        toast.error("Password must be at least 4 characters");
+        return;
+      }
+    }
+
+    setIsSaving(true);
+    try {
+      const res = await setBlockSecurity(block.id, {
+        isPasswordProtected,
+        password: isPasswordProtected && password ? password : isPasswordProtected ? undefined : "",
+      });
+
+      setBlockSecurityStore(block.id, {
+        isPasswordProtected: res.isPasswordProtected,
+      });
+
+      setPassword("");
+      setConfirmPassword("");
+      toast.success(
+        res.isPasswordProtected
+          ? "Password protection enabled for this block editor"
+          : "Password protection disabled"
+      );
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to update security settings");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleRemovePassword = async () => {
+    setIsSaving(true);
+    try {
+      await setBlockSecurity(block.id, {
+        isPasswordProtected: false,
+        password: "",
+      });
+      setIsPasswordProtected(false);
+      setBlockSecurityStore(block.id, { isPasswordProtected: false });
+      setPassword("");
+      setConfirmPassword("");
+      toast.success("Password removed successfully");
+    } catch (err: any) {
+      toast.error("Failed to remove password");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!onDeleteTab) return;
+    if (confirm(`Are you sure you want to delete tab "${block.name}"? This action cannot be undone.`)) {
+      setIsDeleting(true);
+      try {
+        await onDeleteTab(block.id);
+        toast.success("Tab deleted successfully");
+        onClose();
+      } catch (e: any) {
+        toast.error("Failed to delete tab");
+      } finally {
+        setIsDeleting(false);
+      }
+    }
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="sm:max-w-[760px] max-h-[85vh] p-0 border-zinc-800 bg-zinc-950 text-zinc-100 shadow-2xl overflow-hidden flex flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800/80 bg-zinc-900/50">
+          <div className="flex items-center gap-3">
+            <div className="size-9 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
+              <Settings className="size-4.5" />
+            </div>
+            <div>
+              <DialogTitle className="text-base font-semibold text-zinc-100 tracking-tight flex items-center gap-2">
+                Block Settings
+                <Badge variant="outline" className="text-[10px] bg-zinc-800 text-zinc-400 border-zinc-700 font-mono">
+                  {block.name}
+                </Badge>
+                {block.isPasswordProtected && (
+                  <Badge variant="outline" className="text-[10px] bg-amber-500/10 text-amber-400 border-amber-500/30 font-mono flex items-center gap-1">
+                    <Lock className="size-2.5" /> Protected
+                  </Badge>
+                )}
+              </DialogTitle>
+              <DialogDescription className="text-xs text-zinc-400">
+                Configure tab responsibilities, editor security password, and pipeline settings.
+              </DialogDescription>
+            </div>
+          </div>
+        </div>
+
+        {/* Body (Sidebar + Tab Content) */}
+        <div className="flex flex-1 overflow-hidden min-h-[420px]">
+          {/* Sidebar Navigation */}
+          <div className="w-48 border-r border-zinc-800/80 bg-zinc-950/60 p-3 space-y-1 shrink-0 overflow-y-auto">
+            <button
+              onClick={() => setActiveTab("general")}
+              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-xs font-medium transition-colors text-left ${
+                activeTab === "general"
+                  ? "bg-zinc-800 text-zinc-100 font-semibold"
+                  : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900"
+              }`}
+            >
+              <Sliders className="size-3.5 text-zinc-400" />
+              General
+            </button>
+
+            <button
+              onClick={() => setActiveTab("coowner")}
+              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-xs font-medium transition-colors text-left ${
+                activeTab === "coowner"
+                  ? "bg-zinc-800 text-zinc-100 font-semibold"
+                  : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900"
+              }`}
+            >
+              <UserCheck className="size-3.5 text-indigo-400" />
+              Co-Owner & Roles
+            </button>
+
+            <button
+              onClick={() => setActiveTab("security")}
+              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-xs font-medium transition-colors text-left ${
+                activeTab === "security"
+                  ? "bg-zinc-800 text-zinc-100 font-semibold"
+                  : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900"
+              }`}
+            >
+              <Shield className="size-3.5 text-amber-400" />
+              Security & Password
+            </button>
+
+            <div className="pt-2 pb-1 px-3">
+              <span className="text-[10px] uppercase font-bold tracking-wider text-zinc-600">Advanced (Mock)</span>
+            </div>
+
+            <button
+              onClick={() => setActiveTab("webhooks")}
+              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-xs font-medium transition-colors text-left ${
+                activeTab === "webhooks"
+                  ? "bg-zinc-800 text-zinc-100 font-semibold"
+                  : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900"
+              }`}
+            >
+              <Webhook className="size-3.5 text-emerald-400" />
+              Webhooks
+            </button>
+
+            <button
+              onClick={() => setActiveTab("compute")}
+              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-xs font-medium transition-colors text-left ${
+                activeTab === "compute"
+                  ? "bg-zinc-800 text-zinc-100 font-semibold"
+                  : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900"
+              }`}
+            >
+              <Cpu className="size-3.5 text-blue-400" />
+              Compute & Limits
+            </button>
+
+            <button
+              onClick={() => setActiveTab("audit")}
+              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-xs font-medium transition-colors text-left ${
+                activeTab === "audit"
+                  ? "bg-zinc-800 text-zinc-100 font-semibold"
+                  : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900"
+              }`}
+            >
+              <Activity className="size-3.5 text-purple-400" />
+              Audit Log
+            </button>
+
+            <div className="pt-3">
+              <button
+                onClick={() => setActiveTab("danger")}
+                className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-xs font-medium transition-colors text-left ${
+                  activeTab === "danger"
+                    ? "bg-red-500/15 text-red-400 font-semibold"
+                    : "text-red-400/80 hover:text-red-300 hover:bg-red-500/10"
+                }`}
+              >
+                <AlertTriangle className="size-3.5 text-red-400" />
+                Danger Zone
+              </button>
+            </div>
+          </div>
+
+          {/* Tab Content Panel */}
+          <div className="flex-1 p-6 overflow-y-auto bg-zinc-900/30">
+            {/* ─── 1. General Tab ─── */}
+            {activeTab === "general" && (
+              <div className="space-y-5 animate-in fade-in">
+                <div>
+                  <h4 className="text-sm font-semibold text-zinc-200">General Block Configuration</h4>
+                  <p className="text-xs text-zinc-500 mt-0.5">Customize tab title, identifiers, and write back permissions.</p>
+                </div>
+
+                <div className="space-y-4 pt-2">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-zinc-300">Tab / Block Display Name</label>
+                    <Input
+                      value={tabName}
+                      onChange={(e) => setTabName(e.target.value)}
+                      placeholder="e.g. Attendance Processor"
+                      className="bg-zinc-900 border-zinc-700 text-sm"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="p-3 rounded-lg border border-zinc-800 bg-zinc-900/50 space-y-1">
+                      <span className="text-[10px] text-zinc-500 font-mono uppercase">Block Identifier</span>
+                      <p className="text-xs text-zinc-300 font-mono truncate">{block.id}</p>
+                    </div>
+                    <div className="p-3 rounded-lg border border-zinc-800 bg-zinc-900/50 space-y-1">
+                      <span className="text-[10px] text-zinc-500 font-mono uppercase">Editor Workflow ID</span>
+                      <p className="text-xs text-zinc-300 font-mono truncate">{block.editorWorkflowId}</p>
+                    </div>
+                  </div>
+
+                  <div className="p-3.5 rounded-lg border border-zinc-800 bg-zinc-900/40 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-medium text-zinc-300">Reserved MasterSheet Columns</span>
+                      <Badge variant="outline" className="text-[10px] text-zinc-400 border-zinc-700 font-mono">
+                        {block.reservedColumns?.length || 0} columns
+                      </Badge>
+                    </div>
+                    <p className="text-[11px] text-zinc-500">
+                      {block.reservedColumns && block.reservedColumns.length > 0
+                        ? block.reservedColumns.join(", ")
+                        : "No specific column lock — output columns will dynamically map during commit."}
+                    </p>
+                  </div>
+
+                  <Button
+                    size="sm"
+                    onClick={handleSaveGeneral}
+                    disabled={isSaving}
+                    className="h-8 text-xs bg-zinc-100 hover:bg-white text-zinc-950 font-medium"
+                  >
+                    {isSaving ? <Loader2 className="size-3 animate-spin mr-1.5" /> : <Check className="size-3 mr-1.5" />}
+                    Save Changes
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* ─── 2. Co-Owner & Roles Tab ─── */}
+            {activeTab === "coowner" && (
+              <div className="space-y-5 animate-in fade-in">
+                <div>
+                  <h4 className="text-sm font-semibold text-zinc-200 flex items-center gap-2">
+                    <UserCheck className="size-4 text-indigo-400" />
+                    Block Co-Owner & Responsibilities
+                  </h4>
+                  <p className="text-xs text-zinc-500 mt-0.5">
+                    Appoint any team member to be in charge of this tab. Co-owners have exclusive privileges to set passwords and configure the editor.
+                  </p>
+                </div>
+
+                <div className="space-y-4 pt-1">
+                  <div className="p-3.5 rounded-lg border border-indigo-500/20 bg-indigo-500/5 space-y-1.5">
+                    <div className="flex items-center gap-2 text-indigo-300 text-xs font-medium">
+                      <Sparkles className="size-3.5" />
+                      <span>Co-Owner Permissions</span>
+                    </div>
+                    <p className="text-[11px] text-zinc-400 leading-relaxed">
+                      The assigned member can set and manage editor passwords, adjust workflow node limits, and open the editor directly without password barriers.
+                    </p>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-zinc-300">Co-Owner Email Address</label>
+                    <Input
+                      value={coOwnerEmail}
+                      onChange={(e) => setCoOwnerEmail(e.target.value)}
+                      placeholder="collaborator@company.com"
+                      className="bg-zinc-900 border-zinc-700 text-sm"
+                    />
+                  </div>
+
+                  {collaborators.length > 0 && (
+                    <div className="space-y-2">
+                      <span className="text-[11px] font-medium text-zinc-400">Select from Project Team Members:</span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {collaborators.map((c) => (
+                          <button
+                            key={c.invitedEmail}
+                            type="button"
+                            onClick={() => setCoOwnerEmail(c.invitedEmail)}
+                            className={`text-xs px-2.5 py-1 rounded-full border transition-colors cursor-pointer flex items-center gap-1.5 ${
+                              coOwnerEmail.toLowerCase() === c.invitedEmail.toLowerCase()
+                                ? "bg-indigo-600 text-white border-indigo-500"
+                                : "bg-zinc-800/80 text-zinc-300 border-zinc-700 hover:bg-zinc-700"
+                            }`}
+                          >
+                            <Users className="size-3" />
+                            <span>{c.invitedEmail}</span>
+                            <span className="text-[10px] opacity-70">({c.permission})</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="pt-2 flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      onClick={handleSaveCoOwner}
+                      disabled={isSaving}
+                      className="h-8 text-xs bg-indigo-600 hover:bg-indigo-500 text-white font-medium"
+                    >
+                      {isSaving ? <Loader2 className="size-3 animate-spin mr-1.5" /> : <Check className="size-3 mr-1.5" />}
+                      Update Co-Owner
+                    </Button>
+                    {coOwnerEmail && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          setCoOwnerEmail("");
+                        }}
+                        className="h-8 text-xs text-zinc-400 hover:text-zinc-200"
+                      >
+                        Clear Co-Owner
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ─── 3. Security & Password Tab ─── */}
+            {activeTab === "security" && (
+              <div className="space-y-5 animate-in fade-in">
+                <div>
+                  <h4 className="text-sm font-semibold text-zinc-200 flex items-center gap-2">
+                    <Shield className="size-4 text-amber-400" />
+                    Editor Password Protection
+                  </h4>
+                  <p className="text-xs text-zinc-500 mt-0.5">
+                    Protect the block workflow editor with a server-verified password.
+                  </p>
+                </div>
+
+                <div className="space-y-4 pt-1">
+                  {/* Protection Toggle */}
+                  <div className="flex items-center justify-between p-3.5 rounded-lg border border-zinc-800 bg-zinc-900/60">
+                    <div className="space-y-0.5">
+                      <div className="text-xs font-medium text-zinc-200 flex items-center gap-2">
+                        {isPasswordProtected ? (
+                          <Lock className="size-3.5 text-amber-400" />
+                        ) : (
+                          <Unlock className="size-3.5 text-zinc-500" />
+                        )}
+                        <span>Require Password to Access Editor</span>
+                      </div>
+                      <p className="text-[11px] text-zinc-500">
+                        When enabled, team members must enter the security key every time they open the editor.
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setIsPasswordProtected(!isPasswordProtected)}
+                      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                        isPasswordProtected ? "bg-amber-500" : "bg-zinc-700"
+                      }`}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                          isPasswordProtected ? "translate-x-4" : "translate-x-0"
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  {/* Password fields if enabled */}
+                  {isPasswordProtected && (
+                    <div className="space-y-3 p-3.5 rounded-lg border border-amber-500/20 bg-amber-500/5">
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-medium text-zinc-300">
+                          {block.isPasswordProtected ? "Update Password" : "Set Block Password"}
+                        </label>
+                        <div className="relative">
+                          <Input
+                            type={showPassword ? "text" : "password"}
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            placeholder={block.isPasswordProtected ? "Leave blank to keep existing" : "Enter new password"}
+                            className="bg-zinc-900 border-zinc-700 pr-10 text-sm"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowPassword(!showPassword)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 cursor-pointer"
+                          >
+                            {showPassword ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+                          </button>
+                        </div>
+                      </div>
+
+                      {password && (
+                        <div className="space-y-1.5 animate-in fade-in">
+                          <label className="text-xs font-medium text-zinc-300">Confirm Password</label>
+                          <Input
+                            type={showPassword ? "text" : "password"}
+                            value={confirmPassword}
+                            onChange={(e) => setConfirmPassword(e.target.value)}
+                            placeholder="Re-enter password"
+                            className="bg-zinc-900 border-zinc-700 text-sm"
+                          />
+                        </div>
+                      )}
+
+                      <div className="text-[11px] text-zinc-500 flex items-center gap-1.5">
+                        <KeyRound className="size-3 text-amber-400" />
+                        <span>Password is encrypted with salted PBKDF2 and verified strictly on the backend API.</span>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="pt-2 flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      onClick={handleSaveSecurity}
+                      disabled={isSaving}
+                      className="h-8 text-xs bg-amber-500 hover:bg-amber-400 text-zinc-950 font-medium"
+                    >
+                      {isSaving ? <Loader2 className="size-3 animate-spin mr-1.5" /> : <Check className="size-3 mr-1.5" />}
+                      Save Security Settings
+                    </Button>
+
+                    {block.isPasswordProtected && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={handleRemovePassword}
+                        disabled={isSaving}
+                        className="h-8 text-xs border-zinc-700 text-zinc-400 hover:text-zinc-200"
+                      >
+                        Remove Password
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ─── 4. Webhooks (Dummy UI) ─── */}
+            {activeTab === "webhooks" && (
+              <div className="space-y-5 animate-in fade-in">
+                <div>
+                  <h4 className="text-sm font-semibold text-zinc-200 flex items-center gap-2">
+                    <Webhook className="size-4 text-emerald-400" />
+                    Block Event Webhooks (Mock API)
+                  </h4>
+                  <p className="text-xs text-zinc-500 mt-0.5">
+                    Send real-time HTTP POST notifications when this tab processes data or commits output.
+                  </p>
+                </div>
+
+                <div className="space-y-4 pt-1">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-zinc-300">Payload Delivery URL</label>
+                    <Input
+                      value={webhookUrl}
+                      onChange={(e) => setWebhookUrl(e.target.value)}
+                      placeholder="https://hooks.slack.com/services/..."
+                      className="bg-zinc-900 border-zinc-700 text-sm font-mono text-xs"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <span className="text-xs font-medium text-zinc-300">Trigger Events</span>
+                    <div className="space-y-2">
+                      <label className="flex items-center gap-2 text-xs text-zinc-300">
+                        <input type="checkbox" defaultChecked className="rounded border-zinc-700 text-emerald-500" />
+                        <span>Execution Succeeded (output dataset ready)</span>
+                      </label>
+                      <label className="flex items-center gap-2 text-xs text-zinc-300">
+                        <input type="checkbox" defaultChecked className="rounded border-zinc-700 text-emerald-500" />
+                        <span>MasterSheet Merge Committed</span>
+                      </label>
+                      <label className="flex items-center gap-2 text-xs text-zinc-300">
+                        <input type="checkbox" defaultChecked className="rounded border-zinc-700 text-emerald-500" />
+                        <span>Execution Failed / Syntax Error</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="pt-2">
+                    <Button
+                      size="sm"
+                      onClick={() => toast.success("Test webhook ping dispatched! [Status: 200 OK]")}
+                      className="h-8 text-xs bg-zinc-800 hover:bg-zinc-700 text-zinc-200"
+                    >
+                      <RefreshCw className="size-3 mr-1.5" />
+                      Send Test Ping
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ─── 5. Compute & Limits (Dummy UI) ─── */}
+            {activeTab === "compute" && (
+              <div className="space-y-5 animate-in fade-in">
+                <div>
+                  <h4 className="text-sm font-semibold text-zinc-200 flex items-center gap-2">
+                    <Cpu className="size-4 text-blue-400" />
+                    Compute Resource Allocation (Mock)
+                  </h4>
+                  <p className="text-xs text-zinc-500 mt-0.5">
+                    Fine-tune node worker memory limits and concurrency thresholds.
+                  </p>
+                </div>
+
+                <div className="space-y-4 pt-1">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-medium text-zinc-300">Memory Allocation</label>
+                      <select
+                        value={memoryLimit}
+                        onChange={(e) => setMemoryLimit(e.target.value)}
+                        className="w-full h-9 rounded-md bg-zinc-900 border border-zinc-700 px-3 text-xs text-zinc-200"
+                      >
+                        <option value="256MB">256 MB (Standard)</option>
+                        <option value="512MB">512 MB (Optimal)</option>
+                        <option value="1GB">1024 MB (Heavy Excel)</option>
+                        <option value="2GB">2048 MB (Massive CSV)</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-medium text-zinc-300">Max Worker Concurrency</label>
+                      <select
+                        value={concurrency}
+                        onChange={(e) => setConcurrency(e.target.value)}
+                        className="w-full h-9 rounded-md bg-zinc-900 border border-zinc-700 px-3 text-xs text-zinc-200"
+                      >
+                        <option value="1">1 Thread (Sequential)</option>
+                        <option value="2">2 Threads (Parallel)</option>
+                        <option value="4">4 Threads (High Performance)</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-zinc-300">Timeout Threshold (seconds)</label>
+                    <Input
+                      value={timeoutSeconds}
+                      onChange={(e) => setTimeoutSeconds(e.target.value)}
+                      type="number"
+                      className="bg-zinc-900 border-zinc-700 text-sm"
+                    />
+                  </div>
+
+                  <label className="flex items-center gap-2 text-xs text-zinc-300 cursor-pointer pt-1">
+                    <input
+                      type="checkbox"
+                      checked={autoRetry}
+                      onChange={(e) => setAutoRetry(e.target.checked)}
+                      className="rounded border-zinc-700 text-blue-500"
+                    />
+                    <span>Auto-retry failed transformations up to 3 times</span>
+                  </label>
+
+                  <Button
+                    size="sm"
+                    onClick={() => toast.success("Compute preferences saved")}
+                    className="h-8 text-xs bg-zinc-100 hover:bg-white text-zinc-950 font-medium"
+                  >
+                    Save Compute Config
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* ─── 6. Audit Log (Dummy UI) ─── */}
+            {activeTab === "audit" && (
+              <div className="space-y-4 animate-in fade-in">
+                <div>
+                  <h4 className="text-sm font-semibold text-zinc-200 flex items-center gap-2">
+                    <Activity className="size-4 text-purple-400" />
+                    Security & Activity Audit Trail
+                  </h4>
+                  <p className="text-xs text-zinc-500 mt-0.5">
+                    Immutable history of security adjustments and workflow events.
+                  </p>
+                </div>
+
+                <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 divide-y divide-zinc-800/80 overflow-hidden text-xs">
+                  <div className="p-3 flex items-center justify-between">
+                    <div>
+                      <span className="font-medium text-zinc-200">Security Check Passed</span>
+                      <p className="text-[11px] text-zinc-500 font-mono">Editor password verified via backend API</p>
+                    </div>
+                    <Badge variant="outline" className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 text-[10px]">
+                      Just now
+                    </Badge>
+                  </div>
+
+                  <div className="p-3 flex items-center justify-between">
+                    <div>
+                      <span className="font-medium text-zinc-200">Co-Owner Assignment</span>
+                      <p className="text-[11px] text-zinc-500 font-mono">
+                        {block.coOwnerEmail ? `Assigned to ${block.coOwnerEmail}` : "Standard project role"}
+                      </p>
+                    </div>
+                    <Badge variant="outline" className="bg-indigo-500/10 text-indigo-400 border-indigo-500/20 text-[10px]">
+                      Recent
+                    </Badge>
+                  </div>
+
+                  <div className="p-3 flex items-center justify-between">
+                    <div>
+                      <span className="font-medium text-zinc-200">Workflow Execution</span>
+                      <p className="text-[11px] text-zinc-500 font-mono">Completed transformation in 340ms</p>
+                    </div>
+                    <Badge variant="outline" className="bg-zinc-800 text-zinc-400 border-zinc-700 text-[10px]">
+                      1 hour ago
+                    </Badge>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ─── 7. Danger Zone ─── */}
+            {activeTab === "danger" && (
+              <div className="space-y-5 animate-in fade-in">
+                <div>
+                  <h4 className="text-sm font-semibold text-red-400 flex items-center gap-2">
+                    <AlertTriangle className="size-4" />
+                    Danger Zone
+                  </h4>
+                  <p className="text-xs text-zinc-500 mt-0.5">Irreversible actions for this block tab.</p>
+                </div>
+
+                <div className="p-4 rounded-lg border border-red-500/30 bg-red-500/5 space-y-3">
+                  <div>
+                    <h5 className="text-xs font-semibold text-zinc-200">Delete This Tab</h5>
+                    <p className="text-[11px] text-zinc-400 mt-0.5">
+                      Permanently remove this tab, its node editor workflow, and saved sheet inputs.
+                    </p>
+                  </div>
+
+                  <Button
+                    size="sm"
+                    onClick={handleDelete}
+                    disabled={isDeleting}
+                    className="h-8 text-xs bg-red-600 hover:bg-red-500 text-white font-medium"
+                  >
+                    {isDeleting ? <Loader2 className="size-3 animate-spin mr-1.5" /> : <Trash2 className="size-3 mr-1.5" />}
+                    Delete Tab
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}

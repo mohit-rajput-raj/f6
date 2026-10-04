@@ -70,6 +70,7 @@ import {
   CreateWorkFlowFormSchema,
 } from "@/zodschema/workflows";
 import { UserAvatarStack } from "./membersListPictures";
+import { ProjectInvitesBanner } from "./ProjectInvitesBanner";
 import { toast } from "sonner";
 
 /**
@@ -226,6 +227,9 @@ export const ProjectList = () => {
 
   return (
     <div className="max-w-7xl mx-auto p-6 md:p-10 space-y-6">
+      {/* ── Pending Team Invites & Requests ── */}
+      <ProjectInvitesBanner onInviteAccepted={() => refetch()} />
+
       {/* ── Top Header Section (MNC Corporate Standard) ── */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-2 border-b border-zinc-200/80 dark:border-zinc-800">
         <div>

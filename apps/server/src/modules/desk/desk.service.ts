@@ -1,4 +1,5 @@
 import { supabase } from "@repo/db";
+import { hashPassword, verifyPassword } from "../../lib/crypto.js";
 
 export class DeskService {
   /**
@@ -11,7 +12,13 @@ export class DeskService {
       .eq("projectWorkflowId", projectWorkflowId)
       .order("blockOrder", { ascending: true });
 
-    return blocks || [];
+    return (blocks || []).map((b: any) => {
+      const { passwordHash, ...rest } = b;
+      return {
+        ...rest,
+        isPasswordProtected: Boolean(b.isPasswordProtected && passwordHash),
+      };
+    });
   }
 
   /**
@@ -25,7 +32,12 @@ export class DeskService {
       .maybeSingle();
 
     if (!block) throw Object.assign(new Error("Block not found"), { statusCode: 404 });
-    return block;
+
+    const { passwordHash, ...rest } = block;
+    return {
+      ...rest,
+      isPasswordProtected: Boolean(block.isPasswordProtected && passwordHash),
+    };
   }
 
   /**
@@ -269,6 +281,104 @@ export class DeskService {
     await supabase.from("desk_block").delete().eq("id", blockId);
     await supabase.from("workflow").delete().eq("id", block.editorWorkflowId);
     return { deleted: true };
+  }
+
+  /**
+   * Verify a block's password.
+   */
+  async verifyBlockPassword(blockId: string, passwordAttempt: string) {
+    const { data: block } = await supabase
+      .from("desk_block")
+      .select("id, editorWorkflowId, isPasswordProtected, passwordHash")
+      .eq("id", blockId)
+      .maybeSingle();
+
+    if (!block) throw Object.assign(new Error("Block not found"), { statusCode: 404 });
+
+    if (!block.isPasswordProtected || !block.passwordHash) {
+      return { success: true, verified: true };
+    }
+
+    if (!passwordAttempt) {
+      throw Object.assign(new Error("Password required"), { statusCode: 400 });
+    }
+
+    const isValid = verifyPassword(passwordAttempt.trim(), block.passwordHash);
+    if (!isValid) {
+      throw Object.assign(new Error("Invalid block password"), { statusCode: 401 });
+    }
+
+    return { success: true, verified: true, editorWorkflowId: block.editorWorkflowId };
+  }
+
+  /**
+   * Update block security: assigned co-owner, password protection, and password.
+   */
+  async updateBlockSecurity(
+    blockId: string,
+    payload: {
+      coOwnerEmail?: string | null;
+      password?: string | null;
+      isPasswordProtected?: boolean;
+    }
+  ) {
+    const updateData: any = { updatedAt: new Date().toISOString() };
+
+    if (payload.coOwnerEmail !== undefined) {
+      updateData.coOwnerEmail = payload.coOwnerEmail ? payload.coOwnerEmail.trim().toLowerCase() : null;
+    }
+
+    if (payload.password && payload.password.trim().length > 0) {
+      updateData.passwordHash = hashPassword(payload.password.trim());
+      updateData.isPasswordProtected = true;
+    } else if (payload.isPasswordProtected !== undefined) {
+      updateData.isPasswordProtected = payload.isPasswordProtected;
+      if (payload.isPasswordProtected === false && payload.password === "") {
+        updateData.passwordHash = null;
+      }
+    }
+
+    const { data: updated, error } = await supabase
+      .from("desk_block")
+      .update(updateData)
+      .eq("id", blockId)
+      .select("id, coOwnerEmail, isPasswordProtected, passwordHash")
+      .single();
+
+    if (error) throw error;
+
+    return {
+      id: updated.id,
+      coOwnerEmail: updated.coOwnerEmail,
+      isPasswordProtected: Boolean(updated.isPasswordProtected && updated.passwordHash),
+    };
+  }
+
+  /**
+   * Update block general/dummy settings.
+   */
+  async updateBlockSettings(
+    blockId: string,
+    settings: Record<string, any>,
+    extra?: { name?: string; reservedColumns?: string[] }
+  ) {
+    const updateData: any = {
+      settings,
+      updatedAt: new Date().toISOString(),
+    };
+
+    if (extra?.name) updateData.name = extra.name;
+    if (extra?.reservedColumns) updateData.reservedColumns = extra.reservedColumns;
+
+    const { data: updated, error } = await supabase
+      .from("desk_block")
+      .update(updateData)
+      .eq("id", blockId)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return updated;
   }
 }
 

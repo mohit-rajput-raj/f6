@@ -1,6 +1,12 @@
 "use server";
 
 import { supabase } from "@repo/db";
+import {
+  hashPassword,
+  verifyPassword,
+  generateUnlockToken,
+  verifyUnlockToken,
+} from "@/lib/password-utils";
 
 // ─── Types ──────────────────────────────────────────────────
 export interface DeskTextInput {
@@ -50,6 +56,9 @@ export interface DeskBlockData {
   parentId: string | null;
   treeDepth: number;
   reservedColumns: string[];
+  coOwnerEmail?: string | null;
+  isPasswordProtected?: boolean;
+  settings?: Record<string, any> | null;
   textInputs: DeskTextInput[];
   sheets: DeskSheet[];
   outputPreview: Dataset | null;
@@ -74,6 +83,9 @@ export async function getDeskBlocks(projectWorkflowId: string): Promise<DeskBloc
     parentId: b.parentId,
     treeDepth: b.treeDepth,
     reservedColumns: b.reservedColumns || [],
+    coOwnerEmail: b.coOwnerEmail || null,
+    isPasswordProtected: Boolean(b.isPasswordProtected && b.passwordHash),
+    settings: b.settings || {},
     textInputs: (b.textInputs as unknown as DeskTextInput[]) ?? [],
     sheets: (b.sheets as unknown as DeskSheet[]) ?? [],
     outputPreview: (b.outputPreview as unknown as Dataset) ?? null,
@@ -453,4 +465,168 @@ export async function getActiveDeskRuns(dashid: string): Promise<any[]> {
   }
   return runs || [];
 }
+
+// ─── Update Block Security (Co-owner, Password Protection) ──
+export async function setBlockSecurity(
+  blockId: string,
+  payload: {
+    coOwnerEmail?: string | null;
+    password?: string | null;
+    isPasswordProtected?: boolean;
+  }
+) {
+  const updateData: any = { updatedAt: new Date().toISOString() };
+
+  if (payload.coOwnerEmail !== undefined) {
+    updateData.coOwnerEmail = payload.coOwnerEmail ? payload.coOwnerEmail.trim().toLowerCase() : null;
+  }
+
+  if (payload.password && payload.password.trim().length > 0) {
+    updateData.passwordHash = hashPassword(payload.password.trim());
+    updateData.isPasswordProtected = true;
+  } else if (payload.isPasswordProtected !== undefined) {
+    updateData.isPasswordProtected = payload.isPasswordProtected;
+    if (payload.isPasswordProtected === false && payload.password === "") {
+      updateData.passwordHash = null;
+    }
+  }
+
+  const { data: updated, error } = await supabase
+    .from("desk_block")
+    .update(updateData)
+    .eq("id", blockId)
+    .select("id, coOwnerEmail, isPasswordProtected, passwordHash")
+    .single();
+
+  if (error) throw error;
+
+  return {
+    id: updated.id,
+    coOwnerEmail: updated.coOwnerEmail,
+    isPasswordProtected: Boolean(updated.isPasswordProtected && updated.passwordHash),
+  };
+}
+
+// ─── Verify Block Password (Server API verification) ────────
+export async function verifyBlockPassword(
+  blockId: string,
+  passwordAttempt: string
+): Promise<{ success: boolean; token?: string; message?: string }> {
+  if (!blockId) {
+    return { success: false, message: "Block ID is required" };
+  }
+
+  const { data: block, error } = await supabase
+    .from("desk_block")
+    .select("id, editorWorkflowId, isPasswordProtected, passwordHash")
+    .eq("id", blockId)
+    .maybeSingle();
+
+  if (error || !block) {
+    return { success: false, message: "Block not found" };
+  }
+
+  // If the block is not password protected or has no password, allow access
+  if (!block.isPasswordProtected || !block.passwordHash) {
+    const token = generateUnlockToken(block.id, block.editorWorkflowId);
+    return { success: true, token };
+  }
+
+  if (!passwordAttempt) {
+    return { success: false, message: "Password is required" };
+  }
+
+  const isValid = verifyPassword(passwordAttempt.trim(), block.passwordHash);
+  if (!isValid) {
+    return { success: false, message: "Incorrect password. Access denied." };
+  }
+
+  const token = generateUnlockToken(block.id, block.editorWorkflowId);
+  return { success: true, token };
+}
+
+// ─── Check Block Access (for editor protection checks) ──────
+export async function checkBlockAccess(
+  blockId: string,
+  userEmail?: string | null
+): Promise<{
+  isPasswordProtected: boolean;
+  isCoOwnerOrOwner: boolean;
+  coOwnerEmail: string | null;
+  editorWorkflowId?: string;
+}> {
+  const { data: block } = await supabase
+    .from("desk_block")
+    .select("id, editorWorkflowId, projectWorkflowId, isPasswordProtected, passwordHash, coOwnerEmail")
+    .eq("id", blockId)
+    .maybeSingle();
+
+  if (!block) {
+    return { isPasswordProtected: false, isCoOwnerOrOwner: false, coOwnerEmail: null };
+  }
+
+  const isProtected = Boolean(block.isPasswordProtected && block.passwordHash);
+  const normalizedUserEmail = userEmail?.trim().toLowerCase();
+
+  // Check if user is project owner
+  let isOwner = false;
+  if (normalizedUserEmail && block.projectWorkflowId) {
+    const { data: workflow } = await supabase
+      .from("workflow")
+      .select("userId")
+      .eq("id", block.projectWorkflowId)
+      .maybeSingle();
+
+    if (workflow?.userId) {
+      const { data: ownerUser } = await supabase
+        .from("user")
+        .select("email")
+        .eq("id", workflow.userId)
+        .maybeSingle();
+
+      if (ownerUser?.email?.toLowerCase() === normalizedUserEmail) {
+        isOwner = true;
+      }
+    }
+  }
+
+  const isCoOwner = Boolean(
+    normalizedUserEmail &&
+    block.coOwnerEmail &&
+    block.coOwnerEmail.toLowerCase() === normalizedUserEmail
+  );
+
+  return {
+    isPasswordProtected: isProtected,
+    isCoOwnerOrOwner: isOwner || isCoOwner,
+    coOwnerEmail: block.coOwnerEmail,
+    editorWorkflowId: block.editorWorkflowId,
+  };
+}
+
+// ─── Update Block Settings (Configuration, Dummy UI configs) ──
+export async function updateBlockSettings(
+  blockId: string,
+  settings: Record<string, any>,
+  extra?: { name?: string; reservedColumns?: string[] }
+) {
+  const updateData: any = {
+    settings,
+    updatedAt: new Date().toISOString(),
+  };
+
+  if (extra?.name) updateData.name = extra.name;
+  if (extra?.reservedColumns) updateData.reservedColumns = extra.reservedColumns;
+
+  const { data: updated, error } = await supabase
+    .from("desk_block")
+    .update(updateData)
+    .eq("id", blockId)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return updated;
+}
+
 
