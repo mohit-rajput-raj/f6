@@ -29,9 +29,9 @@ import {
 import { useMasterSheetStore } from "@/stores/master-sheet-store";
 import { usePathname, useRouter, useParams } from "next/navigation";
 import { DeskBlock } from "./_components/DeskBlock";
-import { InviteNotification } from "./_components/InviteNotification";
 import { MasterSheetPanel } from "./_components/MasterSheetPanel";
 import { MasterSheetHistoryPanel } from "./_components/MasterSheetHistoryPanel";
+import { DeskPageSkeleton } from "./_components/DeskPageSkeleton";
 import { UpdatedMergedPreview } from "./_components/UpdatedMergedPreview";
 import { executeWorkflow } from "../editor/_components/nodes/executions/nodeExecutions";
 import { getWorkFlow } from "../editor/_actions/editor.service";
@@ -924,22 +924,7 @@ export default function DeskPage() {
 
   // ─── Render ───────────────────────────────────────────────
   if (isLoading) {
-    return (
-      <div className="h-screen w-full flex items-center justify-center bg-background">
-        <div className="flex flex-col items-center gap-3">
-          <RoseLoader
-            size={141}
-            color="#707070"
-            secondaryColor="#00313d"
-            speed={3.5}
-            strokeWidth={3}
-            petals={10}
-            denominator={4}
-          />
-          <p className="text-sm text-muted-foreground">Loading desk...</p>
-        </div>
-      </div>
-    );
+    return <DeskPageSkeleton />;
   }
 
   return (
@@ -983,9 +968,6 @@ export default function DeskPage() {
 
         </div> */}
       </div>
-
-      {/* ─── Invite Notification Banner ──────────────────── */}
-      {userEmail && <InviteNotification userEmail={userEmail} />}
 
       {/* ─── OCR Result Banner ───────────────────────────── */}
       {ocrResult && (

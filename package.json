@@ -3,14 +3,21 @@
   "private": true,
   "scripts": {
     "build": "turbo build",
-    "dev": "turbo run dev --parallel",
+        "dev": "turbo run dev --parallel",
+
+    "dev:turbo": "turbo run dev --filter=dashboard --filter=admin --filter=server --concurrency=4",
+    "dev:all": "turbo run dev --parallel --concurrency=5",
+    "dev:dashboard": "turbo run dev --filter=dashboard",
+    "dev:admin": "turbo run dev --filter=admin",
+    "dev:server": "turbo run dev --filter=server",
     "start": "turbo run start",
     "lint": "turbo lint",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "ui": "pnpm --filter @repo/ui ui",
     "check-types": "turbo run check-types",
-    "clean:turbo": "rm -rf node_modules/.cache/turbo .turbo/cache",
-    "clean": "pnpm clean:turbo && rm -rf node_modules .next dist"
+    "clean:turbo": "npx -y rimraf node_modules/.cache/turbo .turbo/cache .turbo/daemon",
+    "clean:next": "npx -y rimraf apps/dashboard/.next apps/admin/.next",
+    "clean": "pnpm clean:turbo && pnpm clean:next"
   },
   "devDependencies": {
     "@repo/eslint-config": "workspace:*",

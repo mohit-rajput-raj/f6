@@ -106,6 +106,9 @@ export interface DeskBlockState {
   parentId: string | null;
   treeDepth: number;
   reservedColumns: string[];
+  coOwnerEmail?: string | null;
+  isPasswordProtected?: boolean;
+  settings?: Record<string, any> | null;
   textInputs: DeskTextInput[];
   sheets: DeskSheet[];
   outputPreview: Dataset | null;
@@ -142,6 +145,11 @@ interface DeskState {
   removeBlock: (blockId: string) => void;
   updateBlock: (blockId: string, partial: Partial<DeskBlockState>) => void;
   updateBlockName: (blockId: string, name: string) => void;
+  setBlockSecurity: (
+    blockId: string,
+    security: { coOwnerEmail?: string | null; isPasswordProtected?: boolean }
+  ) => void;
+  setBlockSettings: (blockId: string, settings: Record<string, any>) => void;
 
   // ─── Per-block Text Input Actions ───
   addTextInput: (
@@ -300,6 +308,21 @@ export const useDeskStore = create<DeskState>()((set, get) => ({
   updateBlockName: (blockId, name) =>
     set((s) => ({
       blocks: mapBlock(s.blocks, blockId, (b) => ({ ...b, name })),
+    })),
+  setBlockSecurity: (blockId, security) =>
+    set((s) => ({
+      blocks: mapBlock(s.blocks, blockId, (b) => ({
+        ...b,
+        ...(security.coOwnerEmail !== undefined ? { coOwnerEmail: security.coOwnerEmail } : {}),
+        ...(security.isPasswordProtected !== undefined ? { isPasswordProtected: security.isPasswordProtected } : {}),
+      })),
+    })),
+  setBlockSettings: (blockId, settings) =>
+    set((s) => ({
+      blocks: mapBlock(s.blocks, blockId, (b) => ({
+        ...b,
+        settings: { ...(b.settings || {}), ...settings },
+      })),
     })),
 
   // ─── Text Input Actions ────────────────────────────────────

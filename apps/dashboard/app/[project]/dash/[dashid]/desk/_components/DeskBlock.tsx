@@ -28,7 +28,14 @@ import {
   Check,
   RotateCcw,
   Zap,
+  Lock,
+  KeyRound,
+  Shield,
+  UserCheck,
 } from "lucide-react";
+import { useSession } from "@/lib/auth-client";
+import { BlockPasswordModal } from "./BlockPasswordModal";
+import { BlockSettingsModal } from "./BlockSettingsModal";
 import { Input } from "@repo/ui/components/ui/input";
 import { Button } from "@/components/ui/components";
 import {
@@ -165,11 +172,17 @@ export function DeskBlock({
 }: DeskBlockProps) {
   const router = useRouter();
   const pathname = usePathname();
+  const { data: sessionData } = useSession();
+  const currentUserEmail = sessionData?.user?.email ?? "";
+
   const spreadsheetRef = useRef<any>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isAddingTab, setIsAddingTab] = useState(false);
   const [renamingTabId, setRenamingTabId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
+
+  const [settingsModalTarget, setSettingsModalTarget] = useState<DeskBlockState | null>(null);
+  const [passwordModalTarget, setPasswordModalTarget] = useState<DeskBlockState | null>(null);
 
   // ─── Child blocks (tabs within this BigBlock) ─────────────
   const childBlocks = (allBlocks || [])
@@ -518,25 +531,50 @@ export function DeskBlock({
   );
 
   // ─── Navigate to child block's editor ──────────────────────
+  const navigateToEditor = useCallback(
+    (child: DeskBlockState, token?: string) => {
+      const segments = pathname.split("/");
+      const projectSlug = segments[1] || "dashboard";
+      const tokenParam = token ? `?token=${encodeURIComponent(token)}` : "";
+      router.push(
+        `/${projectSlug}/dash/${dashid}/desk/editor/${child.editorWorkflowId}${tokenParam}`
+      );
+    },
+    [pathname, dashid, router]
+  );
+
   const openEditor = useCallback(
     (child: DeskBlockState) => {
-      if (isGuest || isViewer) {
+      if (isViewer) {
         toast.error("You don't have permission to edit this block's workflow");
         return;
       }
-      const segments = pathname.split("/");
-      const projectSlug = segments[1] || "dashboard";
-      router.push(
-        `/${projectSlug}/dash/${dashid}/desk/editor/${child.editorWorkflowId}`,
-      );
+
+      // Check if password protected
+      if (child.isPasswordProtected) {
+        const isCoOwner = Boolean(
+          currentUserEmail &&
+          child.coOwnerEmail &&
+          child.coOwnerEmail.toLowerCase() === currentUserEmail.toLowerCase()
+        );
+        const isProjectOwner = !isGuest;
+
+        // If not owner or co-owner, prompt for password
+        if (!isCoOwner && !isProjectOwner) {
+          setPasswordModalTarget(child);
+          return;
+        }
+      }
+
+      navigateToEditor(child);
     },
-    [isGuest, pathname, dashid, router],
+    [isViewer, isGuest, currentUserEmail, navigateToEditor]
   );
 
   // ─── Delete a child tab ────────────────────────────────────
   const handleDeleteTab = useCallback(
     async (childId: string) => {
-      if (isGuest || isViewer) return;
+      if (isViewer) return;
       const isLastTab = childBlocks.length <= 1;
       const confirmMsg = isLastTab
         ? "Deleting the last tab will also delete this BigBlock. Continue?"
@@ -649,7 +687,7 @@ export function DeskBlock({
               BigBlock {blockIndex + 1}
             </span>
           </div>
-          {!isGuest && !isViewer && (
+          {!isViewer && (
             <Button
               size="sm"
               onClick={handleAddTab}
@@ -794,7 +832,7 @@ export function DeskBlock({
               </div>
 
               {/* ── Settings Dropdown ── */}
-              {!isGuest && !isViewer && (
+              {!isViewer && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button
@@ -812,10 +850,21 @@ export function DeskBlock({
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
                     <DropdownMenuItem
+                      onClick={() => setSettingsModalTarget(activeChild)}
+                      className="cursor-pointer text-xs"
+                    >
+                      <Settings className="mr-2 size-3.5" />
+                      Block Settings
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
                       onClick={() => openEditor(activeChild)}
                       className="cursor-pointer text-xs"
                     >
-                      <Edit2 className="mr-2 size-3.5" />
+                      {activeChild.isPasswordProtected ? (
+                        <KeyRound className="mr-2 size-3.5 text-amber-500" />
+                      ) : (
+                        <Edit2 className="mr-2 size-3.5" />
+                      )}
                       Open Editor
                     </DropdownMenuItem>
                     <DropdownMenuItem
@@ -878,14 +927,17 @@ export function DeskBlock({
               key={child.id}
               onClick={() => setActiveChildId(child.id)}
               onDoubleClick={() =>
-                !isGuest && !isViewer && startRename(child.id, child.name)
+                !isViewer && startRename(child.id, child.name)
               }
-              className={`text-xs px-3 py-1.5 rounded-md font-medium transition-all whitespace-nowrap ${
+              className={`text-xs px-3 py-1.5 rounded-md font-medium transition-all whitespace-nowrap flex items-center gap-1.5 ${
                 activeChildId === child.id
                   ? "bg-secondary text-secondary-foreground border border-border shadow-sm"
                   : "text-muted-foreground hover:text-foreground hover:bg-muted border border-transparent"
               }`}
             >
+              {child.isPasswordProtected && (
+                <Lock className="size-3 text-amber-500 shrink-0" />
+              )}
               {renamingTabId === child.id ? (
                 <input
                   autoFocus
@@ -900,12 +952,20 @@ export function DeskBlock({
                   className="bg-transparent border-none outline-none text-xs w-20 text-foreground"
                 />
               ) : (
-                child.name
+                <span>{child.name}</span>
+              )}
+              {child.coOwnerEmail && (
+                <span
+                  className="text-[9px] px-1 py-0.2 rounded bg-indigo-500/15 text-indigo-400 font-mono"
+                  title={`Co-owner: ${child.coOwnerEmail}`}
+                >
+                  @{child.coOwnerEmail.split("@")[0]}
+                </span>
               )}
             </button>
           ))}
         </div>
-        {!isGuest && !isViewer && (
+        {!isViewer && (
           <Button
             variant="ghost"
             size="sm"
@@ -1545,7 +1605,7 @@ export function DeskBlock({
                                   ⚡ Retry Server
                                 </Button>
                               )}
-                              {!isGuest && !isViewer && (
+                              {!isViewer && (
                                 <Button
                                   variant="secondary"
                                   size="sm"
@@ -1859,6 +1919,38 @@ export function DeskBlock({
             </DialogFooter>
           </DialogContent>
         </Dialog>
+      )}
+
+      {/* ─── Block Settings Modal ─── */}
+      {settingsModalTarget && (
+        <BlockSettingsModal
+          isOpen={!!settingsModalTarget}
+          onClose={() => setSettingsModalTarget(null)}
+          block={settingsModalTarget}
+          dashid={dashid}
+          currentUserEmail={currentUserEmail}
+          isOwner={!isGuest}
+          onDeleteTab={onDeleteTab}
+          onRenameTab={onRenameTab}
+        />
+      )}
+
+      {/* ─── Block Password Entry Modal ─── */}
+      {passwordModalTarget && (
+        <BlockPasswordModal
+          isOpen={!!passwordModalTarget}
+          onClose={() => setPasswordModalTarget(null)}
+          blockId={passwordModalTarget.id}
+          tabName={passwordModalTarget.name}
+          coOwnerEmail={passwordModalTarget.coOwnerEmail}
+          onVerified={(token) => {
+            const target = passwordModalTarget;
+            setPasswordModalTarget(null);
+            if (target) {
+              navigateToEditor(target, token);
+            }
+          }}
+        />
       )}
     </div>
   );
