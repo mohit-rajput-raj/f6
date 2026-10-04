@@ -5,11 +5,7 @@
     "build": "turbo build",
         "dev": "turbo run dev --parallel",
 
-    "dev:turbo": "turbo run dev --filter=dashboard --filter=admin --filter=server --concurrency=4",
-    "dev:all": "turbo run dev --parallel --concurrency=5",
-    "dev:dashboard": "turbo run dev --filter=dashboard",
-    "dev:admin": "turbo run dev --filter=admin",
-    "dev:server": "turbo run dev --filter=server",
+    
     "start": "turbo run start",
     "lint": "turbo lint",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
