@@ -118,6 +118,30 @@ export const OcrColumnTools: React.FC<OcrColumnToolsProps> = ({
     toast.success(`Applied suffix "${s}" to ${selectedColIndices.length} columns`);
   };
 
+  // Delete selected columns
+  const deleteSelectedColumns = () => {
+    if (selectedColIndices.length === 0) {
+      toast.error("Please select at least one column to delete");
+      return;
+    }
+    if (selectedColIndices.length >= columns.length) {
+      toast.error("Cannot delete all columns. At least one column must remain.");
+      return;
+    }
+
+    const count = selectedColIndices.length;
+    const indicesToDelete = new Set(selectedColIndices);
+    const updatedCols = columns.filter((_, idx) => !indicesToDelete.has(idx));
+    const updatedCells = spreadsheetCells.map((row) =>
+      row.filter((_, idx) => !indicesToDelete.has(idx)),
+    );
+
+    setSelectedColIndices([]);
+    onUpdateColumns(updatedCols);
+    onUpdateCells(updatedCells);
+    toast.success(`Deleted ${count} column(s)`);
+  };
+
   // Quick action: Replace all "." with "A" in entire spreadsheet
   const handleQuickDotToA = () => {
     let replacedCount = 0;
@@ -217,6 +241,19 @@ export const OcrColumnTools: React.FC<OcrColumnToolsProps> = ({
             >
               Clear
             </button>
+            {selectedColIndices.length > 0 && (
+              <>
+                <span>•</span>
+                <button
+                  type="button"
+                  onClick={deleteSelectedColumns}
+                  className="text-[11px] text-destructive hover:underline cursor-pointer font-medium flex items-center gap-1"
+                >
+                  <Trash2 className="size-3" />
+                  Delete Selected ({selectedColIndices.length})
+                </button>
+              </>
+            )}
           </div>
         </div>
 

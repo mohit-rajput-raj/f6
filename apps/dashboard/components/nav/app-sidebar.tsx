@@ -53,6 +53,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@repo/ui/components/ui/dropdown-menu";
+import {
+  Avatar,
+  AvatarImage,
+  AvatarFallback,
+} from "@repo/ui/components/ui/avatar";
 import { useRouteAuthContextHook } from "@/context/routeContext";
 import { toast } from "sonner";
 
@@ -202,21 +207,21 @@ const data = {
     },
   ],
   navSecondary: [
-    {
-      title: "Settings",
-      url: "/settings",
-      icon: IconSettings,
-    },
+    // {
+    //   title: "Settings",
+    //   url: "/settings",
+    //   icon: IconSettings,
+    // },
     {
       title: "Get Help",
       url: "/help",
       icon: IconHelp,
     },
-    {
-      title: "Search",
-      url: "/search",
-      icon: IconSearch,
-    },
+    // {
+    //   title: "Search",
+    //   url: "/search",
+    //   icon: IconSearch,
+    // },
     // {
     //   title: "Docs",
     //   url: "/3001",
@@ -234,16 +239,16 @@ const data = {
       url: "/sheet-library",
       icon: IconListDetails,
     },
-    {
-      name: "Reports",
-      url: "/reports",
-      icon: IconReport,
-    },
-    {
-      name: "Word Assistant",
-      url: "/word-assistant",
-      icon: IconFileWord,
-    },
+    // {
+    //   name: "Reports",
+    //   url: "/reports",
+    //   icon: IconReport,
+    // },
+    // {
+    //   name: "Word Assistant",
+    //   url: "/word-assistant",
+    //   icon: IconFileWord,
+    // },
   ],
   projects: [
     {
@@ -280,16 +285,16 @@ const data = {
     },
   ],
   global: [
-    {
-      name: "People",
-      url: "/peoples",
-      icon: IconReport,
-    },
-    {
-      name: "New Updates",
-      url: "/new-updates",
-      icon: IconReport,
-    },
+    // {
+    //   name: "People",
+    //   url: "/peoples",
+    //   icon: IconReport,
+    // },
+    // {
+    //   name: "New Updates",
+    //   url: "/new-updates",
+    //   icon: IconReport,
+    // },
   ],
 };
 type AppSidebarProps = React.ComponentProps<typeof Sidebar> & {
@@ -377,9 +382,18 @@ export const AppSidebar = ({ val, ...props }: AppSidebarProps) => {
               size="sm"
               className="w-full flex items-center justify-between px-2.5 py-2 h-9 text-xs font-medium text-sidebar-foreground hover:bg-sidebar-accent rounded-lg transition-colors cursor-pointer group"
             >
-              <div className="flex items-center gap-2.5">
-                <IconSettings className="size-4 text-muted-foreground group-hover:text-foreground group-hover:rotate-45 transition-all duration-200" />
-                <span className="font-medium text-xs">Settings</span>
+              <div className="flex items-center gap-2.5 min-w-0">
+                <Avatar className="size-5 rounded-full ring-1 ring-sidebar-border shrink-0">
+                  <AvatarImage
+                    src={userImage || (userEmail ? `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(userEmail)}&backgroundColor=27272a,3f3f46&textColor=ffffff` : undefined)}
+                    alt={userName || userEmail || "User"}
+                    className="object-cover"
+                  />
+                  <AvatarFallback className="text-[9px] bg-sidebar-accent font-semibold">
+                    {(userName || userEmail || "U").charAt(0).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+                <span className="font-medium text-xs truncate">Settings</span>
               </div>
               <kbd className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground bg-muted/60 rounded border border-border/50">
                 ⌘,
@@ -404,9 +418,20 @@ export const AppSidebar = ({ val, ...props }: AppSidebarProps) => {
                 navigate.push(`/${targetProj}/${targetId}/settings`);
               }}
             >
-              <IconSettings className="size-4 text-primary" />
+              <Avatar className="size-5 rounded-full ring-1 ring-border/50 shrink-0">
+                <AvatarImage
+                  src={userImage || (userEmail ? `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(userEmail)}&backgroundColor=27272a,3f3f46&textColor=ffffff` : undefined)}
+                  alt={userName || userEmail || "User"}
+                  className="object-cover"
+                />
+                <AvatarFallback className="text-[9px] bg-muted font-semibold">
+                  {(userName || userEmail || "U").charAt(0).toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
               <span className="flex-1 font-semibold">User Settings</span>
-              <span className="text-[10px] text-muted-foreground font-mono">⌘,</span>
+              <span className="text-[10px] text-muted-foreground font-mono">
+                ⌘,
+              </span>
             </DropdownMenuItem>
 
             <DropdownMenuItem
@@ -414,7 +439,9 @@ export const AppSidebar = ({ val, ...props }: AppSidebarProps) => {
               onClick={() => {
                 const targetProj = val || "projects";
                 const targetId = main_id || dashid || "0";
-                navigate.push(`/${targetProj}/${targetId}/settings/general/Localization_&_Theme`);
+                navigate.push(
+                  `/${targetProj}/${targetId}/settings/general/Localization_&_Theme`,
+                );
               }}
             >
               <IconPalette className="size-4 text-muted-foreground" />
@@ -426,7 +453,9 @@ export const AppSidebar = ({ val, ...props }: AppSidebarProps) => {
               onClick={() => {
                 const targetProj = val || "projects";
                 const targetId = main_id || dashid || "0";
-                navigate.push(`/${targetProj}/${targetId}/settings/models/API_Keys`);
+                navigate.push(
+                  `/${targetProj}/${targetId}/settings/models/API_Keys`,
+                );
               }}
             >
               <IconKey className="size-4 text-muted-foreground" />
@@ -465,7 +494,9 @@ export const AppSidebar = ({ val, ...props }: AppSidebarProps) => {
 
             <DropdownMenuItem
               className="cursor-pointer gap-2 py-1.5 px-2.5 rounded-lg text-muted-foreground focus:text-foreground"
-              onClick={() => toast.info("Command Palette shortcut: Ctrl+Shift+P")}
+              onClick={() =>
+                toast.info("Command Palette shortcut: Ctrl+Shift+P")
+              }
             >
               <IconTerminal2 className="size-4" />
               <span className="flex-1">Command Palette...</span>
@@ -494,7 +525,9 @@ export const AppSidebar = ({ val, ...props }: AppSidebarProps) => {
 
             <DropdownMenuItem
               className="cursor-pointer gap-2 py-1.5 px-2.5 rounded-lg text-muted-foreground focus:text-foreground"
-              onClick={() => toast.success("UNIXL is up to date (v2.4.0-stable)")}
+              onClick={() =>
+                toast.success("UNIXL is up to date (v2.4.0-stable)")
+              }
             >
               <IconRefresh className="size-4" />
               <span className="flex-1">Check for Updates...</span>
@@ -504,19 +537,16 @@ export const AppSidebar = ({ val, ...props }: AppSidebarProps) => {
 
         {userEmail && (
           <div className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg bg-sidebar-accent/50 text-sidebar-accent-foreground min-w-0 border border-sidebar-border/50">
-            <div className="w-7 h-7 rounded-full bg-teal-600/20 text-teal-400 border border-teal-500/30 flex items-center justify-center text-xs font-semibold shrink-0">
-              {userImage ? (
-                <Image
-                  width={28}
-                  height={28}
-                  src={userImage}
-                  alt=""
-                  className="w-full h-full rounded-full"
-                />
-              ) : (
-                (userName || userEmail).charAt(0).toUpperCase()
-              )}
-            </div>
+            <Avatar className="size-8 rounded-full ring-1 ring-sidebar-border/80 shrink-0">
+              <AvatarImage
+                src={userImage || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(userEmail)}&backgroundColor=27272a,3f3f46&textColor=ffffff`}
+                alt={userName || userEmail}
+                className="object-cover"
+              />
+              <AvatarFallback className="text-xs bg-sidebar-accent text-sidebar-foreground font-semibold">
+                {(userName || userEmail).charAt(0).toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
             <div className="flex flex-col min-w-0 flex-1">
               {userName && (
                 <span className="text-xs font-semibold truncate text-sidebar-foreground">

@@ -8,6 +8,11 @@ import { Input } from "@repo/ui/components/ui/input";
 import { Badge } from "@repo/ui/components/ui/badge";
 import { Skeleton } from "@repo/ui/components/ui/skeleton";
 import {
+  Avatar,
+  AvatarImage,
+  AvatarFallback,
+} from "@repo/ui/components/ui/avatar";
+import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -45,6 +50,9 @@ import {
 interface Collaborator {
   id: string;
   invitedEmail: string;
+  name?: string | null;
+  image?: string | null;
+  avatar?: string | null;
   permission: "editor" | "viewer" | string;
   reservedColumns: string[];
   status: string;
@@ -65,10 +73,28 @@ export default function TeamPage() {
   const userId = session?.user?.id;
   const userEmail = session?.user?.email;
 
+  const getMemberAvatar = useCallback(
+    (email: string, image?: string | null) => {
+      // 1. Direct profile image from Supabase user table (same as projects page)
+      if (image) return image;
+      // 2. Current user session image
+      if (
+        userEmail &&
+        email &&
+        email.toLowerCase() === userEmail.toLowerCase() &&
+        session?.user?.image
+      ) {
+        return session.user.image;
+      }
+      return undefined;
+    },
+    [userEmail, session],
+  );
+
   // ─── State ────────────────────────────────────────────────
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
   const [pendingInvites, setPendingInvites] = useState<PendingInvite[]>([]);
-  const [owner, setOwner] = useState<{ id: string; email: string; name: string } | null>(null);
+  const [owner, setOwner] = useState<{ id: string; email: string; name: string; image?: string | null; avatar?: string | null } | null>(null);
   const [loadingCollabs, setLoadingCollabs] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -390,9 +416,16 @@ export default function TeamPage() {
                       className="flex items-center justify-between p-3 rounded-xl border bg-background/50 hover:bg-muted/40 transition-all gap-3"
                     >
                       <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-8 h-8 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold text-xs shrink-0">
-                          {initial}
-                        </div>
+                        <Avatar className="size-8 rounded-full ring-1 ring-border/40 shrink-0">
+                          <AvatarImage
+                            src={getMemberAvatar(collab.invitedEmail)}
+                            alt={collab.invitedEmail}
+                            className="object-cover"
+                          />
+                          <AvatarFallback className="bg-amber-950/40 text-amber-300 font-semibold text-xs">
+                            {initial}
+                          </AvatarFallback>
+                        </Avatar>
                         <div className="min-w-0">
                           <span className="text-xs font-semibold truncate text-foreground block">
                             {collab.invitedEmail}
@@ -478,9 +511,16 @@ export default function TeamPage() {
               {owner && (!searchQuery || owner.email.toLowerCase().includes(searchQuery.toLowerCase())) && (
                 <div className="flex items-center justify-between p-3 rounded-xl border border-teal-500/20 bg-teal-950/10 hover:bg-teal-950/20 transition-all gap-3">
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-teal-500 to-emerald-600 text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-sm">
-                      {owner.email.charAt(0).toUpperCase()}
-                    </div>
+                    <Avatar className="size-9 rounded-full ring-1 ring-teal-500/30 shrink-0 shadow-xs">
+                      <AvatarImage
+                        src={getMemberAvatar(owner.email)}
+                        alt={owner.email}
+                        className="object-cover"
+                      />
+                      <AvatarFallback className="bg-teal-950/60 text-teal-300 font-semibold text-xs">
+                        {owner.email.charAt(0).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-xs font-semibold truncate text-foreground">
@@ -517,9 +557,16 @@ export default function TeamPage() {
                       className="flex items-center justify-between p-3 rounded-xl border bg-background/50 hover:bg-muted/40 transition-all gap-3"
                     >
                       <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-teal-500 to-indigo-600 text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-sm">
-                          {initial}
-                        </div>
+                        <Avatar className="size-9 rounded-full ring-1 ring-border/50 shrink-0 shadow-xs">
+                          <AvatarImage
+                            src={getMemberAvatar(collab.invitedEmail)}
+                            alt={collab.invitedEmail}
+                            className="object-cover"
+                          />
+                          <AvatarFallback className="bg-zinc-800 text-zinc-200 font-semibold text-xs">
+                            {initial}
+                          </AvatarFallback>
+                        </Avatar>
 
                         <div className="min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
