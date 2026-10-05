@@ -581,6 +581,18 @@ const DataLibrary = () => {
       <Sheet open={isExtractDrawerOpen} onOpenChange={setIsExtractDrawerOpen}>
         <SheetContent
           side="top"
+          onPointerDownOutside={(e) => {
+            const target = e.target as HTMLElement | null;
+            if (target?.closest(".e-contextmenu-wrapper, .e-contextmenu-container, .e-spreadsheet-contextmenu, .e-popup")) {
+              e.preventDefault();
+            }
+          }}
+          onInteractOutside={(e) => {
+            const target = e.target as HTMLElement | null;
+            if (target?.closest(".e-contextmenu-wrapper, .e-contextmenu-container, .e-spreadsheet-contextmenu, .e-popup")) {
+              e.preventDefault();
+            }
+          }}
           className="w-full max-h-[92vh] h-[92vh] flex flex-col p-0 bg-background/98 backdrop-blur-md border-b shadow-2xl overflow-hidden z-50"
         >
           <div className="flex items-center justify-between px-6 py-4 border-b bg-muted/20">

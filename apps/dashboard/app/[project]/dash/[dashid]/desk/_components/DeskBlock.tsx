@@ -575,6 +575,30 @@ export function DeskBlock({
   const handleDeleteTab = useCallback(
     async (childId: string) => {
       if (isViewer) return;
+
+      const targetChild = childBlocks.find((c) => c.id === childId);
+      const isCoOwner = Boolean(
+        currentUserEmail &&
+        targetChild?.coOwnerEmail &&
+        targetChild.coOwnerEmail.toLowerCase() === currentUserEmail.toLowerCase()
+      );
+      const isProjectOwner = !isGuest;
+
+      // Permission check:
+      // If co-owner exists, only that co-owner can delete.
+      // If not, only owner can delete.
+      if (targetChild?.coOwnerEmail) {
+        if (!isCoOwner) {
+          toast.error(`Only the assigned co-owner (${targetChild.coOwnerEmail}) can delete this tab.`);
+          return;
+        }
+      } else {
+        if (!isProjectOwner) {
+          toast.error("Only the workspace owner can delete this tab.");
+          return;
+        }
+      }
+
       const isLastTab = childBlocks.length <= 1;
       const confirmMsg = isLastTab
         ? "Deleting the last tab will also delete this BigBlock. Continue?"
@@ -586,14 +610,14 @@ export function DeskBlock({
           await onDeleteTab(childId);
           const remaining = childBlocks.filter((c) => c.id !== childId);
           if (remaining.length > 0) setActiveChildId(remaining[0].id);
-        } catch (err) {
-          toast.error("Failed to delete tab");
+        } catch (err: any) {
+          toast.error(err?.message || "Failed to delete tab");
         } finally {
           setIsDeleting(false);
         }
       }
     },
-    [isGuest, childBlocks, onDeleteTab],
+    [isViewer, isGuest, currentUserEmail, childBlocks, onDeleteTab],
   );
 
   // Helper to safely render dataset into Syncfusion spreadsheet (with grid clearing fallback)

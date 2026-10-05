@@ -827,7 +827,8 @@ export default function DeskPage() {
       const allBlocks = useDeskStore.getState().blocks;
       const targetBlock = allBlocks.find((b) => b.id === blockId);
 
-      await deleteDeskBlock(blockId);
+      const userEmail = sessionData?.user?.email;
+      await deleteDeskBlock(blockId, userEmail, !isGuest);
       useDeskStore.getState().removeBlock(blockId);
 
       if (targetBlock?.parentId) {
@@ -836,7 +837,7 @@ export default function DeskPage() {
           .getState()
           .blocks.filter((b) => b.parentId === parentId);
         if (remainingChildren.length === 0) {
-          await deleteDeskBlock(parentId);
+          await deleteDeskBlock(parentId, userEmail, !isGuest);
           useDeskStore.getState().removeBlock(parentId);
           toast.success("BigBlock deleted (no tabs left)");
           return;
@@ -846,8 +847,9 @@ export default function DeskPage() {
     } catch (err: any) {
       console.error("Failed to delete tab:", err);
       toast.error(err?.message || "Failed to delete");
+      throw err;
     }
-  }, []);
+  }, [sessionData?.user?.email, isGuest]);
 
   // ─── Delete a BigBlock and all its child tabs ──────────────
   const handleDeleteBigBlock = useCallback(async (bigBlockId: string) => {

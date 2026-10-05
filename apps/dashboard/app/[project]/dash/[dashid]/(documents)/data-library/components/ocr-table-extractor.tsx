@@ -45,7 +45,7 @@ import {
   TabsContent,
 } from "@repo/ui/components/ui/tabs";
 import { toast } from "sonner";
-import Spreadsheet from "react-spreadsheet";
+import dynamic from "next/dynamic";
 import { scanTableImageAction, type ReplacementRule } from "../ocr-actions";
 import { createDataLibraryFile } from "../actions";
 import {
@@ -55,7 +55,20 @@ import {
 } from "../lib/secure-ocr-storage";
 import { TiledOcrManager } from "./tiled-ocr-manager";
 import { OcrColumnTools } from "./ocr-column-tools";
+
 import { useUserSubscription } from "@/lib/use-user-subscription";
+import {
+  openSheetInSyncfusion,
+  extractFullGridFromSyncfusion,
+} from "@/lib/sheet-utils";
+
+const SpreadsheetComponent = dynamic(
+  () =>
+    import("@syncfusion/ej2-react-spreadsheet").then(
+      (m) => m.SpreadsheetComponent,
+    ),
+  { ssr: false },
+);
 
 // ── Types ──────────────────────────────────────────────────
 
@@ -131,7 +144,12 @@ export const OcrTableExtractor: React.FC<OcrTableExtractorProps> = ({
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string>("");
 
-  const { hasOcrAccess, isLoading: isSubLoading, isPro, isMax } = useUserSubscription();
+  const {
+    hasOcrAccess,
+    isLoading: isSubLoading,
+    isPro,
+    isMax,
+  } = useUserSubscription();
 
   // Extracted data state
   const [datasetName, setDatasetName] = useState<string>("");
@@ -158,6 +176,9 @@ export const OcrTableExtractor: React.FC<OcrTableExtractorProps> = ({
   const [newRuleExact, setNewRuleExact] = useState(true);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const spreadsheetRef = useRef<any>(null);
+  const [spreadsheetKey, setSpreadsheetKey] = useState(0);
+  const [activeTab, setActiveTab] = useState<string>("spreadsheet");
 
   // Load settings from localStorage on mount
   useEffect(() => {
@@ -186,6 +207,7 @@ export const OcrTableExtractor: React.FC<OcrTableExtractorProps> = ({
         setColumns(draft.columns || []);
         setSpreadsheetCells(draft.spreadsheetCells || []);
         setHasRestoredDraft(true);
+        setSpreadsheetKey((k) => k + 1);
       }
     } catch (err) {
       console.warn("Could not restore OCR draft:", err);
@@ -210,6 +232,98 @@ export const OcrTableExtractor: React.FC<OcrTableExtractorProps> = ({
 
     return () => clearTimeout(timer);
   }, [dashid, datasetName, fileName, imagePreview, columns, spreadsheetCells]);
+
+  // ── Syncfusion Initial Sheets & Cell Population ──
+  const initialSheets = useMemo(() => {
+    if (!columns || columns.length === 0) {
+      return [{ name: "OCR Data", showGridLines: true }];
+    }
+
+    const rows: any[] = [];
+
+    // Header row (Row 1)
+    rows.push({
+      cells: columns.map((col) => ({
+        value: col || "",
+        style: {
+          fontWeight: "bold",
+          backgroundColor: "#f1f5f9",
+          color: "#0f172a",
+        },
+      })),
+    });
+
+    // Data rows (Rows 2..N)
+    spreadsheetCells.forEach((row) => {
+      rows.push({
+        cells: columns.map((_, colIdx) => ({
+          value:
+            row[colIdx]?.value !== undefined && row[colIdx]?.value !== null
+              ? String(row[colIdx].value)
+              : "",
+        })),
+      });
+    });
+
+    return [
+      {
+        name: "OCR Data",
+        showGridLines: true,
+        columns: columns.map(() => ({ width: 130 })),
+        rowCount: Math.max(spreadsheetCells.length + 20, 50),
+        colCount: Math.max(columns.length + 5, 20),
+        rows,
+      },
+    ];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [spreadsheetKey]);
+
+  const onOcrSpreadsheetCreated = useCallback(() => {
+    const ss = spreadsheetRef.current;
+    if (!ss || columns.length === 0) return;
+
+    function colLetter(idx: number): string {
+      let temp = idx;
+      let letter = "";
+      while (temp >= 0) {
+        letter = String.fromCharCode((temp % 26) + 65) + letter;
+        temp = Math.floor(temp / 26) - 1;
+      }
+      return letter;
+    }
+
+    try {
+      if (typeof ss.updateCell === "function") {
+        columns.forEach((col, colIdx) => {
+          const cellAddr = `${colLetter(colIdx)}1`;
+          ss.updateCell(
+            {
+              value: String(col ?? ""),
+              style: {
+                fontWeight: "bold",
+                backgroundColor: "#f1f5f9",
+                color: "#0f172a",
+              },
+            },
+            cellAddr,
+          );
+        });
+
+        spreadsheetCells.forEach((row, rowIdx) => {
+          columns.forEach((_, colIdx) => {
+            const cellVal =
+              row[colIdx]?.value !== undefined && row[colIdx]?.value !== null
+                ? String(row[colIdx].value)
+                : "";
+            const cellAddr = `${colLetter(colIdx)}${rowIdx + 2}`;
+            ss.updateCell({ value: cellVal }, cellAddr);
+          });
+        });
+      }
+    } catch (e) {
+      console.warn("Syncfusion updateCell error:", e);
+    }
+  }, [columns, spreadsheetCells]);
 
   // Blank cells counter
   const blankCellsCount = useMemo(() => {
@@ -364,7 +478,9 @@ export const OcrTableExtractor: React.FC<OcrTableExtractorProps> = ({
     try {
       const res = await scanTableImageAction(base64Image, {
         customPrompt: settings.customPrompt,
-        dotToA: settings.replacementRules.some((r) => r.find === "." && r.replace === "A"),
+        dotToA: settings.replacementRules.some(
+          (r) => r.find === "." && r.replace === "A",
+        ),
         leaveUnclearBlank: settings.leaveUnclearBlank,
         handleCrossOuts: settings.handleCrossOuts,
         parseMultiTierDates: settings.parseMultiTierDates,
@@ -376,7 +492,9 @@ export const OcrTableExtractor: React.FC<OcrTableExtractorProps> = ({
       // If the API says we need a key, show the popup
       if (res.needsApiKey) {
         setShowApiKeyPopup(true);
-        toast.error("Gemini API key is required. Please configure it in Settings → API Keys.");
+        toast.error(
+          "Gemini API key is required. Please configure it in Settings → API Keys.",
+        );
         setIsScanning(false);
         return;
       }
@@ -409,6 +527,7 @@ export const OcrTableExtractor: React.FC<OcrTableExtractorProps> = ({
         fallbackName || `OCR Table - ${new Date().toLocaleDateString()}`,
       );
       setHasRestoredDraft(false);
+      setSpreadsheetKey((k) => k + 1);
 
       toast.success(
         `Extracted ${extractedCols.length} columns & ${extractedRows.length} rows (${res.source === "pyp" ? "AI Server" : "Gemini Vision"})`,
@@ -476,27 +595,151 @@ export const OcrTableExtractor: React.FC<OcrTableExtractorProps> = ({
     );
   }, [spreadsheetCells, columns]);
 
+  // Extract real live data from Syncfusion instance, capturing all edits, typed values, row deletions/additions
+  const extractGridFromSyncfusionInstance = useCallback(
+    (ss: any): { columns: string[]; data: string[][] } => {
+      if (!ss) return { columns: [], data: [] };
+
+      try {
+        if (typeof ss.endEdit === "function") {
+          try {
+            ss.endEdit();
+          } catch {
+            /* ignore */
+          }
+        }
+
+        const activeSheet =
+          (typeof ss.getActiveSheet === "function"
+            ? ss.getActiveSheet()
+            : null) ||
+          (Array.isArray(ss.sheets)
+            ? ss.sheets[ss.activeSheetIndex || 0]
+            : null) ||
+          ss.sheets?.[0];
+
+        const rows = activeSheet?.rows;
+        if (!rows) return { columns: [], data: [] };
+
+        const rawGrid: string[][] = [];
+        let maxCols = 0;
+
+        const rowList = Array.isArray(rows) ? rows : Object.values(rows);
+        rowList.forEach((r: any) => {
+          if (!r) return;
+          const rowCells: string[] = [];
+          const cells = r.cells;
+          if (cells) {
+            const cellList = Array.isArray(cells)
+              ? cells
+              : Object.values(cells);
+            cellList.forEach((c: any, cIdx: number) => {
+              const val =
+                c?.value !== undefined && c?.value !== null
+                  ? String(c.value)
+                  : c?.formula
+                    ? String(c.formula)
+                    : "";
+              rowCells[cIdx] = val;
+            });
+          }
+          maxCols = Math.max(maxCols, rowCells.length);
+          rawGrid.push(rowCells);
+        });
+
+        rawGrid.forEach((row) => {
+          while (row.length < maxCols) row.push("");
+        });
+
+        // Trim trailing empty rows
+        while (rawGrid.length > 1) {
+          const lastRow = rawGrid[rawGrid.length - 1];
+          const isBlank = lastRow.every((val) => !val || val.trim() === "");
+          if (isBlank) {
+            rawGrid.pop();
+          } else {
+            break;
+          }
+        }
+
+        if (rawGrid.length === 0) return { columns: [], data: [] };
+
+        const headerRow = rawGrid[0] || [];
+
+        // Trim trailing empty columns
+        let colCount = headerRow.length;
+        while (colCount > 1) {
+          const colIdx = colCount - 1;
+          const isHeaderEmpty =
+            !headerRow[colIdx] || headerRow[colIdx].trim() === "";
+          const isDataEmpty = rawGrid
+            .slice(1)
+            .every((r) => !r[colIdx] || r[colIdx].trim() === "");
+          if (isHeaderEmpty && isDataEmpty) {
+            colCount--;
+          } else {
+            break;
+          }
+        }
+
+        const finalCols = Array.from({ length: colCount }).map((_, i) => {
+          const h = headerRow[i];
+          return h && h.trim() !== "" ? h.trim() : `Column ${i + 1}`;
+        });
+
+        const finalData = rawGrid
+          .slice(1)
+          .map((row) =>
+            Array.from({ length: colCount }).map((_, i) => row[i] ?? ""),
+          );
+
+        return { columns: finalCols, data: finalData };
+      } catch (err) {
+        console.warn("extractGridFromSyncfusionInstance error:", err);
+        return { columns: [], data: [] };
+      }
+    },
+    [],
+  );
+
+  const getLatestDataForExport = useCallback(() => {
+    const ss = spreadsheetRef.current;
+    if (ss) {
+      const extracted = extractGridFromSyncfusionInstance(ss);
+      if (extracted.columns.length > 0) {
+        return extracted;
+      }
+    }
+    return {
+      columns,
+      data: rawDataRows,
+    };
+  }, [columns, rawDataRows, extractGridFromSyncfusionInstance]);
+
   const jsonPreviewString = useMemo(() => {
+    const { columns: activeCols, data: activeRows } = getLatestDataForExport();
     if (jsonFormat === "columns_data") {
       return JSON.stringify(
         {
-          columns,
-          data: rawDataRows,
+          columns: activeCols,
+          data: activeRows,
         },
         null,
         2,
       );
     } else {
-      const records = rawDataRows.map((row) => {
+      const records = activeRows.map((row) => {
         const obj: Record<string, string> = {};
-        columns.forEach((col, idx) => {
+        activeCols.forEach((col, idx) => {
           obj[col || `col_${idx + 1}`] = row[idx] ?? "";
         });
         return obj;
       });
       return JSON.stringify(records, null, 2);
     }
-  }, [columns, rawDataRows, jsonFormat]);
+  }, [getLatestDataForExport, jsonFormat, activeTab]);
+
+
 
   const handleCopyJson = () => {
     navigator.clipboard.writeText(jsonPreviewString);
@@ -543,7 +786,10 @@ export const OcrTableExtractor: React.FC<OcrTableExtractorProps> = ({
       `Stitched from multi-photo tiled grid (${stitchedCols.length} cols × ${stitchedData.length} rows)`,
     );
     setHasRestoredDraft(false);
-    toast.success("Spreadsheet reconstructed from tiles! You can now edit cells or save to library.");
+    setSpreadsheetKey((k) => k + 1);
+    toast.success(
+      "Spreadsheet reconstructed from tiles! You can now edit cells or save to library.",
+    );
   };
 
   const handleSaveToLibrary = async () => {
@@ -556,21 +802,24 @@ export const OcrTableExtractor: React.FC<OcrTableExtractorProps> = ({
       return;
     }
 
+    // Extract the latest live data from Syncfusion spreadsheet
+    const { columns: finalColumns, data: finalData } = getLatestDataForExport();
+
     const title = datasetName.trim() || "OCR Extracted Table";
     setIsSaving(true);
     try {
       await createDataLibraryFile({
         userId,
         name: title,
-        description: `Extracted via OCR from ${fileName || "table image"} (${columns.length} cols × ${rawDataRows.length} rows)`,
+        description: `Extracted via OCR from ${fileName || "table image"} (${finalColumns.length} cols × ${finalData.length} rows)`,
         fileType: "json",
         data: {
-          columns,
-          data: rawDataRows,
+          columns: finalColumns,
+          data: finalData,
         },
         metadata: {
-          rowCount: rawDataRows.length,
-          colCount: columns.length,
+          rowCount: finalData.length,
+          colCount: finalColumns.length,
           source: "ocr",
           originalFileName: fileName,
           extractedAt: new Date().toISOString(),
@@ -611,7 +860,6 @@ export const OcrTableExtractor: React.FC<OcrTableExtractorProps> = ({
           : "rounded-2xl border bg-card/60 backdrop-blur-xs shadow-xs overflow-hidden"
       }`}
     >
-
       {/* ── API Key Missing Popup/Overlay ─────────────── */}
       {showApiKeyPopup && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm">
@@ -644,7 +892,17 @@ export const OcrTableExtractor: React.FC<OcrTableExtractorProps> = ({
                     aistudio.google.com/apikey
                   </a>
                 </li>
-                <li>Create or copy an API key (starts with <code className="bg-amber-500/20 px-1 rounded text-[11px]">AIza...</code> or <code className="bg-amber-500/20 px-1 rounded text-[11px]">AQ...</code>)</li>
+                <li>
+                  Create or copy an API key (starts with{" "}
+                  <code className="bg-amber-500/20 px-1 rounded text-[11px]">
+                    AIza...
+                  </code>{" "}
+                  or{" "}
+                  <code className="bg-amber-500/20 px-1 rounded text-[11px]">
+                    AQ...
+                  </code>
+                  )
+                </li>
                 <li>Add it in your Profile &rarr; Settings &rarr; API Keys</li>
               </ol>
             </div>
@@ -832,7 +1090,8 @@ export const OcrTableExtractor: React.FC<OcrTableExtractorProps> = ({
                       variant="outline"
                       className="text-[9px] font-semibold border-primary/30 text-primary ml-1"
                     >
-                      {settings.replacementRules.length} rule{settings.replacementRules.length !== 1 ? "s" : ""}
+                      {settings.replacementRules.length} rule
+                      {settings.replacementRules.length !== 1 ? "s" : ""}
                     </Badge>
                   </span>
                   <div className="flex items-center gap-2">
@@ -927,7 +1186,8 @@ export const OcrTableExtractor: React.FC<OcrTableExtractorProps> = ({
                           Post-Extraction Replacement Rules
                         </span>
                         <span className="text-[10px] text-muted-foreground">
-                          Applied after AI extraction — choose what to find & replace
+                          Applied after AI extraction — choose what to find &
+                          replace
                         </span>
                       </div>
 
@@ -947,7 +1207,9 @@ export const OcrTableExtractor: React.FC<OcrTableExtractorProps> = ({
                                 {rule.replace || '""'}
                               </code>
                               {rule.exactMatch === false && (
-                                <span className="text-[9px] text-muted-foreground">(partial)</span>
+                                <span className="text-[9px] text-muted-foreground">
+                                  (partial)
+                                </span>
                               )}
                               <button
                                 type="button"
@@ -962,7 +1224,8 @@ export const OcrTableExtractor: React.FC<OcrTableExtractorProps> = ({
                         </div>
                       ) : (
                         <p className="text-[11px] text-muted-foreground italic">
-                          No replacement rules. Extracted data will be used as-is.
+                          No replacement rules. Extracted data will be used
+                          as-is.
                         </p>
                       )}
 
@@ -1003,18 +1266,26 @@ export const OcrTableExtractor: React.FC<OcrTableExtractorProps> = ({
 
                       {/* Quick presets for common rules */}
                       <div className="flex items-center gap-1 flex-wrap">
-                        <span className="text-[10px] text-muted-foreground">Quick add:</span>
+                        <span className="text-[10px] text-muted-foreground">
+                          Quick add:
+                        </span>
                         {[
                           { find: ".", replace: "A", label: ". → A" },
                           { find: "•", replace: "A", label: "• → A" },
-                          { find: "P", replace: "Present", label: "P → Present" },
+                          {
+                            find: "P",
+                            replace: "Present",
+                            label: "P → Present",
+                          },
                           { find: "A", replace: "Absent", label: "A → Absent" },
                           { find: "-", replace: "", label: "- → (blank)" },
                           { find: "NA", replace: "", label: "NA → (blank)" },
                           { find: "N/A", replace: "", label: "N/A → (blank)" },
                         ].map((preset) => {
                           const alreadyExists = settings.replacementRules.some(
-                            (r) => r.find === preset.find && r.replace === preset.replace,
+                            (r) =>
+                              r.find === preset.find &&
+                              r.replace === preset.replace,
                           );
                           return (
                             <button
@@ -1079,30 +1350,30 @@ export const OcrTableExtractor: React.FC<OcrTableExtractorProps> = ({
                     : "border-muted-foreground/25 hover:border-primary/50 hover:bg-muted/30"
                 }`}
               >
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/png,image/jpeg,image/webp,image/jpg"
-                className="hidden"
-                onChange={handleFileChange}
-              />
-              <div className="size-14 rounded-2xl bg-primary/10 flex items-center justify-center text-primary mb-3.5 group-hover:scale-110 transition-transform shadow-xs">
-                <Upload className="size-7" />
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,image/jpg"
+                  className="hidden"
+                  onChange={handleFileChange}
+                />
+                <div className="size-14 rounded-2xl bg-primary/10 flex items-center justify-center text-primary mb-3.5 group-hover:scale-110 transition-transform shadow-xs">
+                  <Upload className="size-7" />
+                </div>
+                <p className="text-base font-semibold text-foreground mb-1">
+                  Drop table image here, or{" "}
+                  <span className="text-primary underline underline-offset-2">
+                    browse files
+                  </span>
+                </p>
+                <p className="text-xs text-muted-foreground max-w-md">
+                  Supports PNG, JPG, or WEBP. Works with attendance sheets,
+                  financial tables, invoices, voter lists, tour records, or any
+                  tabular image.
+                </p>
               </div>
-              <p className="text-base font-semibold text-foreground mb-1">
-                Drop table image here, or{" "}
-                <span className="text-primary underline underline-offset-2">
-                  browse files
-                </span>
-              </p>
-              <p className="text-xs text-muted-foreground max-w-md">
-                Supports PNG, JPG, or WEBP. Works with attendance sheets,
-                financial tables, invoices, voter lists, tour records, or any
-                tabular image.
-              </p>
             </div>
-          </div>
-        )}
+          )}
 
           {/* Mode 2: Multi-Photo Tiled OCR Mode */}
           {!columns.length && !isScanning && ocrMode === "tiled" && (
@@ -1206,7 +1477,9 @@ export const OcrTableExtractor: React.FC<OcrTableExtractorProps> = ({
                       title="Re-apply all replacement rules to the current data"
                     >
                       <RefreshCw className="size-3" />
-                      <span>Apply Rules ({settings.replacementRules.length})</span>
+                      <span>
+                        Apply Rules ({settings.replacementRules.length})
+                      </span>
                     </Button>
                   )}
 
@@ -1272,12 +1545,22 @@ export const OcrTableExtractor: React.FC<OcrTableExtractorProps> = ({
               <OcrColumnTools
                 columns={columns}
                 spreadsheetCells={spreadsheetCells}
-                onUpdateColumns={(newCols) => setColumns(newCols)}
-                onUpdateCells={(newCells) => setSpreadsheetCells(newCells)}
+                onUpdateColumns={(newCols) => {
+                  setColumns(newCols);
+                  setSpreadsheetKey((k) => k + 1);
+                }}
+                onUpdateCells={(newCells) => {
+                  setSpreadsheetCells(newCells);
+                  setSpreadsheetKey((k) => k + 1);
+                }}
               />
 
               {/* Dual Previews Tabs: Spreadsheet & JSON */}
-              <Tabs defaultValue="spreadsheet" className="w-full">
+              <Tabs
+                value={activeTab}
+                onValueChange={setActiveTab}
+                className="w-full"
+              >
                 <div className="flex items-center justify-between border-b pb-2 flex-wrap gap-2">
                   <TabsList className="h-8 bg-muted/60 p-0.5">
                     <TabsTrigger
@@ -1295,70 +1578,48 @@ export const OcrTableExtractor: React.FC<OcrTableExtractorProps> = ({
                       JSON Preview
                     </TabsTrigger>
                   </TabsList>
-
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleAddRow}
-                      className="h-7 text-xs gap-1 cursor-pointer"
-                    >
-                      <Plus className="size-3" /> Add Row
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleAddColumn}
-                      className="h-7 text-xs gap-1 cursor-pointer"
-                    >
-                      <Plus className="size-3" /> Add Column
-                    </Button>
-                  </div>
                 </div>
 
                 {/* Spreadsheet View */}
                 <TabsContent value="spreadsheet" className="mt-3">
+                  <style>{`
+                    .e-contextmenu-wrapper,
+                    .e-contextmenu-container,
+                    .e-spreadsheet-contextmenu,
+                    .e-popup.e-popup-open {
+                      pointer-events: auto !important;
+                      z-index: 999999 !important;
+                    }
+                    .e-contextmenu-wrapper .e-menu-item,
+                    .e-contextmenu-container .e-menu-item,
+                    .e-spreadsheet-contextmenu .e-menu-item {
+                      pointer-events: auto !important;
+                      cursor: pointer !important;
+                    }
+                    .e-contextmenu-wrapper .e-menu-item *,
+                    .e-contextmenu-container .e-menu-item *,
+                    .e-spreadsheet-contextmenu .e-menu-item * {
+                      pointer-events: auto !important;
+                      cursor: pointer !important;
+                    }
+                  `}</style>
                   <div className="border rounded-xl bg-background overflow-hidden shadow-2xs">
-                    {/* Header Columns Editor */}
-                    <div className="flex items-center gap-2 p-2.5 bg-muted/30 border-b overflow-x-auto text-xs">
-                      <span className="font-semibold text-muted-foreground uppercase text-[10px] shrink-0 px-1">
-                        Headers:
-                      </span>
-                      {columns.map((col, idx) => (
-                        <div
-                          key={idx}
-                          className="flex items-center gap-1 bg-background border rounded-md px-2 py-0.5 shrink-0 shadow-2xs"
-                        >
-                          <input
-                            type="text"
-                            value={col}
-                            onChange={(e) =>
-                              handleColumnNameChange(idx, e.target.value)
-                            }
-                            className="bg-transparent border-none text-xs font-medium focus:outline-none w-24"
-                            placeholder={`Col ${idx + 1}`}
-                          />
-                          {columns.length > 1 && (
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveColumn(idx)}
-                              className="text-muted-foreground hover:text-destructive transition-colors p-0.5 cursor-pointer"
-                              title="Delete column"
-                            >
-                              <X className="size-3" />
-                            </button>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* Interactive React Spreadsheet */}
-                    <div className="max-h-[380px] overflow-auto p-2">
-                      <Spreadsheet
-                        data={spreadsheetCells}
-                        onChange={handleSpreadsheetChange}
-                        columnLabels={columns}
-                        className="w-full text-xs"
+                    <div className="h-[480px] w-full min-h-[420px]">
+                      <SpreadsheetComponent
+                        key={spreadsheetKey}
+                        ref={spreadsheetRef}
+                        created={onOcrSpreadsheetCreated}
+                        className="w-full h-full"
+                        height="100%"
+                        width="100%"
+                        allowEditing={true}
+                        allowDelete={true}
+                        allowInsert={true}
+                        showRibbon={false}
+                        showFormulaBar={false}
+                        allowOpen={false}
+                        allowSave={false}
+                        sheets={initialSheets}
                       />
                     </div>
                   </div>

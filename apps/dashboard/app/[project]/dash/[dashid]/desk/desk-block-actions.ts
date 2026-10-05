@@ -336,14 +336,63 @@ export async function updateDeskBlockOutput(
 }
 
 // ─── Delete a block ─────────────────────────────────────────
-export async function deleteDeskBlock(blockId: string) {
+export async function deleteDeskBlock(
+  blockId: string,
+  userEmail?: string | null,
+  isOwnerUser?: boolean
+) {
   const { data: block } = await supabase
     .from("desk_block")
-    .select("editorWorkflowId")
+    .select("editorWorkflowId, projectWorkflowId, coOwnerEmail")
     .eq("id", blockId)
     .maybeSingle();
 
   if (!block) throw new Error("Block not found");
+
+  const normalizedUserEmail = userEmail?.trim().toLowerCase();
+
+  // Determine if caller is project owner
+  let isOwner = isOwnerUser ?? false;
+  if (!isOwner && normalizedUserEmail && block.projectWorkflowId) {
+    const { data: workflow } = await supabase
+      .from("workflow")
+      .select("userId")
+      .eq("id", block.projectWorkflowId)
+      .maybeSingle();
+
+    if (workflow?.userId) {
+      const { data: ownerUser } = await supabase
+        .from("user")
+        .select("email")
+        .eq("id", workflow.userId)
+        .maybeSingle();
+
+      if (ownerUser?.email?.toLowerCase() === normalizedUserEmail) {
+        isOwner = true;
+      }
+    }
+  }
+
+  const isCoOwner = Boolean(
+    normalizedUserEmail &&
+    block.coOwnerEmail &&
+    block.coOwnerEmail.toLowerCase() === normalizedUserEmail
+  );
+
+  // Permission rule:
+  // If co-owner exists on that tab, ONLY that co-owner can delete the tab (owner cannot delete it).
+  // If no co-owner is assigned, only the owner can delete it.
+  if (block.coOwnerEmail) {
+    if (!isCoOwner) {
+      throw new Error(
+        `This tab has an assigned co-owner (${block.coOwnerEmail}). Only the assigned co-owner can delete this tab.`
+      );
+    }
+  } else {
+    if (!isOwner) {
+      throw new Error("Only the workspace/project owner can delete this tab.");
+    }
+  }
 
   await supabase.from("desk_block").delete().eq("id", blockId);
 
@@ -473,22 +522,97 @@ export async function setBlockSecurity(
     coOwnerEmail?: string | null;
     password?: string | null;
     isPasswordProtected?: boolean;
+    currentPasswordConfirmation?: string | null;
+    userEmail?: string | null;
+    isOwnerUser?: boolean;
   }
 ) {
+  // Fetch existing block to verify ownership and existing password
+  const { data: currentBlock, error: fetchErr } = await supabase
+    .from("desk_block")
+    .select("id, projectWorkflowId, coOwnerEmail, isPasswordProtected, passwordHash")
+    .eq("id", blockId)
+    .maybeSingle();
+
+  if (fetchErr || !currentBlock) throw new Error("Block not found");
+
+  const normalizedUserEmail = payload.userEmail?.trim().toLowerCase();
+
+  // Determine if caller is project owner
+  let isOwner = payload.isOwnerUser ?? false;
+  if (!isOwner && normalizedUserEmail && currentBlock.projectWorkflowId) {
+    const { data: workflow } = await supabase
+      .from("workflow")
+      .select("userId")
+      .eq("id", currentBlock.projectWorkflowId)
+      .maybeSingle();
+
+    if (workflow?.userId) {
+      const { data: ownerUser } = await supabase
+        .from("user")
+        .select("email")
+        .eq("id", workflow.userId)
+        .maybeSingle();
+
+      if (ownerUser?.email?.toLowerCase() === normalizedUserEmail) {
+        isOwner = true;
+      }
+    }
+  }
+
+  const isCoOwner = Boolean(
+    normalizedUserEmail &&
+    currentBlock.coOwnerEmail &&
+    currentBlock.coOwnerEmail.toLowerCase() === normalizedUserEmail
+  );
+
+  // 1. Requirement: Only owner and co-owner have rights to assign/make another co-owner
+  if (payload.coOwnerEmail !== undefined) {
+    if (!isOwner && !isCoOwner) {
+      throw new Error("Only the owner or current co-owner have rights to assign a co-owner.");
+    }
+  }
+
   const updateData: any = { updatedAt: new Date().toISOString() };
 
   if (payload.coOwnerEmail !== undefined) {
     updateData.coOwnerEmail = payload.coOwnerEmail ? payload.coOwnerEmail.trim().toLowerCase() : null;
   }
 
-  if (payload.password && payload.password.trim().length > 0) {
+  // 2. Requirement: Password removal can ONLY be done by owner or co-owner with confirmation of current password
+  const isRemovingPassword =
+    (payload.isPasswordProtected === false || payload.password === "") &&
+    Boolean(currentBlock.isPasswordProtected && currentBlock.passwordHash);
+
+  if (isRemovingPassword) {
+    if (!isOwner && !isCoOwner) {
+      throw new Error("Only the owner or co-owner can remove the password for this tab.");
+    }
+
+    if (!payload.currentPasswordConfirmation || !payload.currentPasswordConfirmation.trim()) {
+      throw new Error("Current password is required as confirmation to remove password protection.");
+    }
+
+    const isValidCurrent = verifyPassword(
+      payload.currentPasswordConfirmation.trim(),
+      currentBlock.passwordHash!
+    );
+
+    if (!isValidCurrent) {
+      throw new Error("Incorrect current password confirmation. Password cannot be removed.");
+    }
+
+    updateData.isPasswordProtected = false;
+    updateData.passwordHash = null;
+  } else if (payload.password && payload.password.trim().length > 0) {
+    // Setting / changing password
+    if (!isOwner && !isCoOwner) {
+      throw new Error("Only the owner or co-owner can set or change the password.");
+    }
     updateData.passwordHash = hashPassword(payload.password.trim());
     updateData.isPasswordProtected = true;
   } else if (payload.isPasswordProtected !== undefined) {
     updateData.isPasswordProtected = payload.isPasswordProtected;
-    if (payload.isPasswordProtected === false && payload.password === "") {
-      updateData.passwordHash = null;
-    }
   }
 
   const { data: updated, error } = await supabase
