@@ -40,6 +40,12 @@ import {
 } from "../desk-block-actions";
 import { getDeskCollaborators } from "../desk-share-actions";
 import { useDeskStore, type DeskBlockState } from "@/stores/desk-store";
+import {
+  Avatar,
+  AvatarImage,
+  AvatarFallback,
+} from "@repo/ui/components/ui/avatar";
+import { useSession } from "@/lib/auth-client";
 
 interface BlockSettingsModalProps {
   isOpen: boolean;
@@ -105,6 +111,19 @@ export function BlockSettingsModal({
   const [memoryLimit, setMemoryLimit] = useState("512MB");
   const [concurrency, setConcurrency] = useState("2");
   const [autoRetry, setAutoRetry] = useState(true);
+
+  const { data: session } = useSession();
+  const getEmailAvatar = (email: string) => {
+    if (
+      session?.user?.email &&
+      email &&
+      session.user.email.toLowerCase() === email.toLowerCase() &&
+      session.user.image
+    ) {
+      return session.user.image;
+    }
+    return `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(email)}&backgroundColor=27272a,3f3f46&textColor=ffffff`;
+  };
 
   useEffect(() => {
     if (isOpen) {
@@ -267,20 +286,20 @@ export function BlockSettingsModal({
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-[760px] max-h-[85vh] p-0 border-zinc-800 bg-zinc-950 text-zinc-100 shadow-2xl overflow-hidden flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800/80 bg-zinc-900/50">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800 bg-zinc-900/40">
           <div className="flex items-center gap-3">
-            <div className="size-9 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
+            <div className="size-9 rounded-lg bg-zinc-800/80 border border-zinc-700/60 flex items-center justify-center text-zinc-300">
               <Settings className="size-4.5" />
             </div>
             <div>
               <DialogTitle className="text-base font-semibold text-zinc-100 tracking-tight flex items-center gap-2">
                 Block Settings
-                <Badge variant="outline" className="text-[10px] bg-zinc-800 text-zinc-400 border-zinc-700 font-mono">
+                <Badge variant="outline" className="text-[10px] bg-zinc-900 text-zinc-300 border-zinc-700 font-mono">
                   {block.name}
                 </Badge>
                 {block.isPasswordProtected && (
-                  <Badge variant="outline" className="text-[10px] bg-amber-500/10 text-amber-400 border-amber-500/30 font-mono flex items-center gap-1">
-                    <Lock className="size-2.5" /> Protected
+                  <Badge variant="outline" className="text-[10px] bg-zinc-900 text-zinc-300 border-zinc-700 font-mono flex items-center gap-1">
+                    <Lock className="size-2.5 text-zinc-400" /> Protected
                   </Badge>
                 )}
               </DialogTitle>
@@ -315,7 +334,7 @@ export function BlockSettingsModal({
                   : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900"
               }`}
             >
-              <UserCheck className="size-3.5 text-indigo-400" />
+              <UserCheck className="size-3.5 text-zinc-400" />
               Co-Owner & Roles
             </button>
 
@@ -327,7 +346,7 @@ export function BlockSettingsModal({
                   : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900"
               }`}
             >
-              <Shield className="size-3.5 text-amber-400" />
+              <Shield className="size-3.5 text-zinc-400" />
               Security & Password
             </button>
 
@@ -343,7 +362,7 @@ export function BlockSettingsModal({
                   : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900"
               }`}
             >
-              <Webhook className="size-3.5 text-emerald-400" />
+              <Webhook className="size-3.5 text-zinc-400" />
               Webhooks
             </button>
 
@@ -355,7 +374,7 @@ export function BlockSettingsModal({
                   : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900"
               }`}
             >
-              <Cpu className="size-3.5 text-blue-400" />
+              <Cpu className="size-3.5 text-zinc-400" />
               Compute & Limits
             </button>
 
@@ -367,7 +386,7 @@ export function BlockSettingsModal({
                   : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900"
               }`}
             >
-              <Activity className="size-3.5 text-purple-400" />
+              <Activity className="size-3.5 text-zinc-400" />
               Audit Log
             </button>
 
@@ -376,11 +395,11 @@ export function BlockSettingsModal({
                 onClick={() => setActiveTab("danger")}
                 className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-xs font-medium transition-colors text-left ${
                   activeTab === "danger"
-                    ? "bg-red-500/15 text-red-400 font-semibold"
-                    : "text-red-400/80 hover:text-red-300 hover:bg-red-500/10"
+                    ? "bg-zinc-800 text-red-400 font-semibold"
+                    : "text-zinc-400 hover:text-red-400 hover:bg-zinc-900"
                 }`}
               >
-                <AlertTriangle className="size-3.5 text-red-400" />
+                <AlertTriangle className="size-3.5 text-zinc-400" />
                 Danger Zone
               </button>
             </div>
@@ -450,7 +469,7 @@ export function BlockSettingsModal({
               <div className="space-y-5 animate-in fade-in">
                 <div>
                   <h4 className="text-sm font-semibold text-zinc-200 flex items-center gap-2">
-                    <UserCheck className="size-4 text-indigo-400" />
+                    <UserCheck className="size-4 text-zinc-300" />
                     Block Co-Owner & Responsibilities
                   </h4>
                   <p className="text-xs text-zinc-500 mt-0.5">
@@ -459,9 +478,50 @@ export function BlockSettingsModal({
                 </div>
 
                 <div className="space-y-4 pt-1">
-                  <div className="p-3.5 rounded-lg border border-indigo-500/20 bg-indigo-500/5 space-y-1.5">
-                    <div className="flex items-center gap-2 text-indigo-300 text-xs font-medium">
-                      <Sparkles className="size-3.5" />
+                  {/* Current Co-owner Profile Card */}
+                  {coOwnerEmail && (
+                    <div className="p-3.5 rounded-xl border border-zinc-800 bg-zinc-900/70 flex items-center justify-between gap-3 shadow-2xs">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <Avatar className="size-9 rounded-full ring-1 ring-zinc-700/80 shrink-0">
+                          <AvatarImage
+                            src={getEmailAvatar(coOwnerEmail)}
+                            alt={coOwnerEmail}
+                            className="object-cover"
+                          />
+                          <AvatarFallback className="text-xs bg-zinc-800 text-zinc-200 font-semibold">
+                            {coOwnerEmail.charAt(0).toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-xs font-semibold text-zinc-100 truncate">
+                              {coOwnerEmail}
+                            </span>
+                            <Badge variant="outline" className="text-[10px] bg-zinc-800 text-zinc-300 border-zinc-700">
+                              Assigned Co-Owner
+                            </Badge>
+                          </div>
+                          <p className="text-[11px] text-zinc-400 mt-0.5">
+                            Full management access to this block tab
+                          </p>
+                        </div>
+                      </div>
+                      {canAssignCoOwner && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setCoOwnerEmail("")}
+                          className="h-7 text-xs text-zinc-400 hover:text-red-400 hover:bg-red-950/20"
+                        >
+                          Remove
+                        </Button>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="p-3.5 rounded-lg border border-zinc-800 bg-zinc-900/50 space-y-1.5">
+                    <div className="flex items-center gap-2 text-zinc-200 text-xs font-medium">
+                      <Sparkles className="size-3.5 text-zinc-400" />
                       <span>Co-Owner Permissions</span>
                     </div>
                     <p className="text-[11px] text-zinc-400 leading-relaxed">
@@ -470,14 +530,16 @@ export function BlockSettingsModal({
                   </div>
 
                   {!canAssignCoOwner && (
-                    <div className="p-3 rounded-lg border border-amber-500/20 bg-amber-500/5 text-amber-300 text-xs flex items-center gap-2">
-                      <AlertTriangle className="size-4 shrink-0 text-amber-400" />
+                    <div className="p-3 rounded-lg border border-zinc-800 bg-zinc-900/40 text-zinc-400 text-xs flex items-center gap-2">
+                      <AlertTriangle className="size-4 shrink-0 text-zinc-400" />
                       <span>Only the workspace owner or current tab co-owner have rights to assign or change the co-owner.</span>
                     </div>
                   )}
 
                   <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-zinc-300">Co-Owner Email Address</label>
+                    <label className="text-xs font-medium text-zinc-300">
+                      {coOwnerEmail ? "Change Co-Owner Email" : "Assign Co-Owner Email Address"}
+                    </label>
                     <Input
                       value={coOwnerEmail}
                       onChange={(e) => setCoOwnerEmail(e.target.value)}
@@ -489,25 +551,33 @@ export function BlockSettingsModal({
 
                   {collaborators.length > 0 && (
                     <div className="space-y-2">
-                      <span className="text-[11px] font-medium text-zinc-400">Select from Project Team Members:</span>
+                      <span className="text-[11px] font-medium text-zinc-400">Select from Team Members:</span>
                       <div className="flex flex-wrap gap-1.5">
-                        {collaborators.map((c) => (
-                          <button
-                            key={c.invitedEmail}
-                            type="button"
-                            disabled={!canAssignCoOwner}
-                            onClick={() => setCoOwnerEmail(c.invitedEmail)}
-                            className={`text-xs px-2.5 py-1 rounded-full border transition-colors cursor-pointer flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed ${
-                              coOwnerEmail.toLowerCase() === c.invitedEmail.toLowerCase()
-                                ? "bg-indigo-600 text-white border-indigo-500"
-                                : "bg-zinc-800/80 text-zinc-300 border-zinc-700 hover:bg-zinc-700"
-                            }`}
-                          >
-                            <Users className="size-3" />
-                            <span>{c.invitedEmail}</span>
-                            <span className="text-[10px] opacity-70">({c.permission})</span>
-                          </button>
-                        ))}
+                        {collaborators.map((c) => {
+                          const isSelected = coOwnerEmail.toLowerCase() === c.invitedEmail.toLowerCase();
+                          return (
+                            <button
+                              key={c.invitedEmail}
+                              type="button"
+                              disabled={!canAssignCoOwner}
+                              onClick={() => setCoOwnerEmail(c.invitedEmail)}
+                              className={`text-xs pl-1.5 pr-2.5 py-1 rounded-full border transition-colors cursor-pointer flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${
+                                isSelected
+                                  ? "bg-zinc-800 text-zinc-100 border-zinc-600 font-medium shadow-2xs"
+                                  : "bg-zinc-900/60 text-zinc-300 border-zinc-800 hover:bg-zinc-800 hover:text-zinc-100"
+                              }`}
+                            >
+                              <Avatar className="size-4 rounded-full ring-1 ring-zinc-700 shrink-0">
+                                <AvatarImage src={getEmailAvatar(c.invitedEmail)} alt={c.invitedEmail} />
+                                <AvatarFallback className="text-[8px] bg-zinc-800 text-zinc-300">
+                                  {c.invitedEmail.charAt(0).toUpperCase()}
+                                </AvatarFallback>
+                              </Avatar>
+                              <span className="max-w-[130px] truncate">{c.invitedEmail}</span>
+                              <span className="text-[10px] text-zinc-500">({c.permission})</span>
+                            </button>
+                          );
+                        })}
                       </div>
                     </div>
                   )}
@@ -517,7 +587,7 @@ export function BlockSettingsModal({
                       size="sm"
                       onClick={handleSaveCoOwner}
                       disabled={isSaving || !canAssignCoOwner}
-                      className="h-8 text-xs bg-indigo-600 hover:bg-indigo-500 text-white font-medium disabled:opacity-50"
+                      className="h-8 text-xs bg-zinc-100 hover:bg-white text-zinc-950 font-medium disabled:opacity-50"
                     >
                       {isSaving ? <Loader2 className="size-3 animate-spin mr-1.5" /> : <Check className="size-3 mr-1.5" />}
                       Update Co-Owner
@@ -544,7 +614,7 @@ export function BlockSettingsModal({
               <div className="space-y-5 animate-in fade-in">
                 <div>
                   <h4 className="text-sm font-semibold text-zinc-200 flex items-center gap-2">
-                    <Shield className="size-4 text-amber-400" />
+                    <Shield className="size-4 text-zinc-300" />
                     Editor Password Protection
                   </h4>
                   <p className="text-xs text-zinc-500 mt-0.5">
@@ -558,7 +628,7 @@ export function BlockSettingsModal({
                     <div className="space-y-0.5">
                       <div className="text-xs font-medium text-zinc-200 flex items-center gap-2">
                         {isPasswordProtected ? (
-                          <Lock className="size-3.5 text-amber-400" />
+                          <Lock className="size-3.5 text-zinc-300" />
                         ) : (
                           <Unlock className="size-3.5 text-zinc-500" />
                         )}
@@ -573,19 +643,18 @@ export function BlockSettingsModal({
                       type="button"
                       onClick={() => {
                         if (isPasswordProtected && block.isPasswordProtected) {
-                          // Opening removal confirmation
                           setIsRemovePasswordOpen(true);
                         } else {
                           setIsPasswordProtected(!isPasswordProtected);
                         }
                       }}
                       className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                        isPasswordProtected ? "bg-amber-500" : "bg-zinc-700"
+                        isPasswordProtected ? "bg-zinc-100" : "bg-zinc-800"
                       }`}
                     >
                       <span
-                        className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
-                          isPasswordProtected ? "translate-x-4" : "translate-x-0"
+                        className={`pointer-events-none inline-block h-4 w-4 transform rounded-full shadow-xs ring-0 transition duration-200 ease-in-out ${
+                          isPasswordProtected ? "translate-x-4 bg-zinc-950" : "translate-x-0 bg-zinc-400"
                         }`}
                       />
                     </button>
@@ -593,7 +662,7 @@ export function BlockSettingsModal({
 
                   {/* Password fields if enabled */}
                   {isPasswordProtected && (
-                    <div className="space-y-3 p-3.5 rounded-lg border border-amber-500/20 bg-amber-500/5">
+                    <div className="space-y-3 p-3.5 rounded-lg border border-zinc-800 bg-zinc-900/60">
                       <div className="space-y-1.5">
                         <label className="text-xs font-medium text-zinc-300">
                           {block.isPasswordProtected ? "Update Password" : "Set Block Password"}
@@ -630,7 +699,7 @@ export function BlockSettingsModal({
                       )}
 
                       <div className="text-[11px] text-zinc-500 flex items-center gap-1.5">
-                        <KeyRound className="size-3 text-amber-400" />
+                        <KeyRound className="size-3 text-zinc-400" />
                         <span>Password is encrypted with salted PBKDF2 and verified strictly on the backend API.</span>
                       </div>
                     </div>
@@ -641,7 +710,7 @@ export function BlockSettingsModal({
                       size="sm"
                       onClick={handleSaveSecurity}
                       disabled={isSaving}
-                      className="h-8 text-xs bg-amber-500 hover:bg-amber-400 text-zinc-950 font-medium"
+                      className="h-8 text-xs bg-zinc-100 hover:bg-white text-zinc-950 font-medium"
                     >
                       {isSaving ? <Loader2 className="size-3 animate-spin mr-1.5" /> : <Check className="size-3 mr-1.5" />}
                       Save Security Settings
@@ -668,7 +737,7 @@ export function BlockSettingsModal({
               <div className="space-y-5 animate-in fade-in">
                 <div>
                   <h4 className="text-sm font-semibold text-zinc-200 flex items-center gap-2">
-                    <Webhook className="size-4 text-emerald-400" />
+                    <Webhook className="size-4 text-zinc-300" />
                     Block Event Webhooks (Mock API)
                   </h4>
                   <p className="text-xs text-zinc-500 mt-0.5">
@@ -691,15 +760,15 @@ export function BlockSettingsModal({
                     <span className="text-xs font-medium text-zinc-300">Trigger Events</span>
                     <div className="space-y-2">
                       <label className="flex items-center gap-2 text-xs text-zinc-300">
-                        <input type="checkbox" defaultChecked className="rounded border-zinc-700 text-emerald-500" />
+                        <input type="checkbox" defaultChecked className="rounded border-zinc-700 text-zinc-200" />
                         <span>Execution Succeeded (output dataset ready)</span>
                       </label>
                       <label className="flex items-center gap-2 text-xs text-zinc-300">
-                        <input type="checkbox" defaultChecked className="rounded border-zinc-700 text-emerald-500" />
+                        <input type="checkbox" defaultChecked className="rounded border-zinc-700 text-zinc-200" />
                         <span>MasterSheet Merge Committed</span>
                       </label>
                       <label className="flex items-center gap-2 text-xs text-zinc-300">
-                        <input type="checkbox" defaultChecked className="rounded border-zinc-700 text-emerald-500" />
+                        <input type="checkbox" defaultChecked className="rounded border-zinc-700 text-zinc-200" />
                         <span>Execution Failed / Syntax Error</span>
                       </label>
                     </div>
@@ -724,7 +793,7 @@ export function BlockSettingsModal({
               <div className="space-y-5 animate-in fade-in">
                 <div>
                   <h4 className="text-sm font-semibold text-zinc-200 flex items-center gap-2">
-                    <Cpu className="size-4 text-blue-400" />
+                    <Cpu className="size-4 text-zinc-300" />
                     Compute Resource Allocation (Mock)
                   </h4>
                   <p className="text-xs text-zinc-500 mt-0.5">
@@ -777,7 +846,7 @@ export function BlockSettingsModal({
                       type="checkbox"
                       checked={autoRetry}
                       onChange={(e) => setAutoRetry(e.target.checked)}
-                      className="rounded border-zinc-700 text-blue-500"
+                      className="rounded border-zinc-700 text-zinc-200"
                     />
                     <span>Auto-retry failed transformations up to 3 times</span>
                   </label>
@@ -798,7 +867,7 @@ export function BlockSettingsModal({
               <div className="space-y-4 animate-in fade-in">
                 <div>
                   <h4 className="text-sm font-semibold text-zinc-200 flex items-center gap-2">
-                    <Activity className="size-4 text-purple-400" />
+                    <Activity className="size-4 text-zinc-300" />
                     Security & Activity Audit Trail
                   </h4>
                   <p className="text-xs text-zinc-500 mt-0.5">
@@ -812,7 +881,7 @@ export function BlockSettingsModal({
                       <span className="font-medium text-zinc-200">Security Check Passed</span>
                       <p className="text-[11px] text-zinc-500 font-mono">Editor password verified via backend API</p>
                     </div>
-                    <Badge variant="outline" className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 text-[10px]">
+                    <Badge variant="outline" className="bg-zinc-800 text-zinc-300 border-zinc-700 text-[10px]">
                       Just now
                     </Badge>
                   </div>
@@ -824,7 +893,7 @@ export function BlockSettingsModal({
                         {block.coOwnerEmail ? `Assigned to ${block.coOwnerEmail}` : "Standard project role"}
                       </p>
                     </div>
-                    <Badge variant="outline" className="bg-indigo-500/10 text-indigo-400 border-indigo-500/20 text-[10px]">
+                    <Badge variant="outline" className="bg-zinc-800 text-zinc-300 border-zinc-700 text-[10px]">
                       Recent
                     </Badge>
                   </div>

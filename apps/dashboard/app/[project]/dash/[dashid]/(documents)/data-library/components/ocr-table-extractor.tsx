@@ -1582,27 +1582,6 @@ export const OcrTableExtractor: React.FC<OcrTableExtractorProps> = ({
 
                 {/* Spreadsheet View */}
                 <TabsContent value="spreadsheet" className="mt-3">
-                  <style>{`
-                    .e-contextmenu-wrapper,
-                    .e-contextmenu-container,
-                    .e-spreadsheet-contextmenu,
-                    .e-popup.e-popup-open {
-                      pointer-events: auto !important;
-                      z-index: 999999 !important;
-                    }
-                    .e-contextmenu-wrapper .e-menu-item,
-                    .e-contextmenu-container .e-menu-item,
-                    .e-spreadsheet-contextmenu .e-menu-item {
-                      pointer-events: auto !important;
-                      cursor: pointer !important;
-                    }
-                    .e-contextmenu-wrapper .e-menu-item *,
-                    .e-contextmenu-container .e-menu-item *,
-                    .e-spreadsheet-contextmenu .e-menu-item * {
-                      pointer-events: auto !important;
-                      cursor: pointer !important;
-                    }
-                  `}</style>
                   <div className="border rounded-xl bg-background overflow-hidden shadow-2xs">
                     <div className="h-[480px] w-full min-h-[420px]">
                       <SpreadsheetComponent

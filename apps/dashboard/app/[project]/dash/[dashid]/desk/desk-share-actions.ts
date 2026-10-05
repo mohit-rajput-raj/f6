@@ -180,27 +180,61 @@ export async function inviteToDesk({
   return share;
 }
 
-/** Get all collaborators of a master sheet or project */
+/** Get all collaborators of a master sheet or project along with their profile pictures from the user table */
 export async function getDeskCollaborators(masterSheetId?: string, projectWorkflowId?: string) {
+  let query = supabase.from("desk_share").select("*");
   if (projectWorkflowId) {
-    const { data } = await supabase
-      .from("desk_share")
-      .select("*")
-      .eq("projectWorkflowId", projectWorkflowId)
-      .order("createdAt", { ascending: false });
-
-    return data || [];
+    query = query.eq("projectWorkflowId", projectWorkflowId);
+  } else if (masterSheetId) {
+    query = query.eq("masterSheetId", masterSheetId);
+  } else {
+    return [];
   }
-  if (masterSheetId) {
-    const { data } = await supabase
-      .from("desk_share")
-      .select("*")
-      .eq("masterSheetId", masterSheetId)
-      .order("createdAt", { ascending: false });
 
-    return data || [];
+  const { data: shares, error } = await query.order("createdAt", { ascending: false });
+  if (error || !shares || shares.length === 0) return [];
+
+  // Query user table for avatars (same as Projects page)
+  const emails = Array.from(new Set(shares.map((s: any) => s.invitedEmail?.toLowerCase()).filter(Boolean)));
+  const userIds = Array.from(new Set(shares.map((s: any) => s.invitedUserId).filter(Boolean)));
+
+  const usersMap = new Map<string, { id: string; name: string | null; image: string | null; email: string | null }>();
+
+  const promises: PromiseLike<any>[] = [];
+  if (emails.length > 0) {
+    promises.push(
+      supabase.from("user").select("id, name, email, image").in("email", emails)
+    );
   }
-  return [];
+  if (userIds.length > 0) {
+    promises.push(
+      supabase.from("user").select("id, name, email, image").in("id", userIds)
+    );
+  }
+
+  if (promises.length > 0) {
+    const results = await Promise.all(promises);
+    for (const res of results) {
+      if (res.data) {
+        for (const u of res.data) {
+          if (u.email) usersMap.set(u.email.toLowerCase(), u);
+          if (u.id) usersMap.set(u.id, u);
+        }
+      }
+    }
+  }
+
+  return shares.map((s: any) => {
+    const matched =
+      (s.invitedEmail && usersMap.get(s.invitedEmail.toLowerCase())) ||
+      (s.invitedUserId && usersMap.get(s.invitedUserId));
+    return {
+      ...s,
+      name: matched?.name || null,
+      image: matched?.image || null,
+      avatar: matched?.image || null,
+    };
+  });
 }
 
 /** Get all master sheets shared with a specific email */
@@ -496,6 +530,24 @@ export async function getWorkflowOwner(projectWorkflowId: string) {
     id: workflow.user.id,
     email: workflow.user.email,
     name: workflow.user.name,
+    image: workflow.user.image,
+    avatar: workflow.user.image,
   };
+}
+
+/** Fetch user profiles (name, image, email) by email list (same data source as projects page) */
+export async function getUserProfilesByEmails(emails: string[]) {
+  if (!emails || emails.length === 0) return [];
+  const cleanEmails = Array.from(
+    new Set(emails.map((e) => e.trim().toLowerCase()).filter(Boolean))
+  );
+  if (cleanEmails.length === 0) return [];
+
+  const { data } = await supabase
+    .from("user")
+    .select("id, name, email, image")
+    .in("email", cleanEmails);
+
+  return data || [];
 }
 

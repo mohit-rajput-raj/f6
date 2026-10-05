@@ -45,19 +45,12 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@repo/ui/components/ui/dialog";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from "@repo/ui/components/ui/sheet";
 import { toast } from "sonner";
 import Papa, { type ParseResult } from "papaparse";
 import * as XLSX from "xlsx";
 import Spreadsheet from "react-spreadsheet";
 import { useParams } from "next/navigation";
-import { OcrTableExtractor } from "./components/ocr-table-extractor";
+import Link from "next/link";
 import { useUserSubscription } from "@/lib/use-user-subscription";
 
 interface DataLibraryFileItem {
@@ -79,7 +72,8 @@ interface PreviewData {
 
 const DataLibrary = () => {
   const params = useParams();
-  const dashid = params?.dashid as string;
+  const project = (params?.project as string) || "";
+  const dashid = (params?.dashid as string) || "";
   const { data: session } = useSession();
   const userId = session?.user?.id;
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -91,7 +85,6 @@ const DataLibrary = () => {
   const [viewMode, setViewMode] = useState<"grid" | "list" | "timeline">(
     "grid",
   );
-  const [isExtractDrawerOpen, setIsExtractDrawerOpen] = useState(false);
   const [collapsedGroups, setCollapsedGroups] = useState<
     Record<string, boolean>
   >({});
@@ -545,14 +538,15 @@ const DataLibrary = () => {
           </div>
 
           {/* Extract from Image Button */}
-          <Button
-            onClick={() => setIsExtractDrawerOpen(true)}
-            variant="outline"
-            className="cursor-pointer gap-2 border-primary/30 hover:border-primary/60 hover:bg-primary/5 text-foreground shadow-2xs font-medium"
-          >
-            <ScanText className="size-4 text-primary" />
-            <span>Extract from Image</span>
-          </Button>
+          <Link href={`/${project}/dash/${dashid}/data-library/ocr`}>
+            <Button
+              variant="outline"
+              className="cursor-pointer gap-2 border-primary/30 hover:border-primary/60 hover:bg-primary/5 text-foreground shadow-2xs font-medium"
+            >
+              <ScanText className="size-4 text-primary" />
+              <span>Extract from Image</span>
+            </Button>
+          </Link>
 
           {/* Upload File Button */}
           <label>
@@ -576,62 +570,6 @@ const DataLibrary = () => {
           </label>
         </div>
       </div>
-
-      {/* Top Drawer for Image OCR Table Extractor */}
-      <Sheet open={isExtractDrawerOpen} onOpenChange={setIsExtractDrawerOpen}>
-        <SheetContent
-          side="top"
-          onPointerDownOutside={(e) => {
-            const target = e.target as HTMLElement | null;
-            if (target?.closest(".e-contextmenu-wrapper, .e-contextmenu-container, .e-spreadsheet-contextmenu, .e-popup")) {
-              e.preventDefault();
-            }
-          }}
-          onInteractOutside={(e) => {
-            const target = e.target as HTMLElement | null;
-            if (target?.closest(".e-contextmenu-wrapper, .e-contextmenu-container, .e-spreadsheet-contextmenu, .e-popup")) {
-              e.preventDefault();
-            }
-          }}
-          className="w-full max-h-[92vh] h-[92vh] flex flex-col p-0 bg-background/98 backdrop-blur-md border-b shadow-2xl overflow-hidden z-50"
-        >
-          <div className="flex items-center justify-between px-6 py-4 border-b bg-muted/20">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-xl bg-primary/10 text-primary shadow-2xs">
-                <ScanText className="size-5" />
-              </div>
-              <div>
-                <SheetTitle className="text-base font-bold tracking-tight text-foreground flex items-center gap-2">
-                  <span>Extract Table from Image</span>
-                  <Badge
-                    variant="outline"
-                    className="text-[10px] font-semibold border-primary/30 text-primary px-2 py-0"
-                  >
-                    Vision OCR
-                  </Badge>
-                </SheetTitle>
-                <SheetDescription className="text-xs text-muted-foreground mt-0.5">
-                  Scan printed or digital table images into editable spreadsheets and structured JSON datasets.
-                </SheetDescription>
-              </div>
-            </div>
-          </div>
-
-          {/* Scrollable Drawer Body with Workbench */}
-          <div className="flex-1 overflow-y-auto px-6 py-4">
-            <OcrTableExtractor
-              dashid={dashid}
-              userId={userId}
-              isInDrawer={true}
-              onCloseDrawer={() => setIsExtractDrawerOpen(false)}
-              onSaveSuccess={async () => {
-                setIsExtractDrawerOpen(false);
-                await fetchFiles();
-              }}
-            />
-          </div>
-        </SheetContent>
-      </Sheet>
 
       {/* Search & Filter Bar */}
       <div className="flex items-center justify-between gap-4">

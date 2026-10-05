@@ -1,41 +1,40 @@
-"use client"
+"use client";
 
-import * as React from "react"
-import { type Icon } from "@tabler/icons-react"
+import * as React from "react";
+import { type Icon } from "@tabler/icons-react";
 import {
   SidebarGroup,
   SidebarGroupContent,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-} from "@repo/ui/components/ui/sidebar"
-import { useRouter, usePathname } from "next/navigation"
-import { DockIcon } from "lucide-react"
-import { useRouteAuthContextHook } from "@/context/routeContext"
+} from "@repo/ui/components/ui/sidebar";
+import { useRouter, usePathname } from "next/navigation";
+import { DockIcon } from "lucide-react";
+import { useRouteAuthContextHook } from "@/context/routeContext";
 
 export function NavSecondary({
   items,
   ...props
 }: {
-  dashid?: string
+  dashid?: string;
   items: {
-    title: string
-    url: string
-    icon: Icon
-  }[]
+    title: string;
+    url: string;
+    icon: Icon;
+  }[];
 } & React.ComponentPropsWithoutRef<typeof SidebarGroup>) {
-  
-  const router = useRouter()
-  const pathname = usePathname()
-  const { dash_id } = useRouteAuthContextHook()
+  const router = useRouter();
+  const pathname = usePathname();
+  const { dash_id } = useRouteAuthContextHook();
 
   return (
     <SidebarGroup {...props}>
       <SidebarGroupContent>
         <SidebarMenu>
           {items.map((item) => {
-            const fullUrl = `/dashboard/dash/${dash_id}${item.url}`
-            const isActive = pathname === fullUrl
+            const fullUrl = `/dashboard/dash/${dash_id}${item.url}`;
+            const isActive = pathname === fullUrl;
 
             return (
               <SidebarMenuItem key={item.title}>
@@ -52,11 +51,11 @@ export function NavSecondary({
                   </a>
                 </SidebarMenuButton>
               </SidebarMenuItem>
-            )
+            );
           })}
 
           {/* Docs Link (opens new tab) */}
-          <SidebarMenuItem>
+          {/* <SidebarMenuItem>
             <SidebarMenuButton className="cursor-pointer" asChild>
               <a
                 href="http://localhost:3001/"
@@ -67,9 +66,9 @@ export function NavSecondary({
                 <span>Docs</span>
               </a>
             </SidebarMenuButton>
-          </SidebarMenuItem>
+          </SidebarMenuItem> */}
         </SidebarMenu>
       </SidebarGroupContent>
     </SidebarGroup>
-  )
+  );
 }

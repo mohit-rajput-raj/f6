@@ -39,6 +39,11 @@ import { BlockSettingsModal } from "./BlockSettingsModal";
 import { Input } from "@repo/ui/components/ui/input";
 import { Button } from "@/components/ui/components";
 import {
+  Avatar,
+  AvatarImage,
+  AvatarFallback,
+} from "@repo/ui/components/ui/avatar";
+import {
   ResizablePanelGroup,
   ResizablePanel,
   ResizableHandle,
@@ -174,6 +179,17 @@ export function DeskBlock({
   const pathname = usePathname();
   const { data: sessionData } = useSession();
   const currentUserEmail = sessionData?.user?.email ?? "";
+
+  const getEmailAvatar = useCallback((email: string) => {
+    if (
+      sessionData?.user?.email &&
+      sessionData.user.email.toLowerCase() === email.toLowerCase() &&
+      sessionData.user.image
+    ) {
+      return sessionData.user.image;
+    }
+    return `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(email)}&backgroundColor=27272a,3f3f46&textColor=ffffff`;
+  }, [sessionData]);
 
   const spreadsheetRef = useRef<any>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -980,10 +996,22 @@ export function DeskBlock({
               )}
               {child.coOwnerEmail && (
                 <span
-                  className="text-[9px] px-1 py-0.2 rounded bg-indigo-500/15 text-indigo-400 font-mono"
+                  className="inline-flex items-center gap-1.5 pl-0.5 pr-1.5 py-0.5 rounded-full bg-background/80 hover:bg-background text-foreground/80 border border-border/60 transition-colors shadow-2xs"
                   title={`Co-owner: ${child.coOwnerEmail}`}
                 >
-                  @{child.coOwnerEmail.split("@")[0]}
+                  <Avatar className="size-4 rounded-full ring-1 ring-border/50 shrink-0">
+                    <AvatarImage
+                      src={getEmailAvatar(child.coOwnerEmail)}
+                      alt={child.coOwnerEmail}
+                      className="object-cover"
+                    />
+                    <AvatarFallback className="text-[8px] bg-muted font-semibold text-foreground">
+                      {child.coOwnerEmail.charAt(0).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <span className="max-w-[75px] truncate text-[10px] font-normal">
+                    {child.coOwnerEmail.split("@")[0]}
+                  </span>
                 </span>
               )}
             </button>
