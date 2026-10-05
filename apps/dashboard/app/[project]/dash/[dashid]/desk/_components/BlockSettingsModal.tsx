@@ -78,9 +78,26 @@ export function BlockSettingsModal({
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // Password removal confirmation dialog state
+  const [isRemovePasswordOpen, setIsRemovePasswordOpen] = useState(false);
+  const [removeConfirmationPassword, setRemoveConfirmationPassword] = useState("");
+  const [isRemovingPassword, setIsRemovingPassword] = useState(false);
+
   // Store actions
   const setBlockSecurityStore = useDeskStore((s) => s.setBlockSecurity);
   const setBlockSettingsStore = useDeskStore((s) => s.setBlockSettings);
+
+  // Permissions calculation
+  const isCoOwner = Boolean(
+    currentUserEmail &&
+    block.coOwnerEmail &&
+    block.coOwnerEmail.toLowerCase() === currentUserEmail.toLowerCase()
+  );
+  const canAssignCoOwner = Boolean(isOwner || isCoOwner);
+  // Rule: if co-owner exists, ONLY co-owner can delete. If no co-owner, owner can delete.
+  const canDeleteTab = Boolean(
+    block.coOwnerEmail ? isCoOwner : isOwner
+  );
 
   // Dummy settings state
   const [webhookUrl, setWebhookUrl] = useState("https://api.internal-mesh.io/v1/blocks/webhook");
@@ -96,6 +113,8 @@ export function BlockSettingsModal({
       setIsPasswordProtected(Boolean(block.isPasswordProtected));
       setPassword("");
       setConfirmPassword("");
+      setRemoveConfirmationPassword("");
+      setIsRemovePasswordOpen(false);
 
       // Fetch team collaborators to suggest for co-ownership
       if (dashid) {
@@ -126,11 +145,17 @@ export function BlockSettingsModal({
   };
 
   const handleSaveCoOwner = async () => {
+    if (!canAssignCoOwner) {
+      toast.error("Only the workspace owner or current tab co-owner have rights to assign a co-owner.");
+      return;
+    }
     setIsSaving(true);
     try {
       const emailToSet = coOwnerEmail.trim() || null;
       await setBlockSecurity(block.id, {
         coOwnerEmail: emailToSet,
+        userEmail: currentUserEmail,
+        isOwnerUser: isOwner,
       });
       setBlockSecurityStore(block.id, { coOwnerEmail: emailToSet });
       toast.success(
@@ -162,6 +187,8 @@ export function BlockSettingsModal({
       const res = await setBlockSecurity(block.id, {
         isPasswordProtected,
         password: isPasswordProtected && password ? password : isPasswordProtected ? undefined : "",
+        userEmail: currentUserEmail,
+        isOwnerUser: isOwner,
       });
 
       setBlockSecurityStore(block.id, {
@@ -182,27 +209,46 @@ export function BlockSettingsModal({
     }
   };
 
-  const handleRemovePassword = async () => {
-    setIsSaving(true);
+  const handleConfirmRemovePassword = async () => {
+    if (!removeConfirmationPassword.trim()) {
+      toast.error("Please enter the current password to confirm removal");
+      return;
+    }
+
+    setIsRemovingPassword(true);
     try {
       await setBlockSecurity(block.id, {
         isPasswordProtected: false,
         password: "",
+        currentPasswordConfirmation: removeConfirmationPassword.trim(),
+        userEmail: currentUserEmail,
+        isOwnerUser: isOwner,
       });
       setIsPasswordProtected(false);
       setBlockSecurityStore(block.id, { isPasswordProtected: false });
       setPassword("");
       setConfirmPassword("");
+      setRemoveConfirmationPassword("");
+      setIsRemovePasswordOpen(false);
       toast.success("Password removed successfully");
     } catch (err: any) {
-      toast.error("Failed to remove password");
+      toast.error(err?.message || "Failed to remove password. Please check your password.");
     } finally {
-      setIsSaving(false);
+      setIsRemovingPassword(false);
     }
   };
 
   const handleDelete = async () => {
     if (!onDeleteTab) return;
+    if (!canDeleteTab) {
+      if (block.coOwnerEmail) {
+        toast.error(`Only the assigned co-owner (${block.coOwnerEmail}) can delete this tab.`);
+      } else {
+        toast.error("Only the workspace owner can delete this tab.");
+      }
+      return;
+    }
+
     if (confirm(`Are you sure you want to delete tab "${block.name}"? This action cannot be undone.`)) {
       setIsDeleting(true);
       try {
@@ -210,7 +256,7 @@ export function BlockSettingsModal({
         toast.success("Tab deleted successfully");
         onClose();
       } catch (e: any) {
-        toast.error("Failed to delete tab");
+        toast.error(e?.message || "Failed to delete tab");
       } finally {
         setIsDeleting(false);
       }
@@ -423,13 +469,21 @@ export function BlockSettingsModal({
                     </p>
                   </div>
 
+                  {!canAssignCoOwner && (
+                    <div className="p-3 rounded-lg border border-amber-500/20 bg-amber-500/5 text-amber-300 text-xs flex items-center gap-2">
+                      <AlertTriangle className="size-4 shrink-0 text-amber-400" />
+                      <span>Only the workspace owner or current tab co-owner have rights to assign or change the co-owner.</span>
+                    </div>
+                  )}
+
                   <div className="space-y-1.5">
                     <label className="text-xs font-medium text-zinc-300">Co-Owner Email Address</label>
                     <Input
                       value={coOwnerEmail}
                       onChange={(e) => setCoOwnerEmail(e.target.value)}
                       placeholder="collaborator@company.com"
-                      className="bg-zinc-900 border-zinc-700 text-sm"
+                      disabled={!canAssignCoOwner}
+                      className="bg-zinc-900 border-zinc-700 text-sm disabled:opacity-50"
                     />
                   </div>
 
@@ -441,8 +495,9 @@ export function BlockSettingsModal({
                           <button
                             key={c.invitedEmail}
                             type="button"
+                            disabled={!canAssignCoOwner}
                             onClick={() => setCoOwnerEmail(c.invitedEmail)}
-                            className={`text-xs px-2.5 py-1 rounded-full border transition-colors cursor-pointer flex items-center gap-1.5 ${
+                            className={`text-xs px-2.5 py-1 rounded-full border transition-colors cursor-pointer flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed ${
                               coOwnerEmail.toLowerCase() === c.invitedEmail.toLowerCase()
                                 ? "bg-indigo-600 text-white border-indigo-500"
                                 : "bg-zinc-800/80 text-zinc-300 border-zinc-700 hover:bg-zinc-700"
@@ -461,13 +516,13 @@ export function BlockSettingsModal({
                     <Button
                       size="sm"
                       onClick={handleSaveCoOwner}
-                      disabled={isSaving}
-                      className="h-8 text-xs bg-indigo-600 hover:bg-indigo-500 text-white font-medium"
+                      disabled={isSaving || !canAssignCoOwner}
+                      className="h-8 text-xs bg-indigo-600 hover:bg-indigo-500 text-white font-medium disabled:opacity-50"
                     >
                       {isSaving ? <Loader2 className="size-3 animate-spin mr-1.5" /> : <Check className="size-3 mr-1.5" />}
                       Update Co-Owner
                     </Button>
-                    {coOwnerEmail && (
+                    {coOwnerEmail && canAssignCoOwner && (
                       <Button
                         size="sm"
                         variant="ghost"
@@ -516,7 +571,14 @@ export function BlockSettingsModal({
 
                     <button
                       type="button"
-                      onClick={() => setIsPasswordProtected(!isPasswordProtected)}
+                      onClick={() => {
+                        if (isPasswordProtected && block.isPasswordProtected) {
+                          // Opening removal confirmation
+                          setIsRemovePasswordOpen(true);
+                        } else {
+                          setIsPasswordProtected(!isPasswordProtected);
+                        }
+                      }}
                       className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
                         isPasswordProtected ? "bg-amber-500" : "bg-zinc-700"
                       }`}
@@ -589,7 +651,7 @@ export function BlockSettingsModal({
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={handleRemovePassword}
+                        onClick={() => setIsRemovePasswordOpen(true)}
                         disabled={isSaving}
                         className="h-8 text-xs border-zinc-700 text-zinc-400 hover:text-zinc-200"
                       >
@@ -797,13 +859,25 @@ export function BlockSettingsModal({
                     <p className="text-[11px] text-zinc-400 mt-0.5">
                       Permanently remove this tab, its node editor workflow, and saved sheet inputs.
                     </p>
+                    {block.coOwnerEmail && (
+                      <p className="text-[11px] text-amber-400 mt-1 flex items-center gap-1 font-mono">
+                        <Shield className="size-3" />
+                        Tab has co-owner: {block.coOwnerEmail}. Only this co-owner can delete it.
+                      </p>
+                    )}
+                    {!block.coOwnerEmail && (
+                      <p className="text-[11px] text-zinc-400 mt-1 flex items-center gap-1 font-mono">
+                        <Shield className="size-3" />
+                        Tab has no co-owner. Only workspace owner can delete it.
+                      </p>
+                    )}
                   </div>
 
                   <Button
                     size="sm"
                     onClick={handleDelete}
-                    disabled={isDeleting}
-                    className="h-8 text-xs bg-red-600 hover:bg-red-500 text-white font-medium"
+                    disabled={isDeleting || !canDeleteTab}
+                    className="h-8 text-xs bg-red-600 hover:bg-red-500 text-white font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {isDeleting ? <Loader2 className="size-3 animate-spin mr-1.5" /> : <Trash2 className="size-3 mr-1.5" />}
                     Delete Tab
@@ -814,6 +888,68 @@ export function BlockSettingsModal({
           </div>
         </div>
       </DialogContent>
+
+      {/* ─── Remove Password Confirmation Dialog ─── */}
+      <Dialog open={isRemovePasswordOpen} onOpenChange={(open) => !open && setIsRemovePasswordOpen(false)}>
+        <DialogContent className="sm:max-w-[420px] p-6 border-zinc-800 bg-zinc-950 text-zinc-100 shadow-2xl">
+          <div className="flex flex-col gap-4">
+            <div className="flex items-center gap-3">
+              <div className="size-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+                <Lock className="size-5" />
+              </div>
+              <div>
+                <DialogTitle className="text-base font-semibold text-zinc-100">
+                  Confirm Password Removal
+                </DialogTitle>
+                <DialogDescription className="text-xs text-zinc-400 mt-0.5">
+                  Enter the current tab password to verify your authorization before removing protection.
+                </DialogDescription>
+              </div>
+            </div>
+
+            <div className="space-y-2 py-2">
+              <label className="text-xs font-medium text-zinc-300">Current Password</label>
+              <Input
+                type="password"
+                value={removeConfirmationPassword}
+                onChange={(e) => setRemoveConfirmationPassword(e.target.value)}
+                placeholder="Enter current password"
+                className="bg-zinc-900 border-zinc-700 text-sm"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleConfirmRemovePassword();
+                }}
+              />
+              <p className="text-[11px] text-zinc-500">
+                Only the workspace owner or assigned tab co-owner can remove protection using the current password.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  setIsRemovePasswordOpen(false);
+                  setRemoveConfirmationPassword("");
+                }}
+                disabled={isRemovingPassword}
+                className="h-8 text-xs text-zinc-400 hover:text-zinc-200"
+              >
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleConfirmRemovePassword}
+                disabled={isRemovingPassword || !removeConfirmationPassword.trim()}
+                className="h-8 text-xs bg-red-600 hover:bg-red-500 text-white font-medium"
+              >
+                {isRemovingPassword ? <Loader2 className="size-3 animate-spin mr-1.5" /> : <Unlock className="size-3 mr-1.5" />}
+                Remove Protection
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   );
 }

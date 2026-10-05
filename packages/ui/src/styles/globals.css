@@ -179,3 +179,27 @@
     rgba(255, 255, 255, 0.3)
   );
 }
+
+/* ── Syncfusion Context Menu in Modals / Drawers ── */
+body .e-contextmenu-wrapper,
+body .e-contextmenu-container,
+body .e-spreadsheet-contextmenu,
+body .e-dropdown-popup,
+body .e-popup.e-popup-open {
+  pointer-events: auto !important;
+  z-index: 999999 !important;
+}
+
+body .e-contextmenu-wrapper .e-menu-item,
+body .e-contextmenu-container .e-menu-item,
+body .e-spreadsheet-contextmenu .e-menu-item {
+  pointer-events: auto !important;
+  cursor: pointer !important;
+}
+
+body .e-contextmenu-wrapper .e-menu-item *,
+body .e-contextmenu-container .e-menu-item *,
+body .e-spreadsheet-contextmenu .e-menu-item * {
+  pointer-events: auto !important;
+  cursor: pointer !important;
+}
