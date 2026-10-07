@@ -517,23 +517,163 @@ export async function markAllNotificationsRead(userId: string) {
   return data;
 }
 
-/** Get the owner details of a specific workflow */
+/** Get the owner details and metadata of a specific workflow */
 export async function getWorkflowOwner(projectWorkflowId: string) {
-  const { data: workflow } = await supabase
+  if (!projectWorkflowId) return null;
+
+  try {
+    const { data: workflow, error: wfErr } = await supabase
+      .from("workflow")
+      .select("id, name, userId, createdAt")
+      .eq("id", projectWorkflowId)
+      .maybeSingle();
+
+    if (wfErr || !workflow) return null;
+
+    let ownerUser: any = null;
+    if (workflow.userId) {
+      const { data: u } = await supabase
+        .from("user")
+        .select("id, email, name, image, role, emailVerified, createdAt")
+        .eq("id", workflow.userId)
+        .maybeSingle();
+      ownerUser = u;
+    }
+
+    const fallbackName = ownerUser?.email ? ownerUser.email.split("@")[0] : "Desk Owner";
+
+    return {
+      id: ownerUser?.id || workflow.userId,
+      email: ownerUser?.email || "",
+      name: ownerUser?.name || fallbackName,
+      image: ownerUser?.image || null,
+      avatar: ownerUser?.image || null,
+      role: ownerUser?.role || "Desk Owner",
+      emailVerified: ownerUser?.emailVerified ?? true,
+      userCreatedAt: ownerUser?.createdAt || workflow.createdAt,
+      workflowId: workflow.id,
+      workflowName: workflow.name || "Desk",
+      workflowCreatedAt: workflow.createdAt,
+    };
+  } catch (err) {
+    console.error("Error in getWorkflowOwner:", err);
+    return null;
+  }
+}
+
+/** Update desk / project name */
+export async function updateDeskName(projectWorkflowId: string, newName: string) {
+  if (!projectWorkflowId || !newName.trim()) {
+    throw new Error("Invalid project ID or name");
+  }
+
+  const { data, error } = await supabase
     .from("workflow")
-    .select("*, user:user(*)")
+    .update({ name: newName.trim(), updatedAt: new Date().toISOString() })
     .eq("id", projectWorkflowId)
+    .select("id, name")
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+/** Transfer workflow / desk ownership to another user by email */
+export async function transferWorkflowOwnership(
+  projectWorkflowId: string,
+  targetEmail: string,
+  currentUserId?: string
+) {
+  if (!projectWorkflowId || !targetEmail.trim()) {
+    throw new Error("Missing project ID or recipient email");
+  }
+
+  // 1. Find workflow
+  const { data: workflow, error: wfError } = await supabase
+    .from("workflow")
+    .select("id, name, userId")
+    .eq("id", projectWorkflowId)
+    .single();
+
+  if (wfError || !workflow) throw new Error("Workflow not found");
+
+  if (currentUserId && workflow.userId !== currentUserId) {
+    throw new Error("Only the current owner can transfer ownership");
+  }
+
+  // 2. Find target user by email
+  const cleanTarget = targetEmail.trim().toLowerCase();
+  const { data: targetUser, error: userError } = await supabase
+    .from("user")
+    .select("id, name, email")
+    .ilike("email", cleanTarget)
     .maybeSingle();
 
-  if (!workflow || !workflow.user) return null;
-  return {
-    id: workflow.user.id,
-    email: workflow.user.email,
-    name: workflow.user.name,
-    image: workflow.user.image,
-    avatar: workflow.user.image,
-  };
+  if (userError || !targetUser) {
+    throw new Error(
+      `User with email "${targetEmail}" was not found. Please ensure they have created an account.`
+    );
+  }
+
+  if (targetUser.id === workflow.userId) {
+    throw new Error("This user is already the owner of this desk.");
+  }
+
+  // 3. Update workflow userId
+  const { error: updateError } = await supabase
+    .from("workflow")
+    .update({ userId: targetUser.id, updatedAt: new Date().toISOString() })
+    .eq("id", projectWorkflowId);
+
+  if (updateError) throw updateError;
+
+  // 4. Ensure previous owner retains access as an editor in desk_share
+  if (workflow.userId) {
+    const { data: prevUser } = await supabase
+      .from("user")
+      .select("id, email")
+      .eq("id", workflow.userId)
+      .maybeSingle();
+
+    if (prevUser?.email) {
+      const { data: existingShare } = await supabase
+        .from("desk_share")
+        .select("id")
+        .eq("projectWorkflowId", projectWorkflowId)
+        .ilike("invitedEmail", prevUser.email)
+        .maybeSingle();
+
+      if (!existingShare) {
+        await supabase.from("desk_share").insert({
+          projectWorkflowId,
+          invitedEmail: prevUser.email.toLowerCase(),
+          invitedUserId: prevUser.id,
+          permission: "editor",
+          status: "accepted",
+        });
+      }
+    }
+  }
+
+  // 5. Send notification to new owner
+  try {
+    await supabase.from("notification").insert({
+      userId: targetUser.id,
+      type: "desk_transfer",
+      title: "Workspace Ownership Transferred",
+      message: `You are now the owner of "${workflow.name}".`,
+      data: {
+        projectWorkflowId,
+        workspaceName: workflow.name,
+      },
+    });
+  } catch (err) {
+    console.warn("Could not create notification for ownership transfer:", err);
+  }
+
+  return { success: true, newOwner: targetUser };
 }
+
 
 /** Fetch user profiles (name, image, email) by email list (same data source as projects page) */
 export async function getUserProfilesByEmails(emails: string[]) {

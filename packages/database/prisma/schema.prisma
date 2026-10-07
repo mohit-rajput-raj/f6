@@ -287,6 +287,20 @@ model CodeMapping {
   @@map("code_mapping")
 }
 
+model DeskMessage {
+  id                String   @id @default(uuid()) @db.Uuid
+  projectWorkflowId String   @map("project_workflow_id") @db.Uuid
+  userId            String   @map("user_id")
+  userName          String   @map("user_name")
+  userEmail         String   @map("user_email")
+  userImage         String?  @map("user_image")
+  text              String
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  @@index([projectWorkflowId, createdAt])
+  @@map("desk_message")
+}
+
 model Notification {
   id        String   @id @default(uuid()) @db.Uuid
   userId    String

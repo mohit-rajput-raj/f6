@@ -7,6 +7,7 @@ import {
   generateUnlockToken,
   verifyUnlockToken,
 } from "@/lib/password-utils";
+import { toast } from "sonner";
 
 // ─── Types ──────────────────────────────────────────────────
 export interface DeskTextInput {
@@ -67,7 +68,9 @@ export interface DeskBlockData {
 }
 
 // ─── Get all blocks for a project ───────────────────────────
-export async function getDeskBlocks(projectWorkflowId: string): Promise<DeskBlockData[]> {
+export async function getDeskBlocks(
+  projectWorkflowId: string,
+): Promise<DeskBlockData[]> {
   const { data: blocks } = await supabase
     .from("desk_block")
     .select("*")
@@ -100,7 +103,7 @@ export async function createDeskBlock(
   userId: string,
   blockOrder?: number,
   parentId?: string,
-  tabName?: string
+  tabName?: string,
 ): Promise<DeskBlockData> {
   // Get current max order
   const { data: maxBlocks } = await supabase
@@ -192,9 +195,7 @@ export async function createDeskBlock(
 }
 
 // ─── Sync block fields from workflow nodes ──────────────────
-export async function syncBlockFieldsFromWorkflow(
-  editorWorkflowId: string
-) {
+export async function syncBlockFieldsFromWorkflow(editorWorkflowId: string) {
   // Find the block that owns this editor
   const { data: block } = await supabase
     .from("desk_block")
@@ -219,11 +220,15 @@ export async function syncBlockFieldsFromWorkflow(
   // Existing fields (preserve user values)
   const existingInputs = (block.textInputs as unknown as DeskTextInput[]) ?? [];
   const existingSheets = (block.sheets as unknown as DeskSheet[]) ?? [];
-  const existingCheckboxes = (block.checkboxFields as unknown as CheckboxField[]) ?? [];
+  const existingCheckboxes =
+    (block.checkboxFields as unknown as CheckboxField[]) ?? [];
 
   // Derive text inputs from DeskTextInputNode nodes
   const textInputs: DeskTextInput[] = nodes
-    .filter((n: any) => n.type === "DeskTextInputNode" || n.data?.type === "DeskTextInputNode")
+    .filter(
+      (n: any) =>
+        n.type === "DeskTextInputNode" || n.data?.type === "DeskTextInputNode",
+    )
     .map((n: any) => {
       const inputId = n.data?.deskInputId || n.id;
       const existing = existingInputs.find((e) => e.id === inputId);
@@ -236,7 +241,10 @@ export async function syncBlockFieldsFromWorkflow(
 
   // Derive sheets from DeskSheetNode nodes
   const sheets: DeskSheet[] = nodes
-    .filter((n: any) => n.type === "DeskSheetNode" || n.data?.type === "DeskSheetNode")
+    .filter(
+      (n: any) =>
+        n.type === "DeskSheetNode" || n.data?.type === "DeskSheetNode",
+    )
     .map((n: any) => {
       const sheetId = n.data?.deskSheetId || n.id;
       const existing = existingSheets.find((e) => e.id === sheetId);
@@ -249,7 +257,10 @@ export async function syncBlockFieldsFromWorkflow(
 
   // Derive checkboxes from TrueFalseNode nodes
   const checkboxFields: CheckboxField[] = nodes
-    .filter((n: any) => n.type === "TrueFalseNode" || n.data?.type === "TrueFalseNode")
+    .filter(
+      (n: any) =>
+        n.type === "TrueFalseNode" || n.data?.type === "TrueFalseNode",
+    )
     .map((n: any) => {
       const fieldId = n.data?.checkboxId || n.id;
       const existing = existingCheckboxes.find((e) => e.id === fieldId);
@@ -278,7 +289,7 @@ export async function syncBlockFieldsFromWorkflow(
 // ─── Initialize default desk (called on first load) ─────────
 export async function initializeDefaultDesk(
   projectWorkflowId: string,
-  userId: string
+  userId: string,
 ): Promise<DeskBlockData[]> {
   const { count } = await supabase
     .from("desk_block")
@@ -301,12 +312,13 @@ export async function updateDeskBlockInputs(
     textInputs?: DeskTextInput[];
     sheets?: DeskSheet[];
     checkboxFields?: CheckboxField[];
-  }
+  },
 ) {
   const updateData: any = { updatedAt: new Date().toISOString() };
   if (data.textInputs !== undefined) updateData.textInputs = data.textInputs;
   if (data.sheets !== undefined) updateData.sheets = data.sheets;
-  if (data.checkboxFields !== undefined) updateData.checkboxFields = data.checkboxFields;
+  if (data.checkboxFields !== undefined)
+    updateData.checkboxFields = data.checkboxFields;
 
   const { data: updated, error } = await supabase
     .from("desk_block")
@@ -322,11 +334,14 @@ export async function updateDeskBlockInputs(
 // ─── Update block output preview ────────────────────────────
 export async function updateDeskBlockOutput(
   blockId: string,
-  outputPreview: Dataset | null
+  outputPreview: Dataset | null,
 ) {
   const { data, error } = await supabase
     .from("desk_block")
-    .update({ outputPreview: outputPreview as any, updatedAt: new Date().toISOString() })
+    .update({
+      outputPreview: outputPreview as any,
+      updatedAt: new Date().toISOString(),
+    })
     .eq("id", blockId)
     .select()
     .single();
@@ -339,7 +354,7 @@ export async function updateDeskBlockOutput(
 export async function deleteDeskBlock(
   blockId: string,
   userEmail?: string | null,
-  isOwnerUser?: boolean
+  isOwnerUser?: boolean,
 ) {
   const { data: block } = await supabase
     .from("desk_block")
@@ -376,7 +391,7 @@ export async function deleteDeskBlock(
   const isCoOwner = Boolean(
     normalizedUserEmail &&
     block.coOwnerEmail &&
-    block.coOwnerEmail.toLowerCase() === normalizedUserEmail
+    block.coOwnerEmail.toLowerCase() === normalizedUserEmail,
   );
 
   // Permission rule:
@@ -385,21 +400,105 @@ export async function deleteDeskBlock(
   if (block.coOwnerEmail) {
     if (!isCoOwner) {
       throw new Error(
-        `This tab has an assigned co-owner (${block.coOwnerEmail}). Only the assigned co-owner can delete this tab.`
+        `This tab has an assigned co-owner (${block.coOwnerEmail}). Only the assigned co-owner can delete this tab.`,
       );
     }
   } else {
     if (!isOwner) {
-      throw new Error("Only the workspace/project owner can delete this tab.");
+      // Check if this is an empty parent block with no children remaining (cleanup case)
+      const { count } = await supabase
+        .from("desk_block")
+        .select("id", { count: "exact", head: true })
+        .eq("parentId", blockId);
+
+      if ((count ?? 0) > 0) {
+        throw new Error("Only the workspace/project owner can delete this tab.");
+      }
     }
   }
 
   await supabase.from("desk_block").delete().eq("id", blockId);
 
   try {
-    await supabase.from("workflow").delete().eq("id", block.editorWorkflowId);
+    if (block.editorWorkflowId) {
+      await supabase.from("workflow").delete().eq("id", block.editorWorkflowId);
+    }
   } catch {
     // May already be deleted by cascade
+  }
+}
+
+// ─── Delete a BigBlock and all its child tabs ────────────────
+export async function deleteDeskBigBlock(
+  bigBlockId: string,
+  userEmail?: string | null,
+  isOwnerUser?: boolean,
+) {
+  const { data: block } = await supabase
+    .from("desk_block")
+    .select("id, editorWorkflowId, projectWorkflowId")
+    .eq("id", bigBlockId)
+    .maybeSingle();
+
+  if (!block) throw new Error("Block not found");
+
+  const normalizedUserEmail = userEmail?.trim().toLowerCase();
+
+  // Determine if caller is project owner
+  let isOwner = isOwnerUser ?? false;
+  if (!isOwner && normalizedUserEmail && block.projectWorkflowId) {
+    const { data: workflow } = await supabase
+      .from("workflow")
+      .select("userId")
+      .eq("id", block.projectWorkflowId)
+      .maybeSingle();
+
+    if (workflow?.userId) {
+      const { data: ownerUser } = await supabase
+        .from("user")
+        .select("email")
+        .eq("id", workflow.userId)
+        .maybeSingle();
+
+      if (ownerUser?.email?.toLowerCase() === normalizedUserEmail) {
+        isOwner = true;
+      }
+    }
+  }
+
+  if (!isOwner) {
+    throw new Error(
+      "Only the workspace/project owner can delete this BigBlock.",
+    );
+  }
+
+  // Find all children belonging to this BigBlock
+  const { data: children } = await supabase
+    .from("desk_block")
+    .select("id, editorWorkflowId")
+    .eq("parentId", bigBlockId);
+
+  const childIds = (children || []).map((c) => c.id);
+  const editorWorkflowIds = [
+    block.editorWorkflowId,
+    ...(children || []).map((c) => c.editorWorkflowId),
+  ].filter(Boolean);
+
+  // Delete all children first from desk_block
+  if (childIds.length > 0) {
+    await supabase.from("desk_block").delete().in("id", childIds);
+  }
+
+  // Delete the root BigBlock
+  await supabase.from("desk_block").delete().eq("id", bigBlockId);
+
+  // Clean up associated editor workflows
+  if (editorWorkflowIds.length > 0) {
+    try {
+      await supabase.from("workflow").delete().in("id", editorWorkflowIds);
+    } catch {
+      // May already be deleted by cascade
+    }
   }
 }
 
@@ -419,21 +518,27 @@ export async function renameDeskBlock(blockId: string, name: string) {
 // ─── Reorder blocks ─────────────────────────────────────────
 export async function reorderDeskBlocks(
   projectWorkflowId: string,
-  orderedIds: string[]
+  orderedIds: string[],
 ) {
   await Promise.all(
     orderedIds.map((id, index) =>
       supabase
         .from("desk_block")
         .update({ blockOrder: index, updatedAt: new Date().toISOString() })
-        .eq("id", id)
-    )
+        .eq("id", id),
+    ),
   );
 }
 
 // ─── Get single block ───────────────────────────────────────
-export async function getDeskBlock(blockId: string): Promise<DeskBlockData | null> {
-  const { data: b } = await supabase.from("desk_block").select("*").eq("id", blockId).maybeSingle();
+export async function getDeskBlock(
+  blockId: string,
+): Promise<DeskBlockData | null> {
+  const { data: b } = await supabase
+    .from("desk_block")
+    .select("*")
+    .eq("id", blockId)
+    .maybeSingle();
   if (!b) return null;
 
   return {
@@ -456,7 +561,7 @@ export async function getDeskBlock(blockId: string): Promise<DeskBlockData | nul
 // ─── Pushed Files History ───────────────────────────────────
 export async function pushFileToBlockHistory(
   blockId: string,
-  fileRecord: PushedFileRecord
+  fileRecord: PushedFileRecord,
 ): Promise<PushedFileRecord[]> {
   const { data: b } = await supabase
     .from("desk_block")
@@ -465,11 +570,17 @@ export async function pushFileToBlockHistory(
     .single();
 
   const existing: PushedFileRecord[] = (b?.pushedFiles as any) || [];
-  const updated = [fileRecord, ...existing.filter((f) => f.id !== fileRecord.id)].slice(0, 50);
+  const updated = [
+    fileRecord,
+    ...existing.filter((f) => f.id !== fileRecord.id),
+  ].slice(0, 50);
 
   await supabase
     .from("desk_block")
-    .update({ pushedFiles: updated as any, updatedAt: new Date().toISOString() })
+    .update({
+      pushedFiles: updated as any,
+      updatedAt: new Date().toISOString(),
+    })
     .eq("id", blockId);
 
   return updated;
@@ -479,7 +590,7 @@ export async function updatePushedFileStatus(
   blockId: string,
   fileId: string,
   status: "success" | "failed",
-  error?: string
+  error?: string,
 ): Promise<PushedFileRecord[]> {
   const { data: b } = await supabase
     .from("desk_block")
@@ -489,12 +600,15 @@ export async function updatePushedFileStatus(
 
   const existing: PushedFileRecord[] = (b?.pushedFiles as any) || [];
   const updated = existing.map((f) =>
-    f.id === fileId ? { ...f, status, error: error ?? f.error } : f
+    f.id === fileId ? { ...f, status, error: error ?? f.error } : f,
   );
 
   await supabase
     .from("desk_block")
-    .update({ pushedFiles: updated as any, updatedAt: new Date().toISOString() })
+    .update({
+      pushedFiles: updated as any,
+      updatedAt: new Date().toISOString(),
+    })
     .eq("id", blockId);
 
   return updated;
@@ -525,12 +639,14 @@ export async function setBlockSecurity(
     currentPasswordConfirmation?: string | null;
     userEmail?: string | null;
     isOwnerUser?: boolean;
-  }
+  },
 ) {
   // Fetch existing block to verify ownership and existing password
   const { data: currentBlock, error: fetchErr } = await supabase
     .from("desk_block")
-    .select("id, projectWorkflowId, coOwnerEmail, isPasswordProtected, passwordHash")
+    .select(
+      "id, projectWorkflowId, coOwnerEmail, isPasswordProtected, passwordHash",
+    )
     .eq("id", blockId)
     .maybeSingle();
 
@@ -563,20 +679,24 @@ export async function setBlockSecurity(
   const isCoOwner = Boolean(
     normalizedUserEmail &&
     currentBlock.coOwnerEmail &&
-    currentBlock.coOwnerEmail.toLowerCase() === normalizedUserEmail
+    currentBlock.coOwnerEmail.toLowerCase() === normalizedUserEmail,
   );
 
   // 1. Requirement: Only owner and co-owner have rights to assign/make another co-owner
   if (payload.coOwnerEmail !== undefined) {
     if (!isOwner && !isCoOwner) {
-      throw new Error("Only the owner or current co-owner have rights to assign a co-owner.");
+      throw new Error(
+        "Only the owner or current co-owner have rights to assign a co-owner.",
+      );
     }
   }
 
   const updateData: any = { updatedAt: new Date().toISOString() };
 
   if (payload.coOwnerEmail !== undefined) {
-    updateData.coOwnerEmail = payload.coOwnerEmail ? payload.coOwnerEmail.trim().toLowerCase() : null;
+    updateData.coOwnerEmail = payload.coOwnerEmail
+      ? payload.coOwnerEmail.trim().toLowerCase()
+      : null;
   }
 
   // 2. Requirement: Password removal can ONLY be done by owner or co-owner with confirmation of current password
@@ -586,20 +706,29 @@ export async function setBlockSecurity(
 
   if (isRemovingPassword) {
     if (!isOwner && !isCoOwner) {
-      throw new Error("Only the owner or co-owner can remove the password for this tab.");
+      throw new Error(
+        "Only the owner or co-owner can remove the password for this tab.",
+      );
     }
 
-    if (!payload.currentPasswordConfirmation || !payload.currentPasswordConfirmation.trim()) {
-      throw new Error("Current password is required as confirmation to remove password protection.");
+    if (
+      !payload.currentPasswordConfirmation ||
+      !payload.currentPasswordConfirmation.trim()
+    ) {
+      throw new Error(
+        "Current password is required as confirmation to remove password protection.",
+      );
     }
 
     const isValidCurrent = verifyPassword(
       payload.currentPasswordConfirmation.trim(),
-      currentBlock.passwordHash!
+      currentBlock.passwordHash!,
     );
 
     if (!isValidCurrent) {
-      throw new Error("Incorrect current password confirmation. Password cannot be removed.");
+      throw new Error(
+        "Incorrect current password confirmation. Password cannot be removed.",
+      );
     }
 
     updateData.isPasswordProtected = false;
@@ -607,7 +736,9 @@ export async function setBlockSecurity(
   } else if (payload.password && payload.password.trim().length > 0) {
     // Setting / changing password
     if (!isOwner && !isCoOwner) {
-      throw new Error("Only the owner or co-owner can set or change the password.");
+      throw new Error(
+        "Only the owner or co-owner can set or change the password.",
+      );
     }
     updateData.passwordHash = hashPassword(payload.password.trim());
     updateData.isPasswordProtected = true;
@@ -627,14 +758,16 @@ export async function setBlockSecurity(
   return {
     id: updated.id,
     coOwnerEmail: updated.coOwnerEmail,
-    isPasswordProtected: Boolean(updated.isPasswordProtected && updated.passwordHash),
+    isPasswordProtected: Boolean(
+      updated.isPasswordProtected && updated.passwordHash,
+    ),
   };
 }
 
 // ─── Verify Block Password (Server API verification) ────────
 export async function verifyBlockPassword(
   blockId: string,
-  passwordAttempt: string
+  passwordAttempt: string,
 ): Promise<{ success: boolean; token?: string; message?: string }> {
   if (!blockId) {
     return { success: false, message: "Block ID is required" };
@@ -672,7 +805,7 @@ export async function verifyBlockPassword(
 // ─── Check Block Access (for editor protection checks) ──────
 export async function checkBlockAccess(
   blockId: string,
-  userEmail?: string | null
+  userEmail?: string | null,
 ): Promise<{
   isPasswordProtected: boolean;
   isCoOwnerOrOwner: boolean;
@@ -681,12 +814,18 @@ export async function checkBlockAccess(
 }> {
   const { data: block } = await supabase
     .from("desk_block")
-    .select("id, editorWorkflowId, projectWorkflowId, isPasswordProtected, passwordHash, coOwnerEmail")
+    .select(
+      "id, editorWorkflowId, projectWorkflowId, isPasswordProtected, passwordHash, coOwnerEmail",
+    )
     .eq("id", blockId)
     .maybeSingle();
 
   if (!block) {
-    return { isPasswordProtected: false, isCoOwnerOrOwner: false, coOwnerEmail: null };
+    return {
+      isPasswordProtected: false,
+      isCoOwnerOrOwner: false,
+      coOwnerEmail: null,
+    };
   }
 
   const isProtected = Boolean(block.isPasswordProtected && block.passwordHash);
@@ -717,7 +856,7 @@ export async function checkBlockAccess(
   const isCoOwner = Boolean(
     normalizedUserEmail &&
     block.coOwnerEmail &&
-    block.coOwnerEmail.toLowerCase() === normalizedUserEmail
+    block.coOwnerEmail.toLowerCase() === normalizedUserEmail,
   );
 
   return {
@@ -732,7 +871,7 @@ export async function checkBlockAccess(
 export async function updateBlockSettings(
   blockId: string,
   settings: Record<string, any>,
-  extra?: { name?: string; reservedColumns?: string[] }
+  extra?: { name?: string; reservedColumns?: string[] },
 ) {
   const updateData: any = {
     settings,
@@ -740,7 +879,8 @@ export async function updateBlockSettings(
   };
 
   if (extra?.name) updateData.name = extra.name;
-  if (extra?.reservedColumns) updateData.reservedColumns = extra.reservedColumns;
+  if (extra?.reservedColumns)
+    updateData.reservedColumns = extra.reservedColumns;
 
   const { data: updated, error } = await supabase
     .from("desk_block")
@@ -752,5 +892,3 @@ export async function updateBlockSettings(
   if (error) throw error;
   return updated;
 }
-
-

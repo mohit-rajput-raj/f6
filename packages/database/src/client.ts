@@ -3,14 +3,12 @@ import "dotenv/config";
 
 const supabaseUrl =
   process.env.NEXT_PUBLIC_SUPABASE_URL ||
-  process.env.SUPABASE_URL ||
-  "https://tmrqimcwrgyqaanrlvos.supabase.co";
+  process.env.SUPABASE_URL!;
 
 const supabaseKey =
   process.env.SUPABASE_SERVICE_ROLE_KEY ||
-  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-  "sb_publishable_LO9lJb89J7WKuQmG4gVJrQ_u5OFsbo2";
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!;
 
 export const supabase = createClient(supabaseUrl, supabaseKey, {
   auth: {
@@ -20,4 +18,3 @@ export const supabase = createClient(supabaseUrl, supabaseKey, {
 });
 
 export const prisma = supabase as any;
-

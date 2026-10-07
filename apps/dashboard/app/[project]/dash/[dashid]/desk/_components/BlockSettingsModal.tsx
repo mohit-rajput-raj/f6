@@ -284,26 +284,26 @@ export function BlockSettingsModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-[760px] max-h-[85vh] p-0 border-zinc-800 bg-zinc-950 text-zinc-100 shadow-2xl overflow-hidden flex flex-col">
+      <DialogContent className="sm:max-w-[760px] max-h-[85vh] p-0 border-border bg-card text-card-foreground shadow-2xl overflow-hidden flex flex-col rounded-2xl">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800 bg-zinc-900/40">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-muted/30">
           <div className="flex items-center gap-3">
-            <div className="size-9 rounded-lg bg-zinc-800/80 border border-zinc-700/60 flex items-center justify-center text-zinc-300">
+            <div className="size-9 rounded-lg bg-muted border border-border flex items-center justify-center text-foreground">
               <Settings className="size-4.5" />
             </div>
             <div>
-              <DialogTitle className="text-base font-semibold text-zinc-100 tracking-tight flex items-center gap-2">
+              <DialogTitle className="text-base font-semibold text-foreground tracking-tight flex items-center gap-2">
                 Block Settings
-                <Badge variant="outline" className="text-[10px] bg-zinc-900 text-zinc-300 border-zinc-700 font-mono">
+                <Badge variant="outline" className="text-[10px] bg-muted text-foreground border-border font-mono">
                   {block.name}
                 </Badge>
                 {block.isPasswordProtected && (
-                  <Badge variant="outline" className="text-[10px] bg-zinc-900 text-zinc-300 border-zinc-700 font-mono flex items-center gap-1">
-                    <Lock className="size-2.5 text-zinc-400" /> Protected
+                  <Badge variant="outline" className="text-[10px] bg-muted text-foreground border-border font-mono flex items-center gap-1">
+                    <Lock className="size-2.5 text-muted-foreground" /> Protected
                   </Badge>
                 )}
               </DialogTitle>
-              <DialogDescription className="text-xs text-zinc-400">
+              <DialogDescription className="text-xs text-muted-foreground">
                 Configure tab responsibilities, editor security password, and pipeline settings.
               </DialogDescription>
             </div>
@@ -313,16 +313,16 @@ export function BlockSettingsModal({
         {/* Body (Sidebar + Tab Content) */}
         <div className="flex flex-1 overflow-hidden min-h-[420px]">
           {/* Sidebar Navigation */}
-          <div className="w-48 border-r border-zinc-800/80 bg-zinc-950/60 p-3 space-y-1 shrink-0 overflow-y-auto">
+          <div className="w-48 border-r border-border bg-card p-3 space-y-1 shrink-0 overflow-y-auto">
             <button
               onClick={() => setActiveTab("general")}
               className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-xs font-medium transition-colors text-left ${
                 activeTab === "general"
-                  ? "bg-zinc-800 text-zinc-100 font-semibold"
-                  : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900"
+                  ? "bg-primary/10 text-primary font-semibold"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted"
               }`}
             >
-              <Sliders className="size-3.5 text-zinc-400" />
+              <Sliders className="size-3.5" />
               General
             </button>
 
@@ -330,11 +330,11 @@ export function BlockSettingsModal({
               onClick={() => setActiveTab("coowner")}
               className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-xs font-medium transition-colors text-left ${
                 activeTab === "coowner"
-                  ? "bg-zinc-800 text-zinc-100 font-semibold"
-                  : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900"
+                  ? "bg-primary/10 text-primary font-semibold"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted"
               }`}
             >
-              <UserCheck className="size-3.5 text-zinc-400" />
+              <UserCheck className="size-3.5" />
               Co-Owner & Roles
             </button>
 
@@ -342,27 +342,27 @@ export function BlockSettingsModal({
               onClick={() => setActiveTab("security")}
               className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-xs font-medium transition-colors text-left ${
                 activeTab === "security"
-                  ? "bg-zinc-800 text-zinc-100 font-semibold"
-                  : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900"
+                  ? "bg-primary/10 text-primary font-semibold"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted"
               }`}
             >
-              <Shield className="size-3.5 text-zinc-400" />
+              <Shield className="size-3.5" />
               Security & Password
             </button>
 
             <div className="pt-2 pb-1 px-3">
-              <span className="text-[10px] uppercase font-bold tracking-wider text-zinc-600">Advanced (Mock)</span>
+              <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground/70">Advanced (Mock)</span>
             </div>
 
             <button
               onClick={() => setActiveTab("webhooks")}
               className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-xs font-medium transition-colors text-left ${
                 activeTab === "webhooks"
-                  ? "bg-zinc-800 text-zinc-100 font-semibold"
-                  : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900"
+                  ? "bg-primary/10 text-primary font-semibold"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted"
               }`}
             >
-              <Webhook className="size-3.5 text-zinc-400" />
+              <Webhook className="size-3.5" />
               Webhooks
             </button>
 
@@ -370,11 +370,11 @@ export function BlockSettingsModal({
               onClick={() => setActiveTab("compute")}
               className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-xs font-medium transition-colors text-left ${
                 activeTab === "compute"
-                  ? "bg-zinc-800 text-zinc-100 font-semibold"
-                  : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900"
+                  ? "bg-primary/10 text-primary font-semibold"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted"
               }`}
             >
-              <Cpu className="size-3.5 text-zinc-400" />
+              <Cpu className="size-3.5" />
               Compute & Limits
             </button>
 
@@ -382,11 +382,11 @@ export function BlockSettingsModal({
               onClick={() => setActiveTab("audit")}
               className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-xs font-medium transition-colors text-left ${
                 activeTab === "audit"
-                  ? "bg-zinc-800 text-zinc-100 font-semibold"
-                  : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900"
+                  ? "bg-primary/10 text-primary font-semibold"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted"
               }`}
             >
-              <Activity className="size-3.5 text-zinc-400" />
+              <Activity className="size-3.5" />
               Audit Log
             </button>
 
@@ -395,56 +395,56 @@ export function BlockSettingsModal({
                 onClick={() => setActiveTab("danger")}
                 className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-xs font-medium transition-colors text-left ${
                   activeTab === "danger"
-                    ? "bg-zinc-800 text-red-400 font-semibold"
-                    : "text-zinc-400 hover:text-red-400 hover:bg-zinc-900"
+                    ? "bg-destructive/10 text-destructive font-semibold"
+                    : "text-muted-foreground hover:text-destructive hover:bg-destructive/5"
                 }`}
               >
-                <AlertTriangle className="size-3.5 text-zinc-400" />
+                <AlertTriangle className="size-3.5" />
                 Danger Zone
               </button>
             </div>
           </div>
 
           {/* Tab Content Panel */}
-          <div className="flex-1 p-6 overflow-y-auto bg-zinc-900/30">
+          <div className="flex-1 p-6 overflow-y-auto bg-background">
             {/* ─── 1. General Tab ─── */}
             {activeTab === "general" && (
               <div className="space-y-5 animate-in fade-in">
                 <div>
-                  <h4 className="text-sm font-semibold text-zinc-200">General Block Configuration</h4>
-                  <p className="text-xs text-zinc-500 mt-0.5">Customize tab title, identifiers, and write back permissions.</p>
+                  <h4 className="text-sm font-semibold text-foreground">General Block Configuration</h4>
+                  <p className="text-xs text-muted-foreground mt-0.5">Customize tab title, identifiers, and write back permissions.</p>
                 </div>
 
                 <div className="space-y-4 pt-2">
                   <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-zinc-300">Tab / Block Display Name</label>
+                    <label className="text-xs font-medium text-foreground">Tab / Block Display Name</label>
                     <Input
                       value={tabName}
                       onChange={(e) => setTabName(e.target.value)}
                       placeholder="e.g. Attendance Processor"
-                      className="bg-zinc-900 border-zinc-700 text-sm"
+                      className="bg-background border-input text-foreground text-sm"
                     />
                   </div>
 
                   <div className="grid grid-cols-2 gap-3">
-                    <div className="p-3 rounded-lg border border-zinc-800 bg-zinc-900/50 space-y-1">
-                      <span className="text-[10px] text-zinc-500 font-mono uppercase">Block Identifier</span>
-                      <p className="text-xs text-zinc-300 font-mono truncate">{block.id}</p>
+                    <div className="p-3 rounded-lg border border-border bg-muted/40 space-y-1">
+                      <span className="text-[10px] text-muted-foreground font-mono uppercase">Block Identifier</span>
+                      <p className="text-xs text-foreground font-mono truncate">{block.id}</p>
                     </div>
-                    <div className="p-3 rounded-lg border border-zinc-800 bg-zinc-900/50 space-y-1">
-                      <span className="text-[10px] text-zinc-500 font-mono uppercase">Editor Workflow ID</span>
-                      <p className="text-xs text-zinc-300 font-mono truncate">{block.editorWorkflowId}</p>
+                    <div className="p-3 rounded-lg border border-border bg-muted/40 space-y-1">
+                      <span className="text-[10px] text-muted-foreground font-mono uppercase">Editor Workflow ID</span>
+                      <p className="text-xs text-foreground font-mono truncate">{block.editorWorkflowId}</p>
                     </div>
                   </div>
 
-                  <div className="p-3.5 rounded-lg border border-zinc-800 bg-zinc-900/40 space-y-2">
+                  <div className="p-3.5 rounded-lg border border-border bg-muted/40 space-y-2">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-medium text-zinc-300">Reserved MasterSheet Columns</span>
-                      <Badge variant="outline" className="text-[10px] text-zinc-400 border-zinc-700 font-mono">
+                      <span className="text-xs font-medium text-foreground">Reserved MasterSheet Columns</span>
+                      <Badge variant="outline" className="text-[10px] text-muted-foreground border-border font-mono">
                         {block.reservedColumns?.length || 0} columns
                       </Badge>
                     </div>
-                    <p className="text-[11px] text-zinc-500">
+                    <p className="text-[11px] text-muted-foreground">
                       {block.reservedColumns && block.reservedColumns.length > 0
                         ? block.reservedColumns.join(", ")
                         : "No specific column lock — output columns will dynamically map during commit."}
@@ -455,7 +455,7 @@ export function BlockSettingsModal({
                     size="sm"
                     onClick={handleSaveGeneral}
                     disabled={isSaving}
-                    className="h-8 text-xs bg-zinc-100 hover:bg-white text-zinc-950 font-medium"
+                    className="h-8 text-xs bg-primary hover:bg-primary/90 text-primary-foreground font-medium rounded-lg"
                   >
                     {isSaving ? <Loader2 className="size-3 animate-spin mr-1.5" /> : <Check className="size-3 mr-1.5" />}
                     Save Changes
@@ -468,11 +468,11 @@ export function BlockSettingsModal({
             {activeTab === "coowner" && (
               <div className="space-y-5 animate-in fade-in">
                 <div>
-                  <h4 className="text-sm font-semibold text-zinc-200 flex items-center gap-2">
-                    <UserCheck className="size-4 text-zinc-300" />
+                  <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                    <UserCheck className="size-4 text-foreground" />
                     Block Co-Owner & Responsibilities
                   </h4>
-                  <p className="text-xs text-zinc-500 mt-0.5">
+                  <p className="text-xs text-muted-foreground mt-0.5">
                     Appoint any team member to be in charge of this tab. Co-owners have exclusive privileges to set passwords and configure the editor.
                   </p>
                 </div>
@@ -480,28 +480,28 @@ export function BlockSettingsModal({
                 <div className="space-y-4 pt-1">
                   {/* Current Co-owner Profile Card */}
                   {coOwnerEmail && (
-                    <div className="p-3.5 rounded-xl border border-zinc-800 bg-zinc-900/70 flex items-center justify-between gap-3 shadow-2xs">
+                    <div className="p-3.5 rounded-xl border border-border bg-muted/40 flex items-center justify-between gap-3 shadow-sm">
                       <div className="flex items-center gap-3 min-w-0">
-                        <Avatar className="size-9 rounded-full ring-1 ring-zinc-700/80 shrink-0">
+                        <Avatar className="size-9 rounded-full ring-1 ring-border shrink-0">
                           <AvatarImage
                             src={getEmailAvatar(coOwnerEmail)}
                             alt={coOwnerEmail}
                             className="object-cover"
                           />
-                          <AvatarFallback className="text-xs bg-zinc-800 text-zinc-200 font-semibold">
+                          <AvatarFallback className="text-xs bg-muted text-foreground font-semibold">
                             {coOwnerEmail.charAt(0).toUpperCase()}
                           </AvatarFallback>
                         </Avatar>
                         <div className="min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-xs font-semibold text-zinc-100 truncate">
+                            <span className="text-xs font-semibold text-foreground truncate">
                               {coOwnerEmail}
                             </span>
-                            <Badge variant="outline" className="text-[10px] bg-zinc-800 text-zinc-300 border-zinc-700">
+                            <Badge variant="outline" className="text-[10px] bg-muted text-foreground border-border">
                               Assigned Co-Owner
                             </Badge>
                           </div>
-                          <p className="text-[11px] text-zinc-400 mt-0.5">
+                          <p className="text-[11px] text-muted-foreground mt-0.5">
                             Full management access to this block tab
                           </p>
                         </div>
@@ -511,7 +511,7 @@ export function BlockSettingsModal({
                           size="sm"
                           variant="ghost"
                           onClick={() => setCoOwnerEmail("")}
-                          className="h-7 text-xs text-zinc-400 hover:text-red-400 hover:bg-red-950/20"
+                          className="h-7 text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/10"
                         >
                           Remove
                         </Button>
@@ -519,25 +519,25 @@ export function BlockSettingsModal({
                     </div>
                   )}
 
-                  <div className="p-3.5 rounded-lg border border-zinc-800 bg-zinc-900/50 space-y-1.5">
-                    <div className="flex items-center gap-2 text-zinc-200 text-xs font-medium">
-                      <Sparkles className="size-3.5 text-zinc-400" />
+                  <div className="p-3.5 rounded-lg border border-border bg-muted/40 space-y-1.5">
+                    <div className="flex items-center gap-2 text-foreground text-xs font-medium">
+                      <Sparkles className="size-3.5 text-primary" />
                       <span>Co-Owner Permissions</span>
                     </div>
-                    <p className="text-[11px] text-zinc-400 leading-relaxed">
+                    <p className="text-[11px] text-muted-foreground leading-relaxed">
                       The assigned member can set and manage editor passwords, adjust workflow node limits, and open the editor directly without password barriers.
                     </p>
                   </div>
 
                   {!canAssignCoOwner && (
-                    <div className="p-3 rounded-lg border border-zinc-800 bg-zinc-900/40 text-zinc-400 text-xs flex items-center gap-2">
-                      <AlertTriangle className="size-4 shrink-0 text-zinc-400" />
+                    <div className="p-3 rounded-lg border border-border bg-muted/40 text-muted-foreground text-xs flex items-center gap-2">
+                      <AlertTriangle className="size-4 shrink-0 text-amber-500" />
                       <span>Only the workspace owner or current tab co-owner have rights to assign or change the co-owner.</span>
                     </div>
                   )}
 
                   <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-zinc-300">
+                    <label className="text-xs font-medium text-foreground">
                       {coOwnerEmail ? "Change Co-Owner Email" : "Assign Co-Owner Email Address"}
                     </label>
                     <Input
@@ -545,13 +545,13 @@ export function BlockSettingsModal({
                       onChange={(e) => setCoOwnerEmail(e.target.value)}
                       placeholder="collaborator@company.com"
                       disabled={!canAssignCoOwner}
-                      className="bg-zinc-900 border-zinc-700 text-sm disabled:opacity-50"
+                      className="bg-background border-input text-foreground text-sm disabled:opacity-50"
                     />
                   </div>
 
                   {collaborators.length > 0 && (
                     <div className="space-y-2">
-                      <span className="text-[11px] font-medium text-zinc-400">Select from Team Members:</span>
+                      <span className="text-[11px] font-medium text-muted-foreground">Select from Team Members:</span>
                       <div className="flex flex-wrap gap-1.5">
                         {collaborators.map((c) => {
                           const isSelected = coOwnerEmail.toLowerCase() === c.invitedEmail.toLowerCase();
@@ -563,18 +563,18 @@ export function BlockSettingsModal({
                               onClick={() => setCoOwnerEmail(c.invitedEmail)}
                               className={`text-xs pl-1.5 pr-2.5 py-1 rounded-full border transition-colors cursor-pointer flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${
                                 isSelected
-                                  ? "bg-zinc-800 text-zinc-100 border-zinc-600 font-medium shadow-2xs"
-                                  : "bg-zinc-900/60 text-zinc-300 border-zinc-800 hover:bg-zinc-800 hover:text-zinc-100"
+                                  ? "bg-primary/10 text-primary border-primary font-medium shadow-sm"
+                                  : "bg-muted/50 text-foreground border-border hover:bg-muted"
                               }`}
                             >
-                              <Avatar className="size-4 rounded-full ring-1 ring-zinc-700 shrink-0">
+                              <Avatar className="size-4 rounded-full ring-1 ring-border shrink-0">
                                 <AvatarImage src={getEmailAvatar(c.invitedEmail)} alt={c.invitedEmail} />
-                                <AvatarFallback className="text-[8px] bg-zinc-800 text-zinc-300">
+                                <AvatarFallback className="text-[8px] bg-muted text-foreground">
                                   {c.invitedEmail.charAt(0).toUpperCase()}
                                 </AvatarFallback>
                               </Avatar>
                               <span className="max-w-[130px] truncate">{c.invitedEmail}</span>
-                              <span className="text-[10px] text-zinc-500">({c.permission})</span>
+                              <span className="text-[10px] text-muted-foreground">({c.permission})</span>
                             </button>
                           );
                         })}
@@ -587,7 +587,7 @@ export function BlockSettingsModal({
                       size="sm"
                       onClick={handleSaveCoOwner}
                       disabled={isSaving || !canAssignCoOwner}
-                      className="h-8 text-xs bg-zinc-100 hover:bg-white text-zinc-950 font-medium disabled:opacity-50"
+                      className="h-8 text-xs bg-primary hover:bg-primary/90 text-primary-foreground font-medium disabled:opacity-50 rounded-lg"
                     >
                       {isSaving ? <Loader2 className="size-3 animate-spin mr-1.5" /> : <Check className="size-3 mr-1.5" />}
                       Update Co-Owner
@@ -599,7 +599,7 @@ export function BlockSettingsModal({
                         onClick={() => {
                           setCoOwnerEmail("");
                         }}
-                        className="h-8 text-xs text-zinc-400 hover:text-zinc-200"
+                        className="h-8 text-xs text-muted-foreground hover:text-foreground"
                       >
                         Clear Co-Owner
                       </Button>
@@ -613,28 +613,28 @@ export function BlockSettingsModal({
             {activeTab === "security" && (
               <div className="space-y-5 animate-in fade-in">
                 <div>
-                  <h4 className="text-sm font-semibold text-zinc-200 flex items-center gap-2">
-                    <Shield className="size-4 text-zinc-300" />
+                  <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                    <Shield className="size-4 text-foreground" />
                     Editor Password Protection
                   </h4>
-                  <p className="text-xs text-zinc-500 mt-0.5">
+                  <p className="text-xs text-muted-foreground mt-0.5">
                     Protect the block workflow editor with a server-verified password.
                   </p>
                 </div>
 
                 <div className="space-y-4 pt-1">
                   {/* Protection Toggle */}
-                  <div className="flex items-center justify-between p-3.5 rounded-lg border border-zinc-800 bg-zinc-900/60">
+                  <div className="flex items-center justify-between p-3.5 rounded-lg border border-border bg-muted/40">
                     <div className="space-y-0.5">
-                      <div className="text-xs font-medium text-zinc-200 flex items-center gap-2">
+                      <div className="text-xs font-medium text-foreground flex items-center gap-2">
                         {isPasswordProtected ? (
-                          <Lock className="size-3.5 text-zinc-300" />
+                          <Lock className="size-3.5 text-primary" />
                         ) : (
-                          <Unlock className="size-3.5 text-zinc-500" />
+                          <Unlock className="size-3.5 text-muted-foreground" />
                         )}
                         <span>Require Password to Access Editor</span>
                       </div>
-                      <p className="text-[11px] text-zinc-500">
+                      <p className="text-[11px] text-muted-foreground">
                         When enabled, team members must enter the security key every time they open the editor.
                       </p>
                     </div>
@@ -649,12 +649,12 @@ export function BlockSettingsModal({
                         }
                       }}
                       className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                        isPasswordProtected ? "bg-zinc-100" : "bg-zinc-800"
+                        isPasswordProtected ? "bg-primary" : "bg-muted"
                       }`}
                     >
                       <span
                         className={`pointer-events-none inline-block h-4 w-4 transform rounded-full shadow-xs ring-0 transition duration-200 ease-in-out ${
-                          isPasswordProtected ? "translate-x-4 bg-zinc-950" : "translate-x-0 bg-zinc-400"
+                          isPasswordProtected ? "translate-x-4 bg-primary-foreground" : "translate-x-0 bg-muted-foreground"
                         }`}
                       />
                     </button>
@@ -662,9 +662,9 @@ export function BlockSettingsModal({
 
                   {/* Password fields if enabled */}
                   {isPasswordProtected && (
-                    <div className="space-y-3 p-3.5 rounded-lg border border-zinc-800 bg-zinc-900/60">
+                    <div className="space-y-3 p-3.5 rounded-lg border border-border bg-muted/40">
                       <div className="space-y-1.5">
-                        <label className="text-xs font-medium text-zinc-300">
+                        <label className="text-xs font-medium text-foreground">
                           {block.isPasswordProtected ? "Update Password" : "Set Block Password"}
                         </label>
                         <div className="relative">
@@ -673,12 +673,12 @@ export function BlockSettingsModal({
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
                             placeholder={block.isPasswordProtected ? "Leave blank to keep existing" : "Enter new password"}
-                            className="bg-zinc-900 border-zinc-700 pr-10 text-sm"
+                            className="bg-background border-input pr-10 text-sm text-foreground"
                           />
                           <button
                             type="button"
                             onClick={() => setShowPassword(!showPassword)}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 cursor-pointer"
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
                           >
                             {showPassword ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
                           </button>
@@ -687,19 +687,19 @@ export function BlockSettingsModal({
 
                       {password && (
                         <div className="space-y-1.5 animate-in fade-in">
-                          <label className="text-xs font-medium text-zinc-300">Confirm Password</label>
+                          <label className="text-xs font-medium text-foreground">Confirm Password</label>
                           <Input
                             type={showPassword ? "text" : "password"}
                             value={confirmPassword}
                             onChange={(e) => setConfirmPassword(e.target.value)}
                             placeholder="Re-enter password"
-                            className="bg-zinc-900 border-zinc-700 text-sm"
+                            className="bg-background border-input text-foreground text-sm"
                           />
                         </div>
                       )}
 
-                      <div className="text-[11px] text-zinc-500 flex items-center gap-1.5">
-                        <KeyRound className="size-3 text-zinc-400" />
+                      <div className="text-[11px] text-muted-foreground flex items-center gap-1.5">
+                        <KeyRound className="size-3 text-muted-foreground" />
                         <span>Password is encrypted with salted PBKDF2 and verified strictly on the backend API.</span>
                       </div>
                     </div>
@@ -710,7 +710,7 @@ export function BlockSettingsModal({
                       size="sm"
                       onClick={handleSaveSecurity}
                       disabled={isSaving}
-                      className="h-8 text-xs bg-zinc-100 hover:bg-white text-zinc-950 font-medium"
+                      className="h-8 text-xs bg-primary hover:bg-primary/90 text-primary-foreground font-medium rounded-lg"
                     >
                       {isSaving ? <Loader2 className="size-3 animate-spin mr-1.5" /> : <Check className="size-3 mr-1.5" />}
                       Save Security Settings
@@ -722,7 +722,7 @@ export function BlockSettingsModal({
                         variant="outline"
                         onClick={() => setIsRemovePasswordOpen(true)}
                         disabled={isSaving}
-                        className="h-8 text-xs border-zinc-700 text-zinc-400 hover:text-zinc-200"
+                        className="h-8 text-xs border-border text-muted-foreground hover:text-foreground rounded-lg"
                       >
                         Remove Password
                       </Button>
@@ -736,39 +736,39 @@ export function BlockSettingsModal({
             {activeTab === "webhooks" && (
               <div className="space-y-5 animate-in fade-in">
                 <div>
-                  <h4 className="text-sm font-semibold text-zinc-200 flex items-center gap-2">
-                    <Webhook className="size-4 text-zinc-300" />
+                  <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                    <Webhook className="size-4 text-foreground" />
                     Block Event Webhooks (Mock API)
                   </h4>
-                  <p className="text-xs text-zinc-500 mt-0.5">
+                  <p className="text-xs text-muted-foreground mt-0.5">
                     Send real-time HTTP POST notifications when this tab processes data or commits output.
                   </p>
                 </div>
 
                 <div className="space-y-4 pt-1">
                   <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-zinc-300">Payload Delivery URL</label>
+                    <label className="text-xs font-medium text-foreground">Payload Delivery URL</label>
                     <Input
                       value={webhookUrl}
                       onChange={(e) => setWebhookUrl(e.target.value)}
                       placeholder="https://hooks.slack.com/services/..."
-                      className="bg-zinc-900 border-zinc-700 text-sm font-mono text-xs"
+                      className="bg-background border-input text-foreground text-sm font-mono text-xs"
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <span className="text-xs font-medium text-zinc-300">Trigger Events</span>
+                    <span className="text-xs font-medium text-foreground">Trigger Events</span>
                     <div className="space-y-2">
-                      <label className="flex items-center gap-2 text-xs text-zinc-300">
-                        <input type="checkbox" defaultChecked className="rounded border-zinc-700 text-zinc-200" />
+                      <label className="flex items-center gap-2 text-xs text-foreground cursor-pointer">
+                        <input type="checkbox" defaultChecked className="rounded border-input text-primary" />
                         <span>Execution Succeeded (output dataset ready)</span>
                       </label>
-                      <label className="flex items-center gap-2 text-xs text-zinc-300">
-                        <input type="checkbox" defaultChecked className="rounded border-zinc-700 text-zinc-200" />
+                      <label className="flex items-center gap-2 text-xs text-foreground cursor-pointer">
+                        <input type="checkbox" defaultChecked className="rounded border-input text-primary" />
                         <span>MasterSheet Merge Committed</span>
                       </label>
-                      <label className="flex items-center gap-2 text-xs text-zinc-300">
-                        <input type="checkbox" defaultChecked className="rounded border-zinc-700 text-zinc-200" />
+                      <label className="flex items-center gap-2 text-xs text-foreground cursor-pointer">
+                        <input type="checkbox" defaultChecked className="rounded border-input text-primary" />
                         <span>Execution Failed / Syntax Error</span>
                       </label>
                     </div>
@@ -778,7 +778,7 @@ export function BlockSettingsModal({
                     <Button
                       size="sm"
                       onClick={() => toast.success("Test webhook ping dispatched! [Status: 200 OK]")}
-                      className="h-8 text-xs bg-zinc-800 hover:bg-zinc-700 text-zinc-200"
+                      className="h-8 text-xs bg-muted hover:bg-muted/80 text-foreground border border-border rounded-lg"
                     >
                       <RefreshCw className="size-3 mr-1.5" />
                       Send Test Ping
@@ -792,11 +792,11 @@ export function BlockSettingsModal({
             {activeTab === "compute" && (
               <div className="space-y-5 animate-in fade-in">
                 <div>
-                  <h4 className="text-sm font-semibold text-zinc-200 flex items-center gap-2">
-                    <Cpu className="size-4 text-zinc-300" />
+                  <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                    <Cpu className="size-4 text-foreground" />
                     Compute Resource Allocation (Mock)
                   </h4>
-                  <p className="text-xs text-zinc-500 mt-0.5">
+                  <p className="text-xs text-muted-foreground mt-0.5">
                     Fine-tune node worker memory limits and concurrency thresholds.
                   </p>
                 </div>
@@ -804,11 +804,11 @@ export function BlockSettingsModal({
                 <div className="space-y-4 pt-1">
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1.5">
-                      <label className="text-xs font-medium text-zinc-300">Memory Allocation</label>
+                      <label className="text-xs font-medium text-foreground">Memory Allocation</label>
                       <select
                         value={memoryLimit}
                         onChange={(e) => setMemoryLimit(e.target.value)}
-                        className="w-full h-9 rounded-md bg-zinc-900 border border-zinc-700 px-3 text-xs text-zinc-200"
+                        className="w-full h-9 rounded-md bg-background border border-input px-3 text-xs text-foreground"
                       >
                         <option value="256MB">256 MB (Standard)</option>
                         <option value="512MB">512 MB (Optimal)</option>
@@ -818,11 +818,11 @@ export function BlockSettingsModal({
                     </div>
 
                     <div className="space-y-1.5">
-                      <label className="text-xs font-medium text-zinc-300">Max Worker Concurrency</label>
+                      <label className="text-xs font-medium text-foreground">Max Worker Concurrency</label>
                       <select
                         value={concurrency}
                         onChange={(e) => setConcurrency(e.target.value)}
-                        className="w-full h-9 rounded-md bg-zinc-900 border border-zinc-700 px-3 text-xs text-zinc-200"
+                        className="w-full h-9 rounded-md bg-background border border-input px-3 text-xs text-foreground"
                       >
                         <option value="1">1 Thread (Sequential)</option>
                         <option value="2">2 Threads (Parallel)</option>
@@ -832,21 +832,21 @@ export function BlockSettingsModal({
                   </div>
 
                   <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-zinc-300">Timeout Threshold (seconds)</label>
+                    <label className="text-xs font-medium text-foreground">Timeout Threshold (seconds)</label>
                     <Input
                       value={timeoutSeconds}
                       onChange={(e) => setTimeoutSeconds(e.target.value)}
                       type="number"
-                      className="bg-zinc-900 border-zinc-700 text-sm"
+                      className="bg-background border-input text-foreground text-sm"
                     />
                   </div>
 
-                  <label className="flex items-center gap-2 text-xs text-zinc-300 cursor-pointer pt-1">
+                  <label className="flex items-center gap-2 text-xs text-foreground cursor-pointer pt-1">
                     <input
                       type="checkbox"
                       checked={autoRetry}
                       onChange={(e) => setAutoRetry(e.target.checked)}
-                      className="rounded border-zinc-700 text-zinc-200"
+                      className="rounded border-input text-primary"
                     />
                     <span>Auto-retry failed transformations up to 3 times</span>
                   </label>
@@ -854,7 +854,7 @@ export function BlockSettingsModal({
                   <Button
                     size="sm"
                     onClick={() => toast.success("Compute preferences saved")}
-                    className="h-8 text-xs bg-zinc-100 hover:bg-white text-zinc-950 font-medium"
+                    className="h-8 text-xs bg-primary hover:bg-primary/90 text-primary-foreground font-medium rounded-lg"
                   >
                     Save Compute Config
                   </Button>
@@ -866,44 +866,44 @@ export function BlockSettingsModal({
             {activeTab === "audit" && (
               <div className="space-y-4 animate-in fade-in">
                 <div>
-                  <h4 className="text-sm font-semibold text-zinc-200 flex items-center gap-2">
-                    <Activity className="size-4 text-zinc-300" />
+                  <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                    <Activity className="size-4 text-foreground" />
                     Security & Activity Audit Trail
                   </h4>
-                  <p className="text-xs text-zinc-500 mt-0.5">
+                  <p className="text-xs text-muted-foreground mt-0.5">
                     Immutable history of security adjustments and workflow events.
                   </p>
                 </div>
 
-                <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 divide-y divide-zinc-800/80 overflow-hidden text-xs">
+                <div className="rounded-lg border border-border bg-muted/40 divide-y divide-border overflow-hidden text-xs">
                   <div className="p-3 flex items-center justify-between">
                     <div>
-                      <span className="font-medium text-zinc-200">Security Check Passed</span>
-                      <p className="text-[11px] text-zinc-500 font-mono">Editor password verified via backend API</p>
+                      <span className="font-medium text-foreground">Security Check Passed</span>
+                      <p className="text-[11px] text-muted-foreground font-mono">Editor password verified via backend API</p>
                     </div>
-                    <Badge variant="outline" className="bg-zinc-800 text-zinc-300 border-zinc-700 text-[10px]">
+                    <Badge variant="outline" className="bg-muted text-foreground border-border text-[10px]">
                       Just now
                     </Badge>
                   </div>
 
                   <div className="p-3 flex items-center justify-between">
                     <div>
-                      <span className="font-medium text-zinc-200">Co-Owner Assignment</span>
-                      <p className="text-[11px] text-zinc-500 font-mono">
+                      <span className="font-medium text-foreground">Co-Owner Assignment</span>
+                      <p className="text-[11px] text-muted-foreground font-mono">
                         {block.coOwnerEmail ? `Assigned to ${block.coOwnerEmail}` : "Standard project role"}
                       </p>
                     </div>
-                    <Badge variant="outline" className="bg-zinc-800 text-zinc-300 border-zinc-700 text-[10px]">
+                    <Badge variant="outline" className="bg-muted text-foreground border-border text-[10px]">
                       Recent
                     </Badge>
                   </div>
 
                   <div className="p-3 flex items-center justify-between">
                     <div>
-                      <span className="font-medium text-zinc-200">Workflow Execution</span>
-                      <p className="text-[11px] text-zinc-500 font-mono">Completed transformation in 340ms</p>
+                      <span className="font-medium text-foreground">Workflow Execution</span>
+                      <p className="text-[11px] text-muted-foreground font-mono">Completed transformation in 340ms</p>
                     </div>
-                    <Badge variant="outline" className="bg-zinc-800 text-zinc-400 border-zinc-700 text-[10px]">
+                    <Badge variant="outline" className="bg-muted text-muted-foreground border-border text-[10px]">
                       1 hour ago
                     </Badge>
                   </div>
@@ -915,27 +915,27 @@ export function BlockSettingsModal({
             {activeTab === "danger" && (
               <div className="space-y-5 animate-in fade-in">
                 <div>
-                  <h4 className="text-sm font-semibold text-red-400 flex items-center gap-2">
+                  <h4 className="text-sm font-semibold text-destructive flex items-center gap-2">
                     <AlertTriangle className="size-4" />
                     Danger Zone
                   </h4>
-                  <p className="text-xs text-zinc-500 mt-0.5">Irreversible actions for this block tab.</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Irreversible actions for this block tab.</p>
                 </div>
 
-                <div className="p-4 rounded-lg border border-red-500/30 bg-red-500/5 space-y-3">
+                <div className="p-4 rounded-lg border border-destructive/30 bg-destructive/5 space-y-3">
                   <div>
-                    <h5 className="text-xs font-semibold text-zinc-200">Delete This Tab</h5>
-                    <p className="text-[11px] text-zinc-400 mt-0.5">
+                    <h5 className="text-xs font-semibold text-foreground">Delete This Tab</h5>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
                       Permanently remove this tab, its node editor workflow, and saved sheet inputs.
                     </p>
                     {block.coOwnerEmail && (
-                      <p className="text-[11px] text-amber-400 mt-1 flex items-center gap-1 font-mono">
+                      <p className="text-[11px] text-amber-500 mt-1 flex items-center gap-1 font-mono">
                         <Shield className="size-3" />
                         Tab has co-owner: {block.coOwnerEmail}. Only this co-owner can delete it.
                       </p>
                     )}
                     {!block.coOwnerEmail && (
-                      <p className="text-[11px] text-zinc-400 mt-1 flex items-center gap-1 font-mono">
+                      <p className="text-[11px] text-muted-foreground mt-1 flex items-center gap-1 font-mono">
                         <Shield className="size-3" />
                         Tab has no co-owner. Only workspace owner can delete it.
                       </p>
@@ -946,7 +946,7 @@ export function BlockSettingsModal({
                     size="sm"
                     onClick={handleDelete}
                     disabled={isDeleting || !canDeleteTab}
-                    className="h-8 text-xs bg-red-600 hover:bg-red-500 text-white font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="h-8 text-xs bg-destructive hover:bg-destructive/90 text-destructive-foreground font-medium disabled:opacity-50 disabled:cursor-not-allowed rounded-lg"
                   >
                     {isDeleting ? <Loader2 className="size-3 animate-spin mr-1.5" /> : <Trash2 className="size-3 mr-1.5" />}
                     Delete Tab
@@ -960,35 +960,35 @@ export function BlockSettingsModal({
 
       {/* ─── Remove Password Confirmation Dialog ─── */}
       <Dialog open={isRemovePasswordOpen} onOpenChange={(open) => !open && setIsRemovePasswordOpen(false)}>
-        <DialogContent className="sm:max-w-[420px] p-6 border-zinc-800 bg-zinc-950 text-zinc-100 shadow-2xl">
+        <DialogContent className="sm:max-w-[420px] p-6 border-border bg-card text-card-foreground shadow-2xl rounded-2xl">
           <div className="flex flex-col gap-4">
             <div className="flex items-center gap-3">
-              <div className="size-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+              <div className="size-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-500">
                 <Lock className="size-5" />
               </div>
               <div>
-                <DialogTitle className="text-base font-semibold text-zinc-100">
+                <DialogTitle className="text-base font-semibold text-foreground">
                   Confirm Password Removal
                 </DialogTitle>
-                <DialogDescription className="text-xs text-zinc-400 mt-0.5">
+                <DialogDescription className="text-xs text-muted-foreground mt-0.5">
                   Enter the current tab password to verify your authorization before removing protection.
                 </DialogDescription>
               </div>
             </div>
 
             <div className="space-y-2 py-2">
-              <label className="text-xs font-medium text-zinc-300">Current Password</label>
+              <label className="text-xs font-medium text-foreground">Current Password</label>
               <Input
                 type="password"
                 value={removeConfirmationPassword}
                 onChange={(e) => setRemoveConfirmationPassword(e.target.value)}
                 placeholder="Enter current password"
-                className="bg-zinc-900 border-zinc-700 text-sm"
+                className="bg-background border-input text-foreground text-sm"
                 onKeyDown={(e) => {
                   if (e.key === "Enter") handleConfirmRemovePassword();
                 }}
               />
-              <p className="text-[11px] text-zinc-500">
+              <p className="text-[11px] text-muted-foreground">
                 Only the workspace owner or assigned tab co-owner can remove protection using the current password.
               </p>
             </div>
@@ -1002,7 +1002,7 @@ export function BlockSettingsModal({
                   setRemoveConfirmationPassword("");
                 }}
                 disabled={isRemovingPassword}
-                className="h-8 text-xs text-zinc-400 hover:text-zinc-200"
+                className="h-8 text-xs text-muted-foreground hover:text-foreground"
               >
                 Cancel
               </Button>
@@ -1010,7 +1010,7 @@ export function BlockSettingsModal({
                 size="sm"
                 onClick={handleConfirmRemovePassword}
                 disabled={isRemovingPassword || !removeConfirmationPassword.trim()}
-                className="h-8 text-xs bg-red-600 hover:bg-red-500 text-white font-medium"
+                className="h-8 text-xs bg-destructive hover:bg-destructive/90 text-destructive-foreground font-medium rounded-lg"
               >
                 {isRemovingPassword ? <Loader2 className="size-3 animate-spin mr-1.5" /> : <Unlock className="size-3 mr-1.5" />}
                 Remove Protection
