@@ -40,7 +40,10 @@ import { executeWorkflow } from "../editor/_components/nodes/executions/nodeExec
 import { getWorkFlow } from "../editor/_actions/editor.service";
 import { HelixLoader, RoseLoader } from "curls-loaders";
 import { runWorkflow, cancelWorkflow, getRunStatus } from "@/lib/server-api";
-import { useExecutionSocket, type WorkflowEvent } from "@/lib/use-execution-socket";
+import {
+  useExecutionSocket,
+  type WorkflowEvent,
+} from "@/lib/use-execution-socket";
 import { useExecutionStore } from "@/stores/execution.store";
 
 // ─── Main Component ─────────────────────────────────────────
@@ -87,7 +90,11 @@ export default function DeskPage() {
   const pathname = usePathname();
 
   // ─── Load workflow / desk owner details ────────────────────
-  const { data: ownerData, refetch: refetchOwner, isLoading: isOwnerLoading } = useQuery({
+  const {
+    data: ownerData,
+    refetch: refetchOwner,
+    isLoading: isOwnerLoading,
+  } = useQuery({
     queryKey: ["desk-owner", dashid],
     queryFn: async () => {
       if (!dashid) return null;
@@ -123,8 +130,12 @@ export default function DeskPage() {
             totalNodes: Object.keys(r.nodeStates || {}).length || 1,
           });
           if (r.nodeStates) {
-            for (const [nodeId, nState] of Object.entries(r.nodeStates as Record<string, any>)) {
-              useExecutionStore.getState().updateNodeState(r.id, nodeId, nState);
+            for (const [nodeId, nState] of Object.entries(
+              r.nodeStates as Record<string, any>,
+            )) {
+              useExecutionStore
+                .getState()
+                .updateNodeState(r.id, nodeId, nState);
             }
           }
         }
@@ -132,12 +143,12 @@ export default function DeskPage() {
 
       const mappedBlocks = dbBlocks.map((b) => {
         const isRunActive = Boolean(
-          runningMap[b.id] || (b.parentId && runningMap[b.parentId])
+          runningMap[b.id] || (b.parentId && runningMap[b.parentId]),
         );
         const pFiles = b.pushedFiles?.map((pf) =>
           !isRunActive && pf.status === "processing"
             ? { ...pf, status: "success" as const }
-            : pf
+            : pf,
         );
         return {
           ...b,
@@ -152,10 +163,13 @@ export default function DeskPage() {
 
       // Restore merged preview if any block has outputPreview with updates
       const blockWithMerged = mappedBlocks.find(
-        (b: any) => b.outputPreview && (b.outputPreview as any).updates?.length > 0
+        (b: any) =>
+          b.outputPreview && (b.outputPreview as any).updates?.length > 0,
       );
       if (blockWithMerged) {
-        useDeskStore.getState().setMergedPreview(blockWithMerged.outputPreview as any);
+        useDeskStore
+          .getState()
+          .setMergedPreview(blockWithMerged.outputPreview as any);
       }
 
       return { access, blocks: mappedBlocks, activeRuns };
@@ -170,7 +184,6 @@ export default function DeskPage() {
   useEffect(() => {
     setIsLoading(isDeskQueryLoading);
   }, [isDeskQueryLoading, setIsLoading]);
-
 
   // ─── Auto-save block state to DB (debounced, targeted) ────
   const saveTimerRef = useRef<Record<string, ReturnType<typeof setTimeout>>>(
@@ -315,7 +328,8 @@ export default function DeskPage() {
             message: "Workflow has no nodes",
             code: "INTERNAL_ERROR",
             details: {
-              reason: "This block has an empty editor workflow canvas. Open the editor and add nodes to build your workflow.",
+              reason:
+                "This block has an empty editor workflow canvas. Open the editor and add nodes to build your workflow.",
             },
             timestamp: new Date().toISOString(),
           };
@@ -347,11 +361,15 @@ export default function DeskPage() {
 
         // Check if any node returned an error during execution
         const failedNode = currentNodes.find(
-          (n: any) => n.data?.error || (Array.isArray(n.data?.errors) && n.data.errors.length > 0)
+          (n: any) =>
+            n.data?.error ||
+            (Array.isArray(n.data?.errors) && n.data.errors.length > 0),
         );
         if (failedNode) {
           const errObj = {
-            message: failedNode.data?.error || `${failedNode.type || 'Node'} execution error`,
+            message:
+              failedNode.data?.error ||
+              `${failedNode.type || "Node"} execution error`,
             code: "NODE_ERROR",
             nodeId: failedNode.id,
             nodeType: failedNode.type,
@@ -440,7 +458,9 @@ export default function DeskPage() {
   const executionRuns = useExecutionStore((s) => s.runs);
 
   // Track which blockId is running on server
-  const [serverRunningBlocks, setServerRunningBlocks] = useState<Record<string, string>>({}); // blockId -> runId
+  const [serverRunningBlocks, setServerRunningBlocks] = useState<
+    Record<string, string>
+  >({}); // blockId -> runId
 
   // ── Helper to cleanly complete a server run and update all stores & DB ──
   const completeRun = useCallback(
@@ -468,7 +488,12 @@ export default function DeskPage() {
           setBlockOutput(bId, finalOutput);
           await updateDeskBlockOutput(bId, finalOutput);
           // If finalOutput has updates or targetPath, populate mergedPreview store for UpdatedMergedPreview component
-          if (finalOutput.updates || finalOutput.alignment || finalOutput.targetPath || finalOutput.stackName) {
+          if (
+            finalOutput.updates ||
+            finalOutput.alignment ||
+            finalOutput.targetPath ||
+            finalOutput.stackName
+          ) {
             useDeskStore.getState().setMergedPreview(finalOutput);
           }
         }
@@ -477,22 +502,31 @@ export default function DeskPage() {
           setBlockExecuting(blk.parentId, false);
           if (finalOutput) {
             setBlockOutput(blk.parentId, finalOutput);
-            useDeskStore.getState().setTabOutput(blk.parentId, blk.name, finalOutput);
+            useDeskStore
+              .getState()
+              .setTabOutput(blk.parentId, blk.name, finalOutput);
             await updateDeskBlockOutput(blk.parentId, finalOutput);
           }
         }
 
-        const procFiles = blk?.pushedFiles?.filter((f) => f.status === "processing") || [];
+        const procFiles =
+          blk?.pushedFiles?.filter((f) => f.status === "processing") || [];
         for (const pf of procFiles) {
           useDeskStore.getState().updatePushedFileStatus(bId, pf.id, "success");
           updatePushedFileStatus(bId, pf.id, "success").catch(console.error);
         }
         if (blk?.parentId) {
           const parentBlk = allBlocks.find((b) => b.id === blk.parentId);
-          const pProcFiles = parentBlk?.pushedFiles?.filter((f) => f.status === "processing") || [];
+          const pProcFiles =
+            parentBlk?.pushedFiles?.filter((f) => f.status === "processing") ||
+            [];
           for (const pf of pProcFiles) {
-            useDeskStore.getState().updatePushedFileStatus(blk.parentId, pf.id, "success");
-            updatePushedFileStatus(blk.parentId, pf.id, "success").catch(console.error);
+            useDeskStore
+              .getState()
+              .updatePushedFileStatus(blk.parentId, pf.id, "success");
+            updatePushedFileStatus(blk.parentId, pf.id, "success").catch(
+              console.error,
+            );
           }
         }
       }
@@ -530,10 +564,15 @@ export default function DeskPage() {
           setBlockExecuting(blk.parentId, false);
           setBlockError(blk.parentId, wfErrObj);
         }
-        const procFiles = blk?.pushedFiles?.filter((f) => f.status === "processing") || [];
+        const procFiles =
+          blk?.pushedFiles?.filter((f) => f.status === "processing") || [];
         for (const pf of procFiles) {
-          useDeskStore.getState().updatePushedFileStatus(bId, pf.id, "failed", error);
-          updatePushedFileStatus(bId, pf.id, "failed", error).catch(console.error);
+          useDeskStore
+            .getState()
+            .updatePushedFileStatus(bId, pf.id, "failed", error);
+          updatePushedFileStatus(bId, pf.id, "failed", error).catch(
+            console.error,
+          );
         }
       }
 
@@ -556,15 +595,34 @@ export default function DeskPage() {
 
       switch (type) {
         case "node_started":
-          if (nodeId) updateNodeState(runId, nodeId, { nodeType: nodeType || "unknown", status: "running", startedAt: timestamp });
+          if (nodeId)
+            updateNodeState(runId, nodeId, {
+              nodeType: nodeType || "unknown",
+              status: "running",
+              startedAt: timestamp,
+            });
           break;
         case "node_completed":
-          if (nodeId) updateNodeState(runId, nodeId, { status: "completed", output: data, completedAt: timestamp });
+          if (nodeId)
+            updateNodeState(runId, nodeId, {
+              status: "completed",
+              output: data,
+              completedAt: timestamp,
+            });
           break;
         case "node_error":
           if (nodeId) {
-            updateNodeState(runId, nodeId, { status: "error", error, completedAt: timestamp });
-            addRunError({ nodeId, nodeType: nodeType || "unknown", error: error || "Unknown error", timestamp });
+            updateNodeState(runId, nodeId, {
+              status: "error",
+              error,
+              completedAt: timestamp,
+            });
+            addRunError({
+              nodeId,
+              nodeType: nodeType || "unknown",
+              error: error || "Unknown error",
+              timestamp,
+            });
           }
           break;
         case "node_skipped":
@@ -587,7 +645,10 @@ export default function DeskPage() {
           setServerRunningBlocks((prev) => {
             const next = { ...prev };
             for (const [bId, rId] of Object.entries(next)) {
-              if (rId === runId) { delete next[bId]; setBlockExecuting(bId, false); }
+              if (rId === runId) {
+                delete next[bId];
+                setBlockExecuting(bId, false);
+              }
             }
             return next;
           });
@@ -595,7 +656,14 @@ export default function DeskPage() {
           break;
       }
     },
-    [updateNodeState, updateRunStatus, addRunError, setBlockExecuting, completeRun, failRun],
+    [
+      updateNodeState,
+      updateRunStatus,
+      addRunError,
+      setBlockExecuting,
+      completeRun,
+      failRun,
+    ],
   );
 
   useExecutionSocket({
@@ -612,7 +680,7 @@ export default function DeskPage() {
 
     hasResumedPollingRef.current = true;
     const activeRuns = _deskData.activeRuns.filter(
-      (r: any) => r.status === "running" || r.status === "paused"
+      (r: any) => r.status === "running" || r.status === "paused",
     );
 
     for (const run of activeRuns) {
@@ -628,7 +696,10 @@ export default function DeskPage() {
               clearInterval(pollInterval);
               await completeRun(runId, runData.output);
               toast.success("Server execution completed");
-            } else if (runData.status === "error" || runData.status === "cancelled") {
+            } else if (
+              runData.status === "error" ||
+              runData.status === "cancelled"
+            ) {
               clearInterval(pollInterval);
               await failRun(runId, runData.error || "Server execution failed");
             }
@@ -647,9 +718,11 @@ export default function DeskPage() {
       options?: {
         pushedFileRecord?: PushedFileRecord;
         customSheets?: any[];
-      }
+      },
     ) => {
-      const block = useDeskStore.getState().blocks.find((b) => b.id === blockId);
+      const block = useDeskStore
+        .getState()
+        .blocks.find((b) => b.id === blockId);
       if (!block || !userId) return;
 
       setBlockExecuting(blockId, true);
@@ -661,13 +734,22 @@ export default function DeskPage() {
 
       // If a file was pushed to running instance, save immediately to history
       if (options?.pushedFileRecord) {
-        useDeskStore.getState().addPushedFile(blockId, options.pushedFileRecord);
+        useDeskStore
+          .getState()
+          .addPushedFile(blockId, options.pushedFileRecord);
         if (block.parentId) {
-          useDeskStore.getState().addPushedFile(block.parentId, options.pushedFileRecord);
+          useDeskStore
+            .getState()
+            .addPushedFile(block.parentId, options.pushedFileRecord);
         }
-        pushFileToBlockHistory(blockId, options.pushedFileRecord).catch(console.error);
+        pushFileToBlockHistory(blockId, options.pushedFileRecord).catch(
+          console.error,
+        );
         if (block.parentId) {
-          pushFileToBlockHistory(block.parentId, options.pushedFileRecord).catch(console.error);
+          pushFileToBlockHistory(
+            block.parentId,
+            options.pushedFileRecord,
+          ).catch(console.error);
         }
       }
 
@@ -681,10 +763,19 @@ export default function DeskPage() {
       }).catch(console.error);
 
       const deskInputs = {
-        textInputs: block.textInputs?.map((t) => ({ id: t.id, value: t.value })) || [],
+        textInputs:
+          block.textInputs?.map((t) => ({ id: t.id, value: t.value })) || [],
         sheets: activeSheets.map((s) => ({ id: s.id, data: s.data })) || [],
-        checkboxFields: block.checkboxFields?.map((c) => ({ id: c.id, checked: c.checked })) || [],
-        actionButtons: block.actionButtons?.map((a) => ({ id: a.id, triggered: a.triggered })) || [],
+        checkboxFields:
+          block.checkboxFields?.map((c) => ({
+            id: c.id,
+            checked: c.checked,
+          })) || [],
+        actionButtons:
+          block.actionButtons?.map((a) => ({
+            id: a.id,
+            triggered: a.triggered,
+          })) || [],
       };
 
       const result = await runWorkflow({
@@ -698,8 +789,13 @@ export default function DeskPage() {
       if (result.success && result.data?.runId) {
         const runId = result.data.runId;
         const workflow = await getWorkFlow(block.editorWorkflowId);
-        const nodeCount = (workflow?.definition as any)?.reactFlow?.nodes?.length ?? 0;
-        addRun({ runId, workflowId: block.editorWorkflowId, totalNodes: nodeCount });
+        const nodeCount =
+          (workflow?.definition as any)?.reactFlow?.nodes?.length ?? 0;
+        addRun({
+          runId,
+          workflowId: block.editorWorkflowId,
+          totalNodes: nodeCount,
+        });
         setServerRunningBlocks((prev) => ({
           ...prev,
           [blockId]: runId,
@@ -720,9 +816,15 @@ export default function DeskPage() {
                 clearInterval(pollInterval);
                 await completeRun(runId, runData.output);
                 toast.success("Server execution completed");
-              } else if (runData.status === "error" || runData.status === "cancelled") {
+              } else if (
+                runData.status === "error" ||
+                runData.status === "cancelled"
+              ) {
                 clearInterval(pollInterval);
-                await failRun(runId, runData.error || "Server execution failed");
+                await failRun(
+                  runId,
+                  runData.error || "Server execution failed",
+                );
               }
             }
           } catch {
@@ -736,11 +838,35 @@ export default function DeskPage() {
 
         if (options?.pushedFileRecord) {
           const errMsg = result.error || "Server execution failed to start";
-          useDeskStore.getState().updatePushedFileStatus(blockId, options.pushedFileRecord.id, "failed", errMsg);
-          updatePushedFileStatus(blockId, options.pushedFileRecord.id, "failed", errMsg).catch(console.error);
+          useDeskStore
+            .getState()
+            .updatePushedFileStatus(
+              blockId,
+              options.pushedFileRecord.id,
+              "failed",
+              errMsg,
+            );
+          updatePushedFileStatus(
+            blockId,
+            options.pushedFileRecord.id,
+            "failed",
+            errMsg,
+          ).catch(console.error);
           if (block.parentId) {
-            useDeskStore.getState().updatePushedFileStatus(block.parentId, options.pushedFileRecord.id, "failed", errMsg);
-            updatePushedFileStatus(block.parentId, options.pushedFileRecord.id, "failed", errMsg).catch(console.error);
+            useDeskStore
+              .getState()
+              .updatePushedFileStatus(
+                block.parentId,
+                options.pushedFileRecord.id,
+                "failed",
+                errMsg,
+              );
+            updatePushedFileStatus(
+              block.parentId,
+              options.pushedFileRecord.id,
+              "failed",
+              errMsg,
+            ).catch(console.error);
           }
         }
 
@@ -755,7 +881,16 @@ export default function DeskPage() {
         toast.error(`Server run failed: ${result.error || "Unknown error"}`);
       }
     },
-    [userId, dashid, setBlockExecuting, setBlockOutput, setBlockError, addRun, completeRun, failRun],
+    [
+      userId,
+      dashid,
+      setBlockExecuting,
+      setBlockOutput,
+      setBlockError,
+      addRun,
+      completeRun,
+      failRun,
+    ],
   );
 
   const handleCancelServerBlock = useCallback(
@@ -763,8 +898,9 @@ export default function DeskPage() {
       let runId = serverRunningBlocks[blockId];
       if (!runId) {
         // If blockId is parent, search child blocks
-        const childRuns = useDeskStore.getState().blocks
-          .filter((b) => b.parentId === blockId)
+        const childRuns = useDeskStore
+          .getState()
+          .blocks.filter((b) => b.parentId === blockId)
           .map((b) => serverRunningBlocks[b.id])
           .filter(Boolean);
         if (childRuns.length > 0) runId = childRuns[0];
@@ -835,46 +971,49 @@ export default function DeskPage() {
   );
 
   // ─── Delete a child tab (and auto-delete BigBlock if last tab) ────
-  const handleDeleteTab = useCallback(async (blockId: string) => {
-    try {
-      const allBlocks = useDeskStore.getState().blocks;
-      const targetBlock = allBlocks.find((b) => b.id === blockId);
-      const userEmail = sessionData?.user?.email;
+  const handleDeleteTab = useCallback(
+    async (blockId: string) => {
+      try {
+        const allBlocks = useDeskStore.getState().blocks;
+        const targetBlock = allBlocks.find((b) => b.id === blockId);
+        const userEmail = sessionData?.user?.email;
 
-      // If this block is actually a root BigBlock (no parentId)
-      if (targetBlock && !targetBlock.parentId) {
-        await deleteDeskBigBlock(blockId, userEmail, !isGuest);
-        const children = allBlocks.filter((b) => b.parentId === blockId);
-        for (const child of children) {
-          useDeskStore.getState().removeBlock(child.id);
-        }
-        useDeskStore.getState().removeBlock(blockId);
-        toast.success("BigBlock deleted");
-        return;
-      }
-
-      await deleteDeskBlock(blockId, userEmail, !isGuest);
-      useDeskStore.getState().removeBlock(blockId);
-
-      if (targetBlock?.parentId) {
-        const parentId = targetBlock.parentId;
-        const remainingChildren = useDeskStore
-          .getState()
-          .blocks.filter((b) => b.parentId === parentId);
-        if (remainingChildren.length === 0) {
-          await deleteDeskBlock(parentId, userEmail, !isGuest);
-          useDeskStore.getState().removeBlock(parentId);
-          toast.success("BigBlock deleted (no tabs left)");
+        // If this block is actually a root BigBlock (no parentId)
+        if (targetBlock && !targetBlock.parentId) {
+          await deleteDeskBigBlock(blockId, userEmail, !isGuest);
+          const children = allBlocks.filter((b) => b.parentId === blockId);
+          for (const child of children) {
+            useDeskStore.getState().removeBlock(child.id);
+          }
+          useDeskStore.getState().removeBlock(blockId);
+          toast.success("BigBlock deleted");
           return;
         }
+
+        await deleteDeskBlock(blockId, userEmail, !isGuest);
+        useDeskStore.getState().removeBlock(blockId);
+
+        if (targetBlock?.parentId) {
+          const parentId = targetBlock.parentId;
+          const remainingChildren = useDeskStore
+            .getState()
+            .blocks.filter((b) => b.parentId === parentId);
+          if (remainingChildren.length === 0) {
+            await deleteDeskBlock(parentId, userEmail, !isGuest);
+            useDeskStore.getState().removeBlock(parentId);
+            toast.success("BigBlock deleted (no tabs left)");
+            return;
+          }
+        }
+        toast.success("Tab deleted");
+      } catch (err: any) {
+        console.error("Failed to delete tab:", err);
+        toast.error(err?.message || "Failed to delete");
+        throw err;
       }
-      toast.success("Tab deleted");
-    } catch (err: any) {
-      console.error("Failed to delete tab:", err);
-      toast.error(err?.message || "Failed to delete");
-      throw err;
-    }
-  }, [sessionData?.user?.email, isGuest]);
+    },
+    [sessionData?.user?.email, isGuest],
+  );
 
   // ─── Delete a BigBlock and all its child tabs ──────────────
   const handleDeleteBigBlock = useCallback(
@@ -898,7 +1037,7 @@ export default function DeskPage() {
         throw err;
       }
     },
-    [sessionData?.user?.email, isGuest]
+    [sessionData?.user?.email, isGuest],
   );
 
   // Watch for triggered action buttons to auto-execute their block
@@ -1073,7 +1212,7 @@ export default function DeskPage() {
                     blockIndex={index}
                     totalBlocks={rootArr.length}
                     allBlocks={blocks}
-                    isGuest={isGuest}
+                    isGuest={false}
                     dashid={dashid}
                     userId={userId}
                     onExecute={handleExecuteBlock}
@@ -1081,14 +1220,35 @@ export default function DeskPage() {
                     onCancelServerRun={handleCancelServerBlock}
                     serverRunId={
                       serverRunningBlocks[block.id] ||
-                      (blocks.find((b) => b.parentId === block.id && serverRunningBlocks[b.id])
-                        ? serverRunningBlocks[blocks.find((b) => b.parentId === block.id && serverRunningBlocks[b.id])!.id]
+                      (blocks.find(
+                        (b) =>
+                          b.parentId === block.id && serverRunningBlocks[b.id],
+                      )
+                        ? serverRunningBlocks[
+                            blocks.find(
+                              (b) =>
+                                b.parentId === block.id &&
+                                serverRunningBlocks[b.id],
+                            )!.id
+                          ]
                         : undefined)
                     }
                     serverRun={
-                      (serverRunningBlocks[block.id] && executionRuns[serverRunningBlocks[block.id]]) ||
-                      (blocks.find((b) => b.parentId === block.id && serverRunningBlocks[b.id])
-                        ? executionRuns[serverRunningBlocks[blocks.find((b) => b.parentId === block.id && serverRunningBlocks[b.id])!.id]]
+                      (serverRunningBlocks[block.id] &&
+                        executionRuns[serverRunningBlocks[block.id]]) ||
+                      (blocks.find(
+                        (b) =>
+                          b.parentId === block.id && serverRunningBlocks[b.id],
+                      )
+                        ? executionRuns[
+                            serverRunningBlocks[
+                              blocks.find(
+                                (b) =>
+                                  b.parentId === block.id &&
+                                  serverRunningBlocks[b.id],
+                              )!.id
+                            ]
+                          ]
                         : undefined)
                     }
                     onAddTab={handleAddTab}
@@ -1154,7 +1314,10 @@ export default function DeskPage() {
           sessionData?.user
             ? {
                 id: sessionData.user.id,
-                name: sessionData.user.name || sessionData.user.email?.split("@")[0] || "User",
+                name:
+                  sessionData.user.name ||
+                  sessionData.user.email?.split("@")[0] ||
+                  "User",
                 email: sessionData.user.email || "",
                 image: sessionData.user.image,
               }
