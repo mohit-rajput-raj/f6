@@ -32,6 +32,7 @@ import {
   KeyRound,
   Shield,
   UserCheck,
+  X,
 } from "lucide-react";
 import { useSession } from "@/lib/auth-client";
 import { BlockPasswordModal } from "./BlockPasswordModal";
@@ -180,16 +181,19 @@ export function DeskBlock({
   const { data: sessionData } = useSession();
   const currentUserEmail = sessionData?.user?.email ?? "";
 
-  const getEmailAvatar = useCallback((email: string) => {
-    if (
-      sessionData?.user?.email &&
-      sessionData.user.email.toLowerCase() === email.toLowerCase() &&
-      sessionData.user.image
-    ) {
-      return sessionData.user.image;
-    }
-    return `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(email)}&backgroundColor=27272a,3f3f46&textColor=ffffff`;
-  }, [sessionData]);
+  const getEmailAvatar = useCallback(
+    (email: string) => {
+      if (
+        sessionData?.user?.email &&
+        sessionData.user.email.toLowerCase() === email.toLowerCase() &&
+        sessionData.user.image
+      ) {
+        return sessionData.user.image;
+      }
+      return `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(email)}&backgroundColor=27272a,3f3f46&textColor=ffffff`;
+    },
+    [sessionData],
+  );
 
   const spreadsheetRef = useRef<any>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -197,8 +201,29 @@ export function DeskBlock({
   const [renamingTabId, setRenamingTabId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
 
-  const [settingsModalTarget, setSettingsModalTarget] = useState<DeskBlockState | null>(null);
-  const [passwordModalTarget, setPasswordModalTarget] = useState<DeskBlockState | null>(null);
+  const [settingsModalTarget, setSettingsModalTarget] =
+    useState<DeskBlockState | null>(null);
+  const [passwordModalTarget, setPasswordModalTarget] =
+    useState<DeskBlockState | null>(null);
+
+  // ─── Delete permission error popup ────────────────────────
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const deleteErrorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+
+  const showDeleteError = useCallback((msg: string) => {
+    setDeleteError(msg);
+    if (deleteErrorTimerRef.current) clearTimeout(deleteErrorTimerRef.current);
+    deleteErrorTimerRef.current = setTimeout(() => setDeleteError(null), 4000);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (deleteErrorTimerRef.current)
+        clearTimeout(deleteErrorTimerRef.current);
+    };
+  }, []);
 
   // ─── Child blocks (tabs within this BigBlock) ─────────────
   const childBlocks = (allBlocks || [])
@@ -380,7 +405,7 @@ export function DeskBlock({
     for (const f of childFiles) map.set(f.id, f);
     for (const f of blockFiles) if (!map.has(f.id)) map.set(f.id, f);
     return Array.from(map.values()).sort(
-      (a, b) => new Date(b.pushedAt).getTime() - new Date(a.pushedAt).getTime()
+      (a, b) => new Date(b.pushedAt).getTime() - new Date(a.pushedAt).getTime(),
     );
   }, [activeChild?.pushedFiles, block.pushedFiles]);
 
@@ -401,15 +426,16 @@ export function DeskBlock({
         if (parsed.columns.length > 0) {
           const isServerRunning = Boolean(
             serverRunId &&
-              (activeChild?.isExecuting ||
-                (serverRun &&
-                  (serverRun.status === "running" ||
-                    serverRun.status === "paused")))
+            (activeChild?.isExecuting ||
+              (serverRun &&
+                (serverRun.status === "running" ||
+                  serverRun.status === "paused"))),
           );
 
           if (isServerRunning) {
             const sheetName =
-              activeChild?.sheets.find((s) => s.id === sheetId)?.name || "Sheet";
+              activeChild?.sheets.find((s) => s.id === sheetId)?.name ||
+              "Sheet";
             setPendingPushData({
               file: { name: file.name, size: file.size },
               sheetId,
@@ -456,10 +482,9 @@ export function DeskBlock({
 
       const isServerRunning = Boolean(
         serverRunId &&
-          (activeChild.isExecuting ||
-            (serverRun &&
-              (serverRun.status === "running" ||
-                serverRun.status === "paused")))
+        (activeChild.isExecuting ||
+          (serverRun &&
+            (serverRun.status === "running" || serverRun.status === "paused"))),
       );
 
       if (isServerRunning) {
@@ -501,7 +526,7 @@ export function DeskBlock({
 
     // 2. Prepare customSheets list with the updated sheet
     const customSheets = activeChild.sheets.map((s) =>
-      s.id === sheetId ? { ...s, data: dataset } : s
+      s.id === sheetId ? { ...s, data: dataset } : s,
     );
 
     // 3. Create PushedFileRecord
@@ -530,7 +555,14 @@ export function DeskBlock({
     setActivePreviewTab("pushed_files");
     toast.success(`Pushed "${file.name}" to running server instance`);
     setPendingPushData(null);
-  }, [pendingPushData, activeChild, updateSheetData, setBlockOutput, onServerExecute, serverRunId]);
+  }, [
+    pendingPushData,
+    activeChild,
+    updateSheetData,
+    setBlockOutput,
+    onServerExecute,
+    serverRunId,
+  ]);
 
   // ─── Load previous BigBlock output into a sheet ────────────
   const handleLoadPreviousIntoSheet = useCallback(
@@ -553,10 +585,10 @@ export function DeskBlock({
       const projectSlug = segments[1] || "dashboard";
       const tokenParam = token ? `?token=${encodeURIComponent(token)}` : "";
       router.push(
-        `/${projectSlug}/dash/${dashid}/desk/editor/${child.editorWorkflowId}${tokenParam}`
+        `/${projectSlug}/dash/${dashid}/desk/editor/${child.editorWorkflowId}${tokenParam}`,
       );
     },
-    [pathname, dashid, router]
+    [pathname, dashid, router],
   );
 
   const openEditor = useCallback(
@@ -571,7 +603,7 @@ export function DeskBlock({
         const isCoOwner = Boolean(
           currentUserEmail &&
           child.coOwnerEmail &&
-          child.coOwnerEmail.toLowerCase() === currentUserEmail.toLowerCase()
+          child.coOwnerEmail.toLowerCase() === currentUserEmail.toLowerCase(),
         );
         const isProjectOwner = !isGuest;
 
@@ -584,7 +616,7 @@ export function DeskBlock({
 
       navigateToEditor(child);
     },
-    [isViewer, isGuest, currentUserEmail, navigateToEditor]
+    [isViewer, isGuest, currentUserEmail, navigateToEditor],
   );
 
   // ─── Delete a child tab ────────────────────────────────────
@@ -596,7 +628,8 @@ export function DeskBlock({
       const isCoOwner = Boolean(
         currentUserEmail &&
         targetChild?.coOwnerEmail &&
-        targetChild.coOwnerEmail.toLowerCase() === currentUserEmail.toLowerCase()
+        targetChild.coOwnerEmail.toLowerCase() ===
+          currentUserEmail.toLowerCase(),
       );
       const isProjectOwner = !isGuest;
 
@@ -605,12 +638,14 @@ export function DeskBlock({
       // If not, only owner can delete.
       if (targetChild?.coOwnerEmail) {
         if (!isCoOwner) {
-          toast.error(`Only the assigned co-owner (${targetChild.coOwnerEmail}) can delete this tab.`);
+          showDeleteError(
+            `Only the assigned co-owner (${targetChild.coOwnerEmail}) can delete this tab.`,
+          );
           return;
         }
       } else {
         if (!isProjectOwner) {
-          toast.error("Only the workspace owner can delete this tab.");
+          showDeleteError("Only the workspace owner can delete this tab.");
           return;
         }
       }
@@ -627,7 +662,7 @@ export function DeskBlock({
           const remaining = childBlocks.filter((c) => c.id !== childId);
           if (remaining.length > 0) setActiveChildId(remaining[0].id);
         } catch (err: any) {
-          toast.error(err?.message || "Failed to delete tab");
+          showDeleteError(err?.message || "Failed to delete tab");
         } finally {
           setIsDeleting(false);
         }
@@ -751,7 +786,25 @@ export function DeskBlock({
   }
 
   return (
-    <div className="rounded-xl border border-border bg-card overflow-hidden">
+    <div className="rounded-xl border border-border bg-card overflow-hidden relative">
+      {/* ─── Delete Permission Error Popup ─────────────────── */}
+      {deleteError && (
+        <div className="absolute top-2 right-2 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="flex items-start gap-2 max-w-xs px-3 py-2.5 rounded-lg bg-red-500/95 text-white text-xs shadow-lg backdrop-blur-sm border border-red-400/30">
+            <AlertCircle className="size-3.5 mt-0.5 shrink-0" />
+            <div className="flex-1">
+              <p className="font-semibold leading-tight">Permission Denied</p>
+              <p className="mt-0.5 opacity-90 leading-snug">{deleteError}</p>
+            </div>
+            <button
+              onClick={() => setDeleteError(null)}
+              className="shrink-0 mt-0.5 hover:opacity-70 transition-opacity"
+            >
+              <X className="size-3" />
+            </button>
+          </div>
+        </div>
+      )}
       {/* ─── BigBlock Header ────────────────────────────────── */}
       <div className="flex items-center justify-between px-4 py-2 bg-muted/50 border-b border-border">
         <div className="flex items-center gap-2">
@@ -780,7 +833,15 @@ export function DeskBlock({
           {serverRun && !activeChild?.isExecuting && (
             <Badge variant="outline" className="text-[10px] font-mono gap-1">
               {serverRun.completedNodes}/{serverRun.totalNodes} •{" "}
-              <span className={serverRun.status === "completed" ? "text-emerald-500" : serverRun.status === "error" ? "text-red-500" : "text-blue-500"}>
+              <span
+                className={
+                  serverRun.status === "completed"
+                    ? "text-emerald-500"
+                    : serverRun.status === "error"
+                      ? "text-red-500"
+                      : "text-blue-500"
+                }
+              >
                 {serverRun.status}
               </span>
             </Badge>
@@ -819,7 +880,9 @@ export function DeskBlock({
                   ) : (
                     <Play className="size-3.5 fill-current" />
                   )}
-                  {activeChild.isExecuting && !serverRunId ? "Running..." : "Local"}
+                  {activeChild.isExecuting && !serverRunId
+                    ? "Running..."
+                    : "Local"}
                 </button>
 
                 {/* Divider */}
@@ -845,7 +908,9 @@ export function DeskBlock({
                         <div className="w-px h-5 bg-border" />
                         <button
                           type="button"
-                          onClick={() => onCancelServerRun(activeChild.id || block.id)}
+                          onClick={() =>
+                            onCancelServerRun(activeChild.id || block.id)
+                          }
                           className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold bg-red-500/10 text-red-400 hover:bg-red-500/25 hover:text-red-300 transition-colors cursor-pointer"
                           title="Stop server execution"
                         >
@@ -939,8 +1004,10 @@ export function DeskBlock({
                                 await onDeleteTab(child.id);
                               }
                             }
-                          } catch (e) {
-                            toast.error("Failed to delete BigBlock");
+                          } catch (e: any) {
+                            showDeleteError(
+                              e?.message || "Failed to delete BigBlock",
+                            );
                           } finally {
                             setIsDeleting(false);
                           }
@@ -1360,10 +1427,7 @@ export function DeskBlock({
                             <button
                               type="button"
                               onClick={() =>
-                                handleOpenUploadModal(
-                                  sheet.id,
-                                  sheet.name,
-                                )
+                                handleOpenUploadModal(sheet.id, sheet.name)
                               }
                               disabled={isGuest}
                               className="flex items-center gap-1.5 text-[10px] text-muted-foreground cursor-pointer hover:text-foreground transition font-medium disabled:opacity-50 disabled:cursor-not-allowed"
@@ -1497,7 +1561,9 @@ export function DeskBlock({
                             : "bg-background text-muted-foreground hover:text-foreground hover:bg-muted border border-border"
                       }`}
                     >
-                      <AlertCircle className={`size-3 ${currentError ? "text-red-500" : "text-muted-foreground"}`} />
+                      <AlertCircle
+                        className={`size-3 ${currentError ? "text-red-500" : "text-muted-foreground"}`}
+                      />
                       Errors
                       {currentError && (
                         <span className="px-1 py-0 text-[8px] rounded bg-red-500 text-white font-bold leading-tight">
@@ -1556,13 +1622,18 @@ export function DeskBlock({
                                 </h4>
                                 <span className="text-[10px] text-muted-foreground">
                                   {currentError.timestamp
-                                    ? new Date(currentError.timestamp).toLocaleTimeString()
+                                    ? new Date(
+                                        currentError.timestamp,
+                                      ).toLocaleTimeString()
                                     : "Just now"}
                                 </span>
                               </div>
                             </div>
                             <div className="flex items-center gap-1.5">
-                              <Badge variant="destructive" className="text-[10px] font-mono px-2 py-0.5">
+                              <Badge
+                                variant="destructive"
+                                className="text-[10px] font-mono px-2 py-0.5"
+                              >
                                 {currentError.code || "INTERNAL_ERROR"}
                               </Badge>
                               <Button
@@ -1571,9 +1642,13 @@ export function DeskBlock({
                                 className="h-6 px-2 text-[10px] text-muted-foreground hover:text-foreground hover:bg-red-500/15"
                                 onClick={() => {
                                   if (activeChild) {
-                                    useDeskStore.getState().clearBlockError(activeChild.id);
+                                    useDeskStore
+                                      .getState()
+                                      .clearBlockError(activeChild.id);
                                   }
-                                  useDeskStore.getState().clearBlockError(block.id);
+                                  useDeskStore
+                                    .getState()
+                                    .clearBlockError(block.id);
                                 }}
                               >
                                 Clear
@@ -1589,12 +1664,18 @@ export function DeskBlock({
                             <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
                               {currentError.nodeType && (
                                 <span>
-                                  Node Type: <strong className="text-foreground">{currentError.nodeType}</strong>
+                                  Node Type:{" "}
+                                  <strong className="text-foreground">
+                                    {currentError.nodeType}
+                                  </strong>
                                 </span>
                               )}
                               {currentError.nodeId && (
                                 <span>
-                                  Node ID: <code className="bg-muted px-1.5 py-0.5 rounded text-foreground font-mono">{currentError.nodeId}</code>
+                                  Node ID:{" "}
+                                  <code className="bg-muted px-1.5 py-0.5 rounded text-foreground font-mono">
+                                    {currentError.nodeId}
+                                  </code>
                                 </span>
                               )}
                             </div>
@@ -1614,9 +1695,15 @@ export function DeskBlock({
                                     navigator.clipboard.writeText(
                                       typeof currentError.details === "string"
                                         ? currentError.details
-                                        : JSON.stringify(currentError.details, null, 2)
+                                        : JSON.stringify(
+                                            currentError.details,
+                                            null,
+                                            2,
+                                          ),
                                     );
-                                    toast.success("Error details copied to clipboard");
+                                    toast.success(
+                                      "Error details copied to clipboard",
+                                    );
                                   }}
                                 >
                                   <Copy className="size-2.5" />
@@ -1627,7 +1714,11 @@ export function DeskBlock({
                                 <pre className="whitespace-pre-wrap word-break-all">
                                   {typeof currentError.details === "string"
                                     ? currentError.details
-                                    : JSON.stringify(currentError.details, null, 2)}
+                                    : JSON.stringify(
+                                        currentError.details,
+                                        null,
+                                        2,
+                                      )}
                                 </pre>
                               </div>
                             </div>
@@ -1654,7 +1745,9 @@ export function DeskBlock({
                                   variant="outline"
                                   size="sm"
                                   className="h-6 text-[10px] gap-1 font-semibold border-emerald-600 text-emerald-600 hover:bg-emerald-600 hover:text-white"
-                                  onClick={() => onServerExecute(activeChild.id)}
+                                  onClick={() =>
+                                    onServerExecute(activeChild.id)
+                                  }
                                   disabled={activeChild.isExecuting}
                                 >
                                   ⚡ Retry Server
@@ -1686,7 +1779,8 @@ export function DeskBlock({
                             No Execution Errors
                           </p>
                           <p className="text-[10px] text-muted-foreground leading-relaxed">
-                            No issues encountered. All workflow executions for this block have run cleanly.
+                            No issues encountered. All workflow executions for
+                            this block have run cleanly.
                           </p>
                         </div>
                       </div>
@@ -1711,12 +1805,19 @@ export function DeskBlock({
                       </div>
                       <div className="flex items-center gap-2">
                         {serverRunId && (
-                          <Badge variant="outline" className="text-[10px] border-emerald-500 text-emerald-600 bg-emerald-500/10 font-mono">
+                          <Badge
+                            variant="outline"
+                            className="text-[10px] border-emerald-500 text-emerald-600 bg-emerald-500/10 font-mono"
+                          >
                             ⚡ Hot Server Instance Active
                           </Badge>
                         )}
-                        <Badge variant="secondary" className="text-[10px] font-mono">
-                          {allPushedFiles.length} file{allPushedFiles.length === 1 ? "" : "s"}
+                        <Badge
+                          variant="secondary"
+                          className="text-[10px] font-mono"
+                        >
+                          {allPushedFiles.length} file
+                          {allPushedFiles.length === 1 ? "" : "s"}
                         </Badge>
                       </div>
                     </div>
@@ -1731,7 +1832,11 @@ export function DeskBlock({
                             No Pushed Files Yet
                           </p>
                           <p className="text-[11px] text-muted-foreground leading-relaxed">
-                            When an execution is running on the server and you upload or drop a new dataset into any sheet, you can push it directly to the live instance. All processed files and their execution status (success / failed) will appear here.
+                            When an execution is running on the server and you
+                            upload or drop a new dataset into any sheet, you can
+                            push it directly to the live instance. All processed
+                            files and their execution status (success / failed)
+                            will appear here.
                           </p>
                         </div>
                       </div>
@@ -1749,16 +1854,24 @@ export function DeskBlock({
                                 </div>
                                 <div className="min-w-0">
                                   <div className="flex items-center gap-2">
-                                    <span className="text-xs font-bold text-foreground truncate" title={record.fileName}>
+                                    <span
+                                      className="text-xs font-bold text-foreground truncate"
+                                      title={record.fileName}
+                                    >
                                       {record.fileName}
                                     </span>
-                                    <Badge variant="secondary" className="text-[9px] px-1.5 py-0 font-medium shrink-0">
+                                    <Badge
+                                      variant="secondary"
+                                      className="text-[9px] px-1.5 py-0 font-medium shrink-0"
+                                    >
                                       📊 {record.sheetName}
                                     </Badge>
                                   </div>
                                   <span className="text-[10px] text-muted-foreground">
                                     {record.pushedAt
-                                      ? new Date(record.pushedAt).toLocaleString()
+                                      ? new Date(
+                                          record.pushedAt,
+                                        ).toLocaleString()
                                       : "Recently"}
                                   </span>
                                 </div>
@@ -1776,7 +1889,10 @@ export function DeskBlock({
                                     Success
                                   </Badge>
                                 ) : (
-                                  <Badge variant="destructive" className="text-[10px] gap-1 font-mono">
+                                  <Badge
+                                    variant="destructive"
+                                    className="text-[10px] gap-1 font-mono"
+                                  >
                                     <AlertCircle className="size-3" />
                                     Failed
                                   </Badge>
@@ -1786,7 +1902,9 @@ export function DeskBlock({
                                   variant="ghost"
                                   size="sm"
                                   className="h-6 px-2 text-[10px] text-muted-foreground hover:text-foreground"
-                                  onClick={() => setActivePreviewTab(record.sheetId)}
+                                  onClick={() =>
+                                    setActivePreviewTab(record.sheetId)
+                                  }
                                   title="View sheet data in preview"
                                 >
                                   View Sheet
@@ -1796,10 +1914,20 @@ export function DeskBlock({
 
                             <div className="flex items-center justify-between text-[10px] text-muted-foreground pt-1 border-t border-border/50">
                               <span>
-                                Dimensions: <strong className="text-foreground">{record.rowCount} rows</strong> × <strong className="text-foreground">{record.columnCount} cols</strong>
+                                Dimensions:{" "}
+                                <strong className="text-foreground">
+                                  {record.rowCount} rows
+                                </strong>{" "}
+                                ×{" "}
+                                <strong className="text-foreground">
+                                  {record.columnCount} cols
+                                </strong>
                               </span>
                               {record.error && (
-                                <span className="text-red-500 text-[10px] font-mono truncate max-w-xs" title={record.error}>
+                                <span
+                                  className="text-red-500 text-[10px] font-mono truncate max-w-xs"
+                                  title={record.error}
+                                >
                                   Reason: {record.error}
                                 </span>
                               )}
@@ -1915,7 +2043,8 @@ export function DeskBlock({
                     Push File to Running Server Instance?
                   </DialogTitle>
                   <DialogDescription className="text-xs text-muted-foreground mt-0.5">
-                    This block has an active workflow execution running on the server.
+                    This block has an active workflow execution running on the
+                    server.
                   </DialogDescription>
                 </div>
               </div>
@@ -1925,7 +2054,10 @@ export function DeskBlock({
               <div className="rounded-xl border border-border bg-muted/40 p-3 space-y-2">
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-muted-foreground">Dataset File:</span>
-                  <span className="font-semibold text-foreground truncate max-w-[200px]" title={pendingPushData.file.name}>
+                  <span
+                    className="font-semibold text-foreground truncate max-w-[200px]"
+                    title={pendingPushData.file.name}
+                  >
                     {pendingPushData.file.name}
                   </span>
                 </div>
@@ -1938,7 +2070,8 @@ export function DeskBlock({
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-muted-foreground">Dimensions:</span>
                   <Badge variant="outline" className="text-[10px] font-mono">
-                    {pendingPushData.dataset.data.length} rows × {pendingPushData.dataset.columns.length} columns
+                    {pendingPushData.dataset.data.length} rows ×{" "}
+                    {pendingPushData.dataset.columns.length} columns
                   </Badge>
                 </div>
               </div>
@@ -1949,7 +2082,10 @@ export function DeskBlock({
                   Live Server Execution Mode
                 </p>
                 <p className="text-[11px] leading-relaxed text-muted-foreground">
-                  Confirming will immediately send this dataset into the workflow running on your backend server. The file will be logged in this block&apos;s <strong>Pushed Files</strong> history tab with its execution status.
+                  Confirming will immediately send this dataset into the
+                  workflow running on your backend server. The file will be
+                  logged in this block&apos;s <strong>Pushed Files</strong>{" "}
+                  history tab with its execution status.
                 </p>
               </div>
             </div>

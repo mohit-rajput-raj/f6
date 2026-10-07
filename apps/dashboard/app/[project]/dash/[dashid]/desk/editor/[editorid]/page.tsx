@@ -8,6 +8,7 @@ import { redirect } from "next/navigation";
 import { getSharedDeskAccess } from "../../desk-share-actions";
 import { verifyUnlockToken } from "@/lib/password-utils";
 import { BlockEditorClientWrapper } from "./_components/BlockEditorClientWrapper";
+import { DeskChatBox } from "../../_components/DeskChatBox";
 
 type Props = {
     params: Promise<{
@@ -115,6 +116,22 @@ const Page = async ({ params, searchParams }: Props) => {
                     />
                 </Suspense>
             </ErrorBoundary>
+            {/* Pop-up ChatBox from Extreme Right Screen */}
+            <DeskChatBox
+                dashid={dashId}
+                deskName={`${tabName} · Desk`}
+                userEmail={userEmail || ""}
+                currentUser={
+                    session?.user
+                        ? {
+                            id: session.user.id,
+                            name: session.user.name || session.user.email?.split("@")[0] || "User",
+                            email: session.user.email || "",
+                            image: session.user.image,
+                        }
+                        : null
+                }
+            />
         </div>
     );
 };

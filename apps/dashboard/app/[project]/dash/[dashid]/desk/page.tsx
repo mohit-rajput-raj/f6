@@ -14,13 +14,16 @@ import { useSession } from "@/lib/auth-client";
 import { useDeskStore, type DeskBlockState } from "@/stores/desk-store";
 import { useQuery } from "@tanstack/react-query";
 import { scanTableImage } from "./ocr-actions";
-import { getSharedDeskAccess } from "./desk-share-actions";
+import { getSharedDeskAccess, getWorkflowOwner } from "./desk-share-actions";
+import { DeskOwnerHeader } from "./_components/DeskOwnerHeader";
+import { DeskChatBox } from "./_components/DeskChatBox";
 import {
   createDeskBlock,
   initializeDefaultDesk,
   updateDeskBlockInputs,
   updateDeskBlockOutput,
   deleteDeskBlock,
+  deleteDeskBigBlock,
   getActiveDeskRuns,
   pushFileToBlockHistory,
   updatePushedFileStatus,
@@ -82,6 +85,16 @@ export default function DeskPage() {
 
   const router = useRouter();
   const pathname = usePathname();
+
+  // ─── Load workflow / desk owner details ────────────────────
+  const { data: ownerData, refetch: refetchOwner, isLoading: isOwnerLoading } = useQuery({
+    queryKey: ["desk-owner", dashid],
+    queryFn: async () => {
+      if (!dashid) return null;
+      return await getWorkflowOwner(dashid);
+    },
+    enabled: !!dashid,
+  });
 
   // ─── Load blocks from DB on mount (cached with TanStack Query) ─────
   const { data: _deskData, isLoading: isDeskQueryLoading } = useQuery({
@@ -826,8 +839,20 @@ export default function DeskPage() {
     try {
       const allBlocks = useDeskStore.getState().blocks;
       const targetBlock = allBlocks.find((b) => b.id === blockId);
-
       const userEmail = sessionData?.user?.email;
+
+      // If this block is actually a root BigBlock (no parentId)
+      if (targetBlock && !targetBlock.parentId) {
+        await deleteDeskBigBlock(blockId, userEmail, !isGuest);
+        const children = allBlocks.filter((b) => b.parentId === blockId);
+        for (const child of children) {
+          useDeskStore.getState().removeBlock(child.id);
+        }
+        useDeskStore.getState().removeBlock(blockId);
+        toast.success("BigBlock deleted");
+        return;
+      }
+
       await deleteDeskBlock(blockId, userEmail, !isGuest);
       useDeskStore.getState().removeBlock(blockId);
 
@@ -852,24 +877,29 @@ export default function DeskPage() {
   }, [sessionData?.user?.email, isGuest]);
 
   // ─── Delete a BigBlock and all its child tabs ──────────────
-  const handleDeleteBigBlock = useCallback(async (bigBlockId: string) => {
-    try {
-      const allBlocks = useDeskStore.getState().blocks;
-      const children = allBlocks.filter((b) => b.parentId === bigBlockId);
+  const handleDeleteBigBlock = useCallback(
+    async (bigBlockId: string) => {
+      try {
+        const userEmail = sessionData?.user?.email;
+        await deleteDeskBigBlock(bigBlockId, userEmail, !isGuest);
 
-      for (const child of children) {
-        await deleteDeskBlock(child.id);
-        useDeskStore.getState().removeBlock(child.id);
+        const allBlocks = useDeskStore.getState().blocks;
+        const children = allBlocks.filter((b) => b.parentId === bigBlockId);
+
+        for (const child of children) {
+          useDeskStore.getState().removeBlock(child.id);
+        }
+
+        useDeskStore.getState().removeBlock(bigBlockId);
+        toast.success("BigBlock deleted");
+      } catch (err: any) {
+        console.error("Failed to delete BigBlock:", err);
+        toast.error(err?.message || "Failed to delete BigBlock");
+        throw err;
       }
-
-      await deleteDeskBlock(bigBlockId);
-      useDeskStore.getState().removeBlock(bigBlockId);
-      toast.success("BigBlock deleted");
-    } catch (err: any) {
-      console.error("Failed to delete BigBlock:", err);
-      toast.error(err?.message || "Failed to delete BigBlock");
-    }
-  }, []);
+    },
+    [sessionData?.user?.email, isGuest]
+  );
 
   // Watch for triggered action buttons to auto-execute their block
   // Only checks blocks with triggered buttons (avoids iterating all blocks every render)
@@ -931,44 +961,19 @@ export default function DeskPage() {
 
   return (
     <div className="h-full w-full flex flex-col bg-background">
-      {/* ─── Top Bar ─────────────────────────────────────── */}
-      <div className="flex items-center justify-between px-4 py-3 border-b bg-card shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="p-2 rounded-xl bg-gradient-to-br from-teal-500 to-cyan-600 text-white">
-            <Settings2 className="size-5" />
-          </div>
-          <div>
-            <h1 className="text-lg font-bold tracking-tight">Desk</h1>
-            <p className="text-xs text-muted-foreground">
-              Configure inputs, scan tables, preview outputs
-            </p>
-          </div>
-        </div>
-
-        {/* <div className="flex items-center gap-2">
-          <input
-            ref={ocrFileRef}
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={handleOcrUpload}
-          />
-          <Button
-            variant="outline"
-            onClick={() => ocrFileRef.current?.click()}
-            disabled={isOcrProcessing}
-            className="gap-1.5"
-          >
-            {isOcrProcessing ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : (
-              <Camera className="size-4" />
-            )}
-            {isOcrProcessing ? "Scanning..." : "Scan Table Image"}
-          </Button>
-
-
-        </div> */}
+      {/* ─── Owner Profile Header (Exact match to 2nd image) ─── */}
+      <div className="px-4 pt-3 pb-1 shrink-0">
+        <DeskOwnerHeader
+          dashid={dashid}
+          ownerData={ownerData ?? null}
+          currentUserId={userId}
+          currentUserEmail={userEmail}
+          isOwner={!isGuest}
+          isLoading={isOwnerLoading}
+          onRefresh={() => {
+            refetchOwner();
+          }}
+        />
       </div>
 
       {/* ─── OCR Result Banner ───────────────────────────── */}
@@ -1139,6 +1144,23 @@ export default function DeskPage() {
         {/* ─── Sheet Version History ──────────────────────── */}
         <MasterSheetHistoryPanel />
       </div>
+
+      {/* ─── Pop-up ChatBox from Extreme Right Screen ─────────── */}
+      <DeskChatBox
+        dashid={dashid}
+        deskName={ownerData?.workflowName || "Desk"}
+        userEmail={userEmail}
+        currentUser={
+          sessionData?.user
+            ? {
+                id: sessionData.user.id,
+                name: sessionData.user.name || sessionData.user.email?.split("@")[0] || "User",
+                email: sessionData.user.email || "",
+                image: sessionData.user.image,
+              }
+            : null
+        }
+      />
     </div>
   );
 }
