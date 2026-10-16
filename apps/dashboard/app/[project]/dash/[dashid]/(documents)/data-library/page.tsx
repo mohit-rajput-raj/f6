@@ -13,6 +13,7 @@ import {
   getDataLibraryFile,
   createDataLibraryFile,
   deleteDataLibraryFile,
+  updateDataLibraryFile,
 } from "./actions";
 import {
   Database,
@@ -34,10 +35,29 @@ import {
   FileText,
   Server,
   ScanText,
+  Pencil,
+  Sparkles,
+  Table2,
 } from "lucide-react";
+import {
+  normalizeDataset,
+  serializeDataset,
+  hasStoredSlideshow,
+  SlideshowSession,
+} from "./lib/dataset-helpers";
+import { AddDataModal } from "./components/add-data-modal";
+import { EntrySlideshowModal } from "./components/entry-slideshow-modal";
+import { DatasetEditorModal } from "./components/dataset-editor-modal";
+import { SyncfusionSheetModal } from "./components/syncfusion-sheet-modal";
 import { Button } from "@repo/ui/components/ui/button";
 import { Input } from "@repo/ui/components/ui/input";
 import { Badge } from "@repo/ui/components/ui/badge";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@repo/ui/components/ui/dropdown-menu";
 import {
   Dialog,
   DialogContent,
@@ -48,7 +68,7 @@ import {
 import { toast } from "sonner";
 import Papa, { type ParseResult } from "papaparse";
 import * as XLSX from "xlsx";
-import Spreadsheet from "react-spreadsheet";
+import { SpreadsheetPreviewModal } from "./components/spreadsheet-preview-modal";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { useUserSubscription } from "@/lib/use-user-subscription";
@@ -94,6 +114,29 @@ const DataLibrary = () => {
   const [uploading, setUploading] = useState(false);
   const [deletingFileId, setDeletingFileId] = useState<string | null>(null);
 
+  // Active file for Add / Edit / Slideshow modals
+  const [activeFile, setActiveFile] = useState<DataLibraryFileItem | null>(null);
+  const [activeColumns, setActiveColumns] = useState<string[]>([]);
+  const [activeRows, setActiveRows] = useState<any[][]>([]);
+  const [isOpeningModal, setIsOpeningModal] = useState<string | null>(null);
+
+  // Modal open states
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isSyncfusionModalOpen, setIsSyncfusionModalOpen] = useState(false);
+  const [isSlideshowOpen, setIsSlideshowOpen] = useState(false);
+  const [slideshowConfig, setSlideshowConfig] = useState<{
+    columnName: string;
+    inputType: "options" | "text" | "number";
+    optionsList: string[];
+    keyColIndex: number;
+    initialAnswers?: Record<number, string>;
+    initialIndex?: number;
+  } | null>(null);
+
+  // Track in-progress local sessions for badges
+  const [storedSessionMap, setStoredSessionMap] = useState<Record<string, boolean>>({});
+
   // Fetch files from DB for this desk (dashid)
   const fetchFiles = useCallback(async () => {
     if (!dashid && !userId) return;
@@ -109,9 +152,111 @@ const DataLibrary = () => {
     }
   }, [dashid, userId]);
 
+  const refreshStoredSessions = useCallback(() => {
+    if (typeof window === "undefined") return;
+    const map: Record<string, boolean> = {};
+    files.forEach((f) => {
+      if (hasStoredSlideshow(f.id)) {
+        map[f.id] = true;
+      }
+    });
+    setStoredSessionMap(map);
+  }, [files]);
+
   useEffect(() => {
     fetchFiles();
   }, [fetchFiles]);
+
+  useEffect(() => {
+    refreshStoredSessions();
+  }, [refreshStoredSessions]);
+
+  // Open Add Column/Row Wizard
+  const handleOpenAddModal = async (file: DataLibraryFileItem) => {
+    setIsOpeningModal(file.id);
+    try {
+      let raw = file.data;
+      if (!raw) {
+        const full = await getDataLibraryFile(file.id, userId);
+        raw = full?.data;
+      }
+      const { columns, rows } = normalizeDataset(raw);
+      setActiveFile(file);
+      setActiveColumns(columns);
+      setActiveRows(rows);
+      setIsAddModalOpen(true);
+    } catch (err) {
+      console.error("Failed to load file for Add wizard:", err);
+      toast.error("Could not load dataset details");
+    } finally {
+      setIsOpeningModal(null);
+    }
+  };
+
+  // Open Dataset Editor
+  const handleOpenEditModal = async (file: DataLibraryFileItem) => {
+    setIsOpeningModal(file.id);
+    try {
+      let raw = file.data;
+      if (!raw) {
+        const full = await getDataLibraryFile(file.id, userId);
+        raw = full?.data;
+      }
+      const { columns, rows } = normalizeDataset(raw);
+      setActiveFile(file);
+      setActiveColumns(columns);
+      setActiveRows(rows);
+      setIsEditModalOpen(true);
+    } catch (err) {
+      console.error("Failed to load file for editor:", err);
+      toast.error("Could not load dataset details");
+    } finally {
+      setIsOpeningModal(null);
+    }
+  };
+
+  // Add Row to dataset
+  const handleAddRowToFile = async (newRow: string[]) => {
+    if (!activeFile?.id || !userId) return;
+    try {
+      const updatedRows = [...activeRows, newRow];
+      const payload = serializeDataset(activeColumns, updatedRows);
+      await updateDataLibraryFile(activeFile.id, userId, {
+        data: payload,
+        metadata: {
+          ...(activeFile.metadata || {}),
+          rowCount: updatedRows.length,
+          colCount: activeColumns.length,
+        },
+      });
+      toast.success("Row added successfully!");
+      fetchFiles();
+    } catch (err) {
+      console.error("Failed to add row:", err);
+      toast.error("Failed to append row");
+      throw err;
+    }
+  };
+
+  // Start Rapid Entry Slideshow
+  const handleStartSlideshow = (config: {
+    columnName: string;
+    inputType: "options" | "text" | "number";
+    optionsList: string[];
+    keyColIndex: number;
+    resumeSession?: SlideshowSession;
+  }) => {
+    setSlideshowConfig({
+      columnName: config.columnName,
+      inputType: config.inputType,
+      optionsList: config.optionsList,
+      keyColIndex: config.keyColIndex,
+      initialAnswers: config.resumeSession?.answers || {},
+      initialIndex: config.resumeSession?.currentIndex || 0,
+    });
+    setIsAddModalOpen(false);
+    setIsSlideshowOpen(true);
+  };
 
   // Upload handler for CSV/XLSX
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -212,6 +357,43 @@ const DataLibrary = () => {
     }
 
     if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  // Save new dataset created via Syncfusion spreadsheet modal
+  const handleSaveFromSyncfusion = async ({
+    name,
+    columns,
+    data,
+  }: {
+    name: string;
+    columns: string[];
+    data: any[][];
+  }) => {
+    if (!userId) {
+      toast.error("Please sign in to save datasets");
+      return;
+    }
+    try {
+      await createDataLibraryFile({
+        userId,
+        name,
+        description: `Spreadsheet dataset with ${data.length} rows and ${columns.length} columns`,
+        fileType: "xlsx",
+        data: { columns, data },
+        metadata: {
+          rowCount: data.length,
+          colCount: columns.length,
+          originalSize: 0,
+          sheetNames: ["Sheet1"],
+        },
+        workflowId: dashid,
+      });
+      toast.success(`Dataset "${name}" saved to library!`);
+      await fetchFiles();
+    } catch (err) {
+      console.error("Save spreadsheet error:", err);
+      toast.error("Failed to save spreadsheet dataset");
+    }
   };
 
   // Delete file
@@ -481,18 +663,18 @@ const DataLibrary = () => {
   }
 
   return (
-    <div className="p-6 w-full mx-auto space-y-6">
+    <div className="p-3.5 sm:p-6 w-full mx-auto space-y-4 sm:space-y-6">
       {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 rounded-xl bg-gradient-to-br from-primary to-primary/80 text-primary-foreground shadow-sm shadow-primary/20">
-            <Server className="size-6" />
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+        <div className="flex items-center gap-2.5 sm:gap-3">
+          <div className="p-2 sm:p-2.5 rounded-lg sm:rounded-xl bg-gradient-to-br from-primary to-primary/80 text-primary-foreground shadow-sm shadow-primary/20 shrink-0">
+            <Server className="size-5 sm:size-6" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-foreground">
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
               Data Library
             </h1>
-            <p className="text-xs sm:text-sm text-muted-foreground">
+            <p className="text-[11px] sm:text-xs text-muted-foreground">
               {files.length} file{files.length !== 1 ? "s" : ""} stored • Manage
               and extract datasets
             </p>
@@ -548,26 +730,66 @@ const DataLibrary = () => {
             </Button>
           </Link>
 
-          {/* Upload File Button */}
-          <label>
-            <Button
-              disabled={uploading}
-              asChild
-              className="cursor-pointer bg-primary hover:bg-primary/90 text-primary-foreground shadow-xs font-medium"
-            >
-              <span>
-                <Upload className="size-4 mr-1.5" />
-                {uploading ? "Uploading..." : "Upload File"}
-              </span>
-            </Button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".csv,.xlsx,.xls"
-              onChange={handleUpload}
-              className="hidden"
-            />
-          </label>
+          {/* Upload File / Customize Spreadsheet Split Dropdown Button */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".csv,.xlsx,.xls"
+            onChange={handleUpload}
+            className="hidden"
+          />
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                disabled={uploading}
+                className="cursor-pointer bg-primary hover:bg-primary/90 text-primary-foreground shadow-xs font-medium gap-1.5"
+              >
+                {uploading ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <Upload className="size-4" />
+                )}
+                <span>{uploading ? "Uploading..." : "Upload File"}</span>
+                <ChevronDown className="size-3.5 opacity-80" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-72 p-1.5 shadow-xl">
+              <DropdownMenuItem
+                onClick={() => fileInputRef.current?.click()}
+                className="flex items-start gap-3 p-2.5 cursor-pointer rounded-lg hover:bg-muted/80 focus:bg-muted/80 transition-colors"
+              >
+                <div className="size-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0 mt-0.5">
+                  <Upload className="size-4.5" />
+                </div>
+                <div className="flex flex-col">
+                  <span className="font-semibold text-xs text-foreground">
+                    From Local Browser
+                  </span>
+                  <span className="text-[11px] text-muted-foreground mt-0.5">
+                    Select CSV, Excel (.xlsx, .xls) from your computer
+                  </span>
+                </div>
+              </DropdownMenuItem>
+
+              <DropdownMenuItem
+                onClick={() => setIsSyncfusionModalOpen(true)}
+                className="flex items-start gap-3 p-2.5 cursor-pointer rounded-lg hover:bg-muted/80 focus:bg-muted/80 transition-colors"
+              >
+                <div className="size-9 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 mt-0.5">
+                  <Table2 className="size-4.5" />
+                </div>
+                <div className="flex flex-col">
+                  <span className="font-semibold text-xs text-foreground">
+                    Customize in Spreadsheet
+                  </span>
+                  <span className="text-[11px] text-muted-foreground mt-0.5">
+                    Syncfusion grid with key autofill handle, formulas & live save
+                  </span>
+                </div>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
@@ -623,87 +845,140 @@ const DataLibrary = () => {
           {filteredFiles.map((file) => (
             <div
               key={file.id}
-              className="group relative rounded-xl border bg-card p-4 shadow-2xs hover:shadow-md transition-all hover:border-primary/40"
+              className="group relative rounded-xl border bg-card p-4 shadow-2xs hover:shadow-md transition-all hover:border-primary/40 flex flex-col justify-between"
             >
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center justify-center p-2 rounded-lg bg-primary/10 text-primary">
-                  <FileSpreadsheet className="size-5" />
-                </div>
-                <Badge
-                  variant="outline"
-                  className="text-[10px] font-medium uppercase px-2 py-0.5 border-border/60 text-muted-foreground"
-                >
-                  {file.fileType}
-                </Badge>
-              </div>
-
-              <h3
-                className="font-semibold text-sm truncate mb-1 text-foreground"
-                title={file.name}
-              >
-                {file.name}
-              </h3>
-              {file.description ? (
-                <p className="text-xs text-muted-foreground truncate mb-2">
-                  {file.description}
-                </p>
-              ) : (
-                <p className="text-xs text-muted-foreground/60 italic mb-2">
-                  No description
-                </p>
-              )}
-
-              <div className="flex items-center gap-2 text-xs text-muted-foreground mb-3">
-                {(file.metadata as any)?.rowCount !== undefined && (
-                  <span>{(file.metadata as any).rowCount} rows</span>
-                )}
-                {(file.metadata as any)?.rowCount !== undefined &&
-                  (file.metadata as any)?.colCount !== undefined && (
-                    <span>•</span>
-                  )}
-                {(file.metadata as any)?.colCount !== undefined && (
-                  <span>{(file.metadata as any).colCount} cols</span>
-                )}
-              </div>
-
-              <div className="flex items-center justify-between pt-2 border-t text-xs text-muted-foreground">
-                <span className="text-[11px]">
-                  {new Date(
-                    file.updatedAt || file.createdAt,
-                  ).toLocaleDateString()}
-                </span>
-                <div className="flex items-center gap-1">
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-7 w-7 p-0 cursor-pointer"
-                    onClick={() => handlePreview(file)}
-                    title="Preview spreadsheet"
-                  >
-                    <Eye className="size-3.5" />
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-7 w-7 p-0 cursor-pointer"
-                    onClick={() => handleDownload(file)}
-                    title="Download file"
-                  >
-                    <Download className="size-3.5" />
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive cursor-pointer"
-                    onClick={() => handleDelete(file.id, file.name)}
-                    disabled={deletingFileId === file.id}
-                    title="Delete file"
-                  >
-                    {deletingFileId === file.id ? (
-                      <Loader2 className="size-3.5 animate-spin" />
-                    ) : (
-                      <Trash2 className="size-3.5" />
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center justify-center p-2 rounded-lg bg-primary/10 text-primary">
+                    <FileSpreadsheet className="size-5" />
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    {storedSessionMap[file.id] && (
+                      <Badge
+                        variant="secondary"
+                        className="bg-emerald-500/10 text-emerald-500 border border-emerald-500/30 text-[9px] px-1.5 py-0 flex items-center gap-1 cursor-pointer hover:bg-emerald-500/20"
+                        onClick={() => handleOpenAddModal(file)}
+                        title="In-progress column entry saved in local storage. Click to resume."
+                      >
+                        <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                        <span>In-progress</span>
+                      </Badge>
                     )}
+                    <Badge
+                      variant="outline"
+                      className="text-[10px] font-medium uppercase px-2 py-0.5 border-border/60 text-muted-foreground"
+                    >
+                      {file.fileType}
+                    </Badge>
+                  </div>
+                </div>
+
+                <h3
+                  className="font-semibold text-sm truncate mb-1 text-foreground"
+                  title={file.name}
+                >
+                  {file.name}
+                </h3>
+                {file.description ? (
+                  <p className="text-xs text-muted-foreground truncate mb-2">
+                    {file.description}
+                  </p>
+                ) : (
+                  <p className="text-xs text-muted-foreground/60 italic mb-2">
+                    No description
+                  </p>
+                )}
+
+                <div className="flex items-center gap-2 text-xs text-muted-foreground mb-3">
+                  {(file.metadata as any)?.rowCount !== undefined && (
+                    <span>{(file.metadata as any).rowCount} rows</span>
+                  )}
+                  {(file.metadata as any)?.rowCount !== undefined &&
+                    (file.metadata as any)?.colCount !== undefined && (
+                      <span>•</span>
+                    )}
+                  {(file.metadata as any)?.colCount !== undefined && (
+                    <span>{(file.metadata as any).colCount} cols</span>
+                  )}
+                </div>
+              </div>
+
+              {/* Action Buttons: Add, Edit, Preview, Download, Delete */}
+              <div className="pt-2 border-t space-y-2">
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <span className="text-[11px]">
+                    {new Date(
+                      file.updatedAt || file.createdAt,
+                    ).toLocaleDateString()}
+                  </span>
+                  <div className="flex items-center gap-0.5">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-6 w-6 p-0 cursor-pointer text-muted-foreground hover:text-foreground"
+                      onClick={() => handlePreview(file)}
+                      title="Preview spreadsheet"
+                    >
+                      <Eye className="size-3.5" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-6 w-6 p-0 cursor-pointer text-muted-foreground hover:text-foreground"
+                      onClick={() => handleDownload(file)}
+                      title="Download file"
+                    >
+                      <Download className="size-3.5" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive cursor-pointer"
+                      onClick={() => handleDelete(file.id, file.name)}
+                      disabled={deletingFileId === file.id}
+                      title="Delete file"
+                    >
+                      {deletingFileId === file.id ? (
+                        <Loader2 className="size-3.5 animate-spin" />
+                      ) : (
+                        <Trash2 className="size-3.5" />
+                      )}
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Primary Add & Edit Buttons */}
+                <div className="grid grid-cols-2 gap-1.5">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs px-2 cursor-pointer gap-1 border-primary/30 hover:border-primary/60 hover:bg-primary/5 text-foreground font-medium shadow-2xs"
+                    onClick={() => handleOpenAddModal(file)}
+                    disabled={isOpeningModal === file.id}
+                    title="Add Column or Row"
+                  >
+                    {isOpeningModal === file.id ? (
+                      <Loader2 className="size-3 animate-spin text-primary" />
+                    ) : (
+                      <Plus className="size-3.5 text-primary" />
+                    )}
+                    <span>Add</span>
+                  </Button>
+
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs px-2 cursor-pointer gap-1 border-border/80 hover:bg-muted/50 text-foreground font-medium shadow-2xs"
+                    onClick={() => handleOpenEditModal(file)}
+                    disabled={isOpeningModal === file.id}
+                    title="Edit dataset cells and structure"
+                  >
+                    {isOpeningModal === file.id ? (
+                      <Loader2 className="size-3 animate-spin" />
+                    ) : (
+                      <Pencil className="size-3 text-muted-foreground" />
+                    )}
+                    <span>Edit</span>
                   </Button>
                 </div>
               </div>
@@ -711,9 +986,10 @@ const DataLibrary = () => {
           ))}
         </div>
       ) : viewMode === "list" ? (
-        /* List view */
+        /* List view with horizontal scroll on small screens */
         <div className="rounded-xl border bg-card overflow-hidden shadow-2xs">
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs sm:text-sm min-w-[560px]">
             <thead>
               <tr className="border-b bg-muted/40 text-xs text-muted-foreground">
                 <th className="text-left px-4 py-2.5 font-medium">Name</th>
@@ -755,7 +1031,33 @@ const DataLibrary = () => {
                     ).toLocaleDateString()}
                   </td>
                   <td className="px-4 py-2.5 text-right">
-                    <div className="flex items-center justify-end gap-1">
+                    <div className="flex items-center justify-end gap-1.5">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 px-2 text-xs cursor-pointer gap-1 border-primary/30 hover:bg-primary/5 text-foreground font-medium"
+                        onClick={() => handleOpenAddModal(file)}
+                        disabled={isOpeningModal === file.id}
+                        title="Add Column or Row"
+                      >
+                        {isOpeningModal === file.id ? (
+                          <Loader2 className="size-3 animate-spin text-primary" />
+                        ) : (
+                          <Plus className="size-3 text-primary" />
+                        )}
+                        <span>Add</span>
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 px-2 text-xs cursor-pointer gap-1 border-border/80 hover:bg-muted/50 text-foreground font-medium"
+                        onClick={() => handleOpenEditModal(file)}
+                        disabled={isOpeningModal === file.id}
+                        title="Edit dataset"
+                      >
+                        <Pencil className="size-3 text-muted-foreground" />
+                        <span>Edit</span>
+                      </Button>
                       <Button
                         size="sm"
                         variant="ghost"
@@ -794,6 +1096,7 @@ const DataLibrary = () => {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       ) : (
         /* Windows Explorer-style Timeline View */
@@ -855,14 +1158,15 @@ const DataLibrary = () => {
                       return (
                         <div
                           key={file.id}
-                          className="relative flex items-center justify-between p-3 rounded-xl border bg-card hover:bg-muted/15 hover:border-primary/40 shadow-2xs transition-all group"
+                          className="relative flex flex-col justify-between p-3.5 rounded-xl border bg-card hover:bg-muted/15 hover:border-primary/40 shadow-2xs transition-all gap-3 group"
                         >
-                          <div className="flex items-center gap-3 min-w-0 flex-1 mr-2">
-                            <div className="size-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
-                              <FileSpreadsheet className="size-5" />
+                          {/* Top Info Section: Icon, Name, Badge, Date & Time */}
+                          <div className="flex items-start gap-3 min-w-0">
+                            <div className="size-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0 mt-0.5">
+                              <FileSpreadsheet className="size-4.5" />
                             </div>
                             <div className="min-w-0 flex-1">
-                              <div className="flex items-center gap-1.5">
+                              <div className="flex items-center gap-1.5 justify-between">
                                 <h4
                                   className="font-semibold text-xs text-foreground truncate"
                                   title={file.name}
@@ -871,12 +1175,12 @@ const DataLibrary = () => {
                                 </h4>
                                 <Badge
                                   variant="outline"
-                                  className="text-[9px] uppercase px-1 py-0 shrink-0"
+                                  className="text-[9px] uppercase px-1 py-0 shrink-0 font-medium"
                                 >
                                   {file.fileType}
                                 </Badge>
                               </div>
-                              <div className="flex items-center gap-2 text-[11px] text-muted-foreground mt-0.5">
+                              <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground mt-1">
                                 <span>{fileDateStr}</span>
                                 <span>•</span>
                                 <span>{fileTime}</span>
@@ -884,40 +1188,75 @@ const DataLibrary = () => {
                             </div>
                           </div>
 
-                          {/* Action icons */}
-                          <div className="flex items-center gap-0.5 opacity-80 group-hover:opacity-100 transition-opacity">
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-7 w-7 p-0 cursor-pointer"
-                              onClick={() => handlePreview(file)}
-                              title="Preview spreadsheet"
-                            >
-                              <Eye className="size-3.5" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-7 w-7 p-0 cursor-pointer"
-                              onClick={() => handleDownload(file)}
-                              title="Download"
-                            >
-                              <Download className="size-3.5" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive cursor-pointer"
-                              onClick={() => handleDelete(file.id, file.name)}
-                              disabled={deletingFileId === file.id}
-                              title="Delete"
-                            >
-                              {deletingFileId === file.id ? (
-                                <Loader2 className="size-3.5 animate-spin" />
-                              ) : (
-                                <Trash2 className="size-3.5" />
-                              )}
-                            </Button>
+                          {/* Bottom Action Row: Add & Edit on left, Preview, Download, Delete on right */}
+                          <div className="pt-2 border-t flex items-center justify-between gap-1">
+                            <div className="flex items-center gap-1.5">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 px-2.5 text-xs cursor-pointer gap-1 border-primary/30 hover:border-primary/60 hover:bg-primary/5 text-foreground font-medium shadow-2xs"
+                                onClick={() => handleOpenAddModal(file)}
+                                disabled={isOpeningModal === file.id}
+                                title="Add Column or Row"
+                              >
+                                {isOpeningModal === file.id ? (
+                                  <Loader2 className="size-3 animate-spin text-primary" />
+                                ) : (
+                                  <Plus className="size-3 text-primary" />
+                                )}
+                                <span>Add</span>
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 px-2.5 text-xs cursor-pointer gap-1 border-border/80 hover:bg-muted/50 text-foreground font-medium shadow-2xs"
+                                onClick={() => handleOpenEditModal(file)}
+                                disabled={isOpeningModal === file.id}
+                                title="Edit dataset"
+                              >
+                                {isOpeningModal === file.id ? (
+                                  <Loader2 className="size-3 animate-spin" />
+                                ) : (
+                                  <Pencil className="size-3 text-muted-foreground" />
+                                )}
+                                <span>Edit</span>
+                              </Button>
+                            </div>
+
+                            <div className="flex items-center gap-0.5">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 w-7 p-0 cursor-pointer text-muted-foreground hover:text-foreground"
+                                onClick={() => handlePreview(file)}
+                                title="Preview spreadsheet"
+                              >
+                                <Eye className="size-3.5" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 w-7 p-0 cursor-pointer text-muted-foreground hover:text-foreground"
+                                onClick={() => handleDownload(file)}
+                                title="Download"
+                              >
+                                <Download className="size-3.5" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive cursor-pointer"
+                                onClick={() => handleDelete(file.id, file.name)}
+                                disabled={deletingFileId === file.id}
+                                title="Delete"
+                              >
+                                {deletingFileId === file.id ? (
+                                  <Loader2 className="size-3.5 animate-spin" />
+                                ) : (
+                                  <Trash2 className="size-3.5" />
+                                )}
+                              </Button>
+                            </div>
                           </div>
                         </div>
                       );
@@ -930,52 +1269,87 @@ const DataLibrary = () => {
         </div>
       )}
 
-      {/* Spreadsheet Preview Dialog */}
-      <Dialog
-        open={previewFile !== null}
-        onOpenChange={(open) => {
-          if (!open) {
-            setPreviewFile(null);
-            setPreviewData(null);
+      {/* Spreadsheet Preview Modal */}
+      <SpreadsheetPreviewModal
+        isOpen={previewFile !== null}
+        onClose={() => {
+          setPreviewFile(null);
+          setPreviewData(null);
+        }}
+        fileName={files.find((f) => f.id === previewFile)?.name || "File Preview"}
+        fileType={files.find((f) => f.id === previewFile)?.fileType || "csv"}
+        columns={previewData?.columns || []}
+        data={previewData?.data || []}
+        isLoading={previewLoading}
+        onOpenEdit={() => {
+          const target = files.find((f) => f.id === previewFile);
+          if (target) {
+            handleOpenEditModal(target);
           }
         }}
-      >
-        <DialogContent className="min-w-[90%] w-[90%] max-w-[90%] h-screen flex flex-col p-6 space-y-4">
-          <DialogHeader className="flex flex-row items-center justify-between pb-2 border-b">
-            <div>
-              <DialogTitle className="text-lg font-bold flex items-center gap-2">
-                <FileSpreadsheet className="size-5 text-primary" />
-                {files.find((f) => f.id === previewFile)?.name ||
-                  "File Preview"}
-              </DialogTitle>
-              <DialogDescription className="text-xs text-muted-foreground mt-1">
-                {previewData
-                  ? `${previewData.columns.length} columns • ${previewData.data.length} rows preview`
-                  : "Loading preview..."}
-              </DialogDescription>
-            </div>
-          </DialogHeader>
+      />
 
-          {previewLoading ? (
-            <div className="flex flex-col items-center justify-center py-16 space-y-3">
-              <Loader2 className="size-8 animate-spin text-primary" />
-              <p className="text-sm text-muted-foreground">
-                Loading preview data...
-              </p>
-            </div>
-          ) : previewData ? (
-            <div className="flex-1 overflow-auto border rounded-lg w-full">
-              <Spreadsheet
-                data={previewData.data.map((row) =>
-                  row.map((cell: any) => ({ value: String(cell ?? "") })),
-                )}
-                columnLabels={previewData.columns}
-                className="w-full h-full"
-              />
-            </div>
-          ) : null}
-        </DialogContent>
-      </Dialog>
+      {/* Add Column / Row Wizard Modal */}
+      <AddDataModal
+        isOpen={isAddModalOpen}
+        onClose={() => setIsAddModalOpen(false)}
+        file={activeFile}
+        columns={activeColumns}
+        rows={activeRows}
+        onAddRow={handleAddRowToFile}
+        onStartSlideshow={handleStartSlideshow}
+      />
+
+      {/* Rapid Entry Slideshow Overlay Modal */}
+      {slideshowConfig && activeFile && (
+        <EntrySlideshowModal
+          isOpen={isSlideshowOpen}
+          onClose={() => {
+            setIsSlideshowOpen(false);
+            refreshStoredSessions();
+          }}
+          file={activeFile}
+          columns={activeColumns}
+          rows={activeRows}
+          columnName={slideshowConfig.columnName}
+          inputType={slideshowConfig.inputType}
+          optionsList={slideshowConfig.optionsList}
+          keyColIndex={slideshowConfig.keyColIndex}
+          initialAnswers={slideshowConfig.initialAnswers}
+          initialIndex={slideshowConfig.initialIndex}
+          userId={userId}
+          onCompleted={() => {
+            fetchFiles();
+            refreshStoredSessions();
+            setIsSlideshowOpen(false);
+            setSlideshowConfig(null);
+          }}
+        />
+      )}
+
+      {/* Dataset Cell & Structure Editor Modal */}
+      <DatasetEditorModal
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        file={activeFile}
+        initialColumns={activeColumns}
+        initialRows={activeRows}
+        userId={userId}
+        dashid={dashid}
+        onSaved={fetchFiles}
+        onOpenAddWizard={() => {
+          if (activeFile) {
+            handleOpenAddModal(activeFile);
+          }
+        }}
+      />
+
+      {/* Syncfusion Spreadsheet Customization & Creation Modal */}
+      <SyncfusionSheetModal
+        isOpen={isSyncfusionModalOpen}
+        onClose={() => setIsSyncfusionModalOpen(false)}
+        onSave={handleSaveFromSyncfusion}
+      />
     </div>
   );
 };
