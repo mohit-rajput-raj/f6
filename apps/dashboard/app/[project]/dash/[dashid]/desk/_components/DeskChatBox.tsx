@@ -126,20 +126,20 @@ export function DeskChatBox({
     },
   });
 
-function getInitials(name?: string | null, email?: string | null): string {
-  if (name && name.trim()) {
-    const parts = name.trim().split(/\s+/).filter(Boolean);
-    if (parts.length >= 2) {
-      return (parts[0][0] + parts[1][0]).toUpperCase();
+  function getInitials(name?: string | null, email?: string | null): string {
+    if (name && name.trim()) {
+      const parts = name.trim().split(/\s+/).filter(Boolean);
+      if (parts.length >= 2) {
+        return (parts[0][0] + parts[1][0]).toUpperCase();
+      }
+      return parts[0].slice(0, 2).toUpperCase();
     }
-    return parts[0].slice(0, 2).toUpperCase();
+    if (email && email.trim()) {
+      const username = email.split("@")[0];
+      return username.slice(0, 2).toUpperCase();
+    }
+    return "U";
   }
-  if (email && email.trim()) {
-    const username = email.split("@")[0];
-    return username.slice(0, 2).toUpperCase();
-  }
-  return "U";
-}
 
   // ─── Fetch Persisted Messages & Check Membership ──────────
   useEffect(() => {
@@ -190,34 +190,34 @@ function getInitials(name?: string | null, email?: string | null): string {
   }, [teamMessages, aiMessages, activeTab, isOpen]);
 
   // ─── Extreme Right Screen Mouse Listener ───────────────────
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      const threshold = 14;
-      const isExtremeRight = e.clientX >= window.innerWidth - threshold;
+  // useEffect(() => {
+  //   const handleMouseMove = (e: MouseEvent) => {
+  //     const threshold = 14;
+  //     const isExtremeRight = e.clientX >= window.innerWidth - threshold;
 
-      if (isExtremeRight) {
-        if (closeTimeoutRef.current) {
-          clearTimeout(closeTimeoutRef.current);
-          closeTimeoutRef.current = null;
-        }
-        setIsOpen(true);
-      }
-    };
+  //     if (isExtremeRight) {
+  //       if (closeTimeoutRef.current) {
+  //         clearTimeout(closeTimeoutRef.current);
+  //         closeTimeoutRef.current = null;
+  //       }
+  //       setIsOpen(true);
+  //     }
+  //   };
 
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && isOpen && !isPinned) {
-        setIsOpen(false);
-      }
-    };
+  //   const handleKeyDown = (e: KeyboardEvent) => {
+  //     if (e.key === "Escape" && isOpen && !isPinned) {
+  //       setIsOpen(false);
+  //     }
+  //   };
 
-    window.addEventListener("mousemove", handleMouseMove);
-    window.addEventListener("keydown", handleKeyDown);
-    return () => {
-      window.removeEventListener("mousemove", handleMouseMove);
-      window.removeEventListener("keydown", handleKeyDown);
-      if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current);
-    };
-  }, [isOpen, isPinned]);
+  //   window.addEventListener("mousemove", handleMouseMove);
+  //   window.addEventListener("keydown", handleKeyDown);
+  //   return () => {
+  //     window.removeEventListener("mousemove", handleMouseMove);
+  //     window.removeEventListener("keydown", handleKeyDown);
+  //     if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current);
+  //   };
+  // }, [isOpen, isPinned]);
 
   // ─── Mouse Enter / Leave Handlers ─────────────────────────
   const handleChatMouseEnter = () => {
@@ -258,7 +258,8 @@ function getInitials(name?: string | null, email?: string | null): string {
       id: tempId,
       projectWorkflowId: dashid,
       userId: currentUser?.id || "user",
-      userName: currentUser?.name || (userEmail ? userEmail.split("@")[0] : "Member"),
+      userName:
+        currentUser?.name || (userEmail ? userEmail.split("@")[0] : "Member"),
       userEmail: userEmail,
       userImage: safeImage,
       text,
@@ -275,13 +276,13 @@ function getInitials(name?: string | null, email?: string | null): string {
         currentUser?.name || (userEmail ? userEmail.split("@")[0] : "Member"),
         currentUser?.id || "anon",
         safeImage,
-        text
+        text,
       );
 
       if (res.success && res.message) {
         // Replace optimistic message with DB persisted message
         setTeamMessages((prev) =>
-          prev.map((m) => (m.id === tempId ? res.message : m))
+          prev.map((m) => (m.id === tempId ? res.message : m)),
         );
         // Broadcast to other collaborators in real-time
         broadcastMessage(res.message);
@@ -321,7 +322,11 @@ function getInitials(name?: string | null, email?: string | null): string {
       return;
     }
 
-    if (!window.confirm("Are you sure you want to clear all messages in this desk chat?")) {
+    if (
+      !window.confirm(
+        "Are you sure you want to clear all messages in this desk chat?",
+      )
+    ) {
       return;
     }
 
@@ -394,14 +399,14 @@ function getInitials(name?: string | null, email?: string | null): string {
   return (
     <>
       {/* ─── Extreme Right Edge Sensor Strip ─────────────────── */}
-      <div
+      {/* <div
         onMouseEnter={() => {
           if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current);
           setIsOpen(true);
         }}
         className="fixed top-0 right-0 w-3.5 h-full z-40 cursor-pointer pointer-events-auto hover:bg-primary/20 transition-colors"
         title="Move cursor here or click to open Desk Chat"
-      />
+      /> */}
 
       {/* ─── Edge Peek Handle (visual hint when closed) ───────── */}
       {!isOpen && (
@@ -432,7 +437,7 @@ function getInitials(name?: string | null, email?: string | null): string {
       {/* ─── Sliding Chat Box Container ───────────────────────── */}
       <div
         onMouseEnter={handleChatMouseEnter}
-        onMouseLeave={handleChatMouseLeave}
+        // onMouseLeave={handleChatMouseLeave}
         className={`fixed top-0 right-0 h-full w-[380px] sm:w-[420px] max-w-[95vw] z-50 bg-card text-card-foreground border-l border-border shadow-2xl backdrop-blur-2xl flex flex-col transition-transform duration-300 ease-out ${
           isOpen ? "translate-x-0" : "translate-x-full pointer-events-none"
         }`}
@@ -448,7 +453,11 @@ function getInitials(name?: string | null, email?: string | null): string {
                 className={`absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full border-2 border-card ${
                   isConnected ? "bg-emerald-500" : "bg-amber-500"
                 }`}
-                title={isConnected ? "Realtime Live Connected" : "Connecting to Supabase Realtime..."}
+                title={
+                  isConnected
+                    ? "Realtime Live Connected"
+                    : "Connecting to Supabase Realtime..."
+                }
               />
             </div>
 
@@ -512,16 +521,18 @@ function getInitials(name?: string | null, email?: string | null): string {
             )}
 
             {/* Clear chat button for owner */}
-            {memberRole === "owner" && teamMessages.length > 0 && activeTab === "team" && (
-              <button
-                type="button"
-                onClick={handleClearChat}
-                className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-                title="Clear all messages in desk"
-              >
-                <Trash2 className="size-3.5" />
-              </button>
-            )}
+            {memberRole === "owner" &&
+              teamMessages.length > 0 &&
+              activeTab === "team" && (
+                <button
+                  type="button"
+                  onClick={handleClearChat}
+                  className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                  title="Clear all messages in desk"
+                >
+                  <Trash2 className="size-3.5" />
+                </button>
+              )}
 
             {/* Pin toggle */}
             <button
@@ -532,9 +543,15 @@ function getInitials(name?: string | null, email?: string | null): string {
                   ? "bg-primary/20 text-primary border border-primary/40"
                   : "text-muted-foreground hover:text-foreground hover:bg-muted"
               }`}
-              title={isPinned ? "Pinned open (click to unpin)" : "Pin chat open"}
+              title={
+                isPinned ? "Pinned open (click to unpin)" : "Pin chat open"
+              }
             >
-              {isPinned ? <PinOff className="size-4" /> : <Pin className="size-4" />}
+              {isPinned ? (
+                <PinOff className="size-4" />
+              ) : (
+                <Pin className="size-4" />
+              )}
             </button>
 
             {/* Close button */}
@@ -612,7 +629,10 @@ function getInitials(name?: string | null, email?: string | null): string {
                   </p>
                   <div className="mt-4 p-3 rounded-xl bg-muted/50 border border-border text-[11px] text-muted-foreground max-w-xs flex items-center gap-2 text-left">
                     <ShieldCheck className="size-4 shrink-0 text-primary" />
-                    <span>Ask the workspace owner to invite your email to gain access.</span>
+                    <span>
+                      Ask the workspace owner to invite your email to gain
+                      access.
+                    </span>
                   </div>
                 </div>
               ) : teamMessages.length === 0 ? (
@@ -624,7 +644,8 @@ function getInitials(name?: string | null, email?: string | null): string {
                     No messages yet
                   </p>
                   <p className="text-[11px] text-muted-foreground max-w-[240px]">
-                    Send the first message to start collaborating with members of this desk.
+                    Send the first message to start collaborating with members
+                    of this desk.
                   </p>
                 </div>
               ) : (
@@ -660,11 +681,14 @@ function getInitials(name?: string | null, email?: string | null): string {
                               alt={msg.userName}
                               className="size-full object-cover"
                               onError={(e) => {
-                                (e.currentTarget as HTMLElement).style.display = "none";
+                                (e.currentTarget as HTMLElement).style.display =
+                                  "none";
                               }}
                             />
                           ) : (
-                            <span>{getInitials(msg.userName, msg.userEmail)}</span>
+                            <span>
+                              {getInitials(msg.userName, msg.userEmail)}
+                            </span>
                           )}
                         </div>
 
@@ -682,7 +706,9 @@ function getInitials(name?: string | null, email?: string | null): string {
                                 : "bg-muted border border-border text-foreground rounded-tl-sm"
                             }`}
                           >
-                            <p className="whitespace-pre-wrap break-words">{msg.text}</p>
+                            <p className="whitespace-pre-wrap break-words">
+                              {msg.text}
+                            </p>
                           </div>
 
                           {/* Delete Action button on hover */}
@@ -716,9 +742,7 @@ function getInitials(name?: string | null, email?: string | null): string {
               {typingUsers.length > 0 && (
                 <div className="flex items-center gap-2 pl-2 text-[11px] text-muted-foreground animate-in fade-in">
                   <div className="size-2 rounded-full bg-primary animate-ping" />
-                  <span>
-                    {typingUsers[0].split("@")[0]} is typing...
-                  </span>
+                  <span>{typingUsers[0].split("@")[0]} is typing...</span>
                 </div>
               )}
             </>
