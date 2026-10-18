@@ -802,7 +802,7 @@ export default function NestedFilesPage() {
                       {/* Top Action Menu */}
                       <div
                         onClick={(e) => e.stopPropagation()}
-                        className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition"
+                        className="absolute right-2 top-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition"
                       >
                         <button
                           onClick={() => setDeleteFolderTarget(folder)}

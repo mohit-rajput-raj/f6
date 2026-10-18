@@ -1214,7 +1214,7 @@ export const OcrTableExtractor: React.FC<OcrTableExtractorProps> = ({
                               <button
                                 type="button"
                                 onClick={() => removeReplacementRule(idx)}
-                                className="text-muted-foreground/40 hover:text-destructive transition cursor-pointer ml-0.5 opacity-0 group-hover:opacity-100"
+                                className="text-muted-foreground/40 hover:text-destructive transition cursor-pointer ml-0.5 opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
                                 title="Remove rule"
                               >
                                 <X className="size-3" />

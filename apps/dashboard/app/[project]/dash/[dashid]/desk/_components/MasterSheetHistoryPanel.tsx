@@ -338,7 +338,7 @@ export function MasterSheetHistoryPanel() {
                         {/* Preview Overlay Button */}
                         <button
                           onClick={() => setPreviewingSnapshot(snap)}
-                          className="px-2 py-1.5 rounded-md text-[11px] font-semibold flex items-center gap-1 transition-all border border-zinc-800 bg-zinc-900 hover:bg-violet-600/15 text-zinc-400 hover:text-violet-300 hover:border-violet-500/30 cursor-pointer shadow-sm opacity-0 group-hover:opacity-100"
+                          className="px-2 py-1.5 rounded-md text-[11px] font-semibold flex items-center gap-1 transition-all border border-zinc-800 bg-zinc-900 hover:bg-violet-600/15 text-zinc-400 hover:text-violet-300 hover:border-violet-500/30 cursor-pointer shadow-sm opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
                           title="Preview snapshot in spreadsheet overlay"
                         >
                           <Eye className="size-3 text-zinc-400" />
@@ -356,7 +356,7 @@ export function MasterSheetHistoryPanel() {
                                 ? "bg-emerald-600/20 text-emerald-400 border-emerald-500/30"
                                 : isRestoring
                                 ? "bg-zinc-800 text-zinc-400 border-zinc-700"
-                                : "bg-zinc-900 hover:bg-violet-600/15 text-zinc-400 hover:text-violet-300 border-zinc-800 hover:border-violet-500/30 opacity-0 group-hover:opacity-100"
+                                : "bg-zinc-900 hover:bg-violet-600/15 text-zinc-400 hover:text-violet-300 border-zinc-800 hover:border-violet-500/30 opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
                             } disabled:cursor-not-allowed`}
                           >
                             {isRestored ? (

@@ -357,11 +357,11 @@ export default function Home() {
             </p>
 
             {/* Showcase View Tabs */}
-            <div className="inline-flex p-1 rounded-xl bg-zinc-900 border border-zinc-800 text-xs font-mono">
+            <div className="inline-flex max-w-full overflow-x-auto no-scrollbar p-1 rounded-xl bg-zinc-900 border border-zinc-800 text-xs font-mono">
               <button
                 type="button"
                 onClick={() => setActiveShowcaseTab("dag")}
-                className={`px-3.5 py-1.5 rounded-lg transition-all cursor-pointer ${
+                className={`px-3.5 py-1.5 rounded-lg transition-all cursor-pointer shrink-0 whitespace-nowrap ${
                   activeShowcaseTab === "dag"
                     ? "bg-zinc-800 text-white font-semibold shadow-xs"
                     : "text-zinc-400 hover:text-zinc-200"
@@ -372,7 +372,7 @@ export default function Home() {
               <button
                 type="button"
                 onClick={() => setActiveShowcaseTab("attendance")}
-                className={`px-3.5 py-1.5 rounded-lg transition-all cursor-pointer ${
+                className={`px-3.5 py-1.5 rounded-lg transition-all cursor-pointer shrink-0 whitespace-nowrap ${
                   activeShowcaseTab === "attendance"
                     ? "bg-zinc-800 text-white font-semibold shadow-xs"
                     : "text-zinc-400 hover:text-zinc-200"
@@ -383,7 +383,7 @@ export default function Home() {
               <button
                 type="button"
                 onClick={() => setActiveShowcaseTab("payroll")}
-                className={`px-3.5 py-1.5 rounded-lg transition-all cursor-pointer ${
+                className={`px-3.5 py-1.5 rounded-lg transition-all cursor-pointer shrink-0 whitespace-nowrap ${
                   activeShowcaseTab === "payroll"
                     ? "bg-zinc-800 text-white font-semibold shadow-xs"
                     : "text-zinc-400 hover:text-zinc-200"
@@ -394,7 +394,7 @@ export default function Home() {
               <button
                 type="button"
                 onClick={() => setActiveShowcaseTab("video")}
-                className={`px-3.5 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+                className={`px-3.5 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 shrink-0 whitespace-nowrap ${
                   activeShowcaseTab === "video"
                     ? "bg-zinc-800 text-white font-semibold shadow-xs"
                     : "text-zinc-400 hover:text-zinc-200"
