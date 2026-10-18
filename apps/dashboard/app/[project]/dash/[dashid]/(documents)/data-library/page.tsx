@@ -45,9 +45,6 @@ import {
   hasStoredSlideshow,
   SlideshowSession,
 } from "./lib/dataset-helpers";
-import { AddDataModal } from "./components/add-data-modal";
-import { EntrySlideshowModal } from "./components/entry-slideshow-modal";
-import { DatasetEditorModal } from "./components/dataset-editor-modal";
 import { SyncfusionSheetModal } from "./components/syncfusion-sheet-modal";
 import { Button } from "@repo/ui/components/ui/button";
 import { Input } from "@repo/ui/components/ui/input";
@@ -69,7 +66,7 @@ import { toast } from "sonner";
 import Papa, { type ParseResult } from "papaparse";
 import * as XLSX from "xlsx";
 import { SpreadsheetPreviewModal } from "./components/spreadsheet-preview-modal";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useUserSubscription } from "@/lib/use-user-subscription";
 
@@ -92,12 +89,17 @@ interface PreviewData {
 
 const DataLibrary = () => {
   const params = useParams();
+  const router = useRouter();
   const project = (params?.project as string) || "";
   const dashid = (params?.dashid as string) || "";
   const { data: session } = useSession();
   const userId = session?.user?.id;
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { hasOcrAccess, isLoading: isSubLoading } = useUserSubscription();
+
+  const openDatasetAdd = (fileId: string) => {
+    router.push(`/${project}/dash/${dashid}/data-library/${fileId}/add`);
+  };
 
   const [files, setFiles] = useState<DataLibraryFileItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -114,25 +116,8 @@ const DataLibrary = () => {
   const [uploading, setUploading] = useState(false);
   const [deletingFileId, setDeletingFileId] = useState<string | null>(null);
 
-  // Active file for Add / Edit / Slideshow modals
-  const [activeFile, setActiveFile] = useState<DataLibraryFileItem | null>(null);
-  const [activeColumns, setActiveColumns] = useState<string[]>([]);
-  const [activeRows, setActiveRows] = useState<any[][]>([]);
-  const [isOpeningModal, setIsOpeningModal] = useState<string | null>(null);
-
-  // Modal open states
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  // Syncfusion modal open state
   const [isSyncfusionModalOpen, setIsSyncfusionModalOpen] = useState(false);
-  const [isSlideshowOpen, setIsSlideshowOpen] = useState(false);
-  const [slideshowConfig, setSlideshowConfig] = useState<{
-    columnName: string;
-    inputType: "options" | "text" | "number";
-    optionsList: string[];
-    keyColIndex: number;
-    initialAnswers?: Record<number, string>;
-    initialIndex?: number;
-  } | null>(null);
 
   // Track in-progress local sessions for badges
   const [storedSessionMap, setStoredSessionMap] = useState<Record<string, boolean>>({});
@@ -170,93 +155,6 @@ const DataLibrary = () => {
   useEffect(() => {
     refreshStoredSessions();
   }, [refreshStoredSessions]);
-
-  // Open Add Column/Row Wizard
-  const handleOpenAddModal = async (file: DataLibraryFileItem) => {
-    setIsOpeningModal(file.id);
-    try {
-      let raw = file.data;
-      if (!raw) {
-        const full = await getDataLibraryFile(file.id, userId);
-        raw = full?.data;
-      }
-      const { columns, rows } = normalizeDataset(raw);
-      setActiveFile(file);
-      setActiveColumns(columns);
-      setActiveRows(rows);
-      setIsAddModalOpen(true);
-    } catch (err) {
-      console.error("Failed to load file for Add wizard:", err);
-      toast.error("Could not load dataset details");
-    } finally {
-      setIsOpeningModal(null);
-    }
-  };
-
-  // Open Dataset Editor
-  const handleOpenEditModal = async (file: DataLibraryFileItem) => {
-    setIsOpeningModal(file.id);
-    try {
-      let raw = file.data;
-      if (!raw) {
-        const full = await getDataLibraryFile(file.id, userId);
-        raw = full?.data;
-      }
-      const { columns, rows } = normalizeDataset(raw);
-      setActiveFile(file);
-      setActiveColumns(columns);
-      setActiveRows(rows);
-      setIsEditModalOpen(true);
-    } catch (err) {
-      console.error("Failed to load file for editor:", err);
-      toast.error("Could not load dataset details");
-    } finally {
-      setIsOpeningModal(null);
-    }
-  };
-
-  // Add Row to dataset
-  const handleAddRowToFile = async (newRow: string[]) => {
-    if (!activeFile?.id || !userId) return;
-    try {
-      const updatedRows = [...activeRows, newRow];
-      const payload = serializeDataset(activeColumns, updatedRows);
-      await updateDataLibraryFile(activeFile.id, userId, {
-        data: payload,
-        metadata: {
-          ...(activeFile.metadata || {}),
-          rowCount: updatedRows.length,
-          colCount: activeColumns.length,
-        },
-      });
-      toast.success("Row added successfully!");
-      fetchFiles();
-    } catch (err) {
-      console.error("Failed to add row:", err);
-      toast.error("Failed to append row");
-      throw err;
-    }
-  };
-
-  // Start Rapid Entry Slideshow
-  const handleStartSlideshow = (config: {
-    columnName: string;
-    inputType: "options" | "text" | "number";
-    optionsList: string[];
-    keyColIndex: number;
-    resumeSession?: SlideshowSession;
-  }) => {
-    setSlideshowConfig({
-      columnName: config.columnName,
-      inputType: config.inputType,
-      optionsList: config.optionsList,
-      keyColIndex: config.keyColIndex,
-      initialAnswers: config.resumeSession?.answers || {},
-      initialIndex: config.resumeSession?.currentIndex || 0,
-    });
-    setIsAddModalOpen(false);
-    setIsSlideshowOpen(true);
-  };
 
   // Upload handler for CSV/XLSX
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -845,11 +743,12 @@ const DataLibrary = () => {
           {filteredFiles.map((file) => (
             <div
               key={file.id}
-              className="group relative rounded-xl border bg-card p-4 shadow-2xs hover:shadow-md transition-all hover:border-primary/40 flex flex-col justify-between"
+              onClick={() => openDatasetAdd(file.id)}
+              className="group relative rounded-xl border border-zinc-200/80 dark:border-zinc-800/80 bg-card p-4 shadow-2xs hover:shadow-md transition-all hover:border-zinc-400 dark:hover:border-zinc-600 flex flex-col justify-between cursor-pointer"
             >
               <div>
                 <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center justify-center p-2 rounded-lg bg-primary/10 text-primary">
+                  <div className="flex items-center justify-center p-2 rounded-lg bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700/60 text-zinc-700 dark:text-zinc-300">
                     <FileSpreadsheet className="size-5" />
                   </div>
                   <div className="flex items-center gap-1.5">
@@ -857,7 +756,10 @@ const DataLibrary = () => {
                       <Badge
                         variant="secondary"
                         className="bg-emerald-500/10 text-emerald-500 border border-emerald-500/30 text-[9px] px-1.5 py-0 flex items-center gap-1 cursor-pointer hover:bg-emerald-500/20"
-                        onClick={() => handleOpenAddModal(file)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openDatasetAdd(file.id);
+                        }}
                         title="In-progress column entry saved in local storage. Click to resume."
                       >
                         <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
@@ -874,7 +776,7 @@ const DataLibrary = () => {
                 </div>
 
                 <h3
-                  className="font-semibold text-sm truncate mb-1 text-foreground"
+                  className="font-semibold text-sm truncate mb-1 text-foreground group-hover:text-primary transition-colors"
                   title={file.name}
                 >
                   {file.name}
@@ -903,82 +805,54 @@ const DataLibrary = () => {
                 </div>
               </div>
 
-              {/* Action Buttons: Add, Edit, Preview, Download, Delete */}
-              <div className="pt-2 border-t space-y-2">
-                <div className="flex items-center justify-between text-xs text-muted-foreground">
-                  <span className="text-[11px]">
-                    {new Date(
-                      file.updatedAt || file.createdAt,
-                    ).toLocaleDateString()}
-                  </span>
-                  <div className="flex items-center gap-0.5">
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-6 w-6 p-0 cursor-pointer text-muted-foreground hover:text-foreground"
-                      onClick={() => handlePreview(file)}
-                      title="Preview spreadsheet"
-                    >
-                      <Eye className="size-3.5" />
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-6 w-6 p-0 cursor-pointer text-muted-foreground hover:text-foreground"
-                      onClick={() => handleDownload(file)}
-                      title="Download file"
-                    >
-                      <Download className="size-3.5" />
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive cursor-pointer"
-                      onClick={() => handleDelete(file.id, file.name)}
-                      disabled={deletingFileId === file.id}
-                      title="Delete file"
-                    >
-                      {deletingFileId === file.id ? (
-                        <Loader2 className="size-3.5 animate-spin" />
-                      ) : (
-                        <Trash2 className="size-3.5" />
-                      )}
-                    </Button>
-                  </div>
-                </div>
-
-                {/* Primary Add & Edit Buttons */}
-                <div className="grid grid-cols-2 gap-1.5">
+              {/* Card Footer: Date, Open Indicator & Utility Icons */}
+              <div className="pt-2 border-t border-zinc-100 dark:border-zinc-800/80 flex items-center justify-between text-xs text-muted-foreground">
+                <span className="text-[11px]">
+                  {new Date(
+                    file.updatedAt || file.createdAt,
+                  ).toLocaleDateString()}
+                </span>
+                <div className="flex items-center gap-0.5">
                   <Button
                     size="sm"
-                    variant="outline"
-                    className="h-7 text-xs px-2 cursor-pointer gap-1 border-primary/30 hover:border-primary/60 hover:bg-primary/5 text-foreground font-medium shadow-2xs"
-                    onClick={() => handleOpenAddModal(file)}
-                    disabled={isOpeningModal === file.id}
-                    title="Add Column or Row"
+                    variant="ghost"
+                    className="h-6 w-6 p-0 cursor-pointer text-muted-foreground hover:text-foreground"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handlePreview(file);
+                    }}
+                    title="Preview spreadsheet"
                   >
-                    {isOpeningModal === file.id ? (
-                      <Loader2 className="size-3 animate-spin text-primary" />
-                    ) : (
-                      <Plus className="size-3.5 text-primary" />
-                    )}
-                    <span>Add</span>
+                    <Eye className="size-3.5" />
                   </Button>
-
                   <Button
                     size="sm"
-                    variant="outline"
-                    className="h-7 text-xs px-2 cursor-pointer gap-1 border-border/80 hover:bg-muted/50 text-foreground font-medium shadow-2xs"
-                    onClick={() => handleOpenEditModal(file)}
-                    disabled={isOpeningModal === file.id}
-                    title="Edit dataset cells and structure"
+                    variant="ghost"
+                    className="h-6 w-6 p-0 cursor-pointer text-muted-foreground hover:text-foreground"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDownload(file);
+                    }}
+                    title="Download file"
                   >
-                    {isOpeningModal === file.id ? (
-                      <Loader2 className="size-3 animate-spin" />
+                    <Download className="size-3.5" />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive cursor-pointer"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDelete(file.id, file.name);
+                    }}
+                    disabled={deletingFileId === file.id}
+                    title="Delete file"
+                  >
+                    {deletingFileId === file.id ? (
+                      <Loader2 className="size-3.5 animate-spin" />
                     ) : (
-                      <Pencil className="size-3 text-muted-foreground" />
+                      <Trash2 className="size-3.5" />
                     )}
-                    <span>Edit</span>
                   </Button>
                 </div>
               </div>
@@ -1003,13 +877,14 @@ const DataLibrary = () => {
               {filteredFiles.map((file) => (
                 <tr
                   key={file.id}
-                  className="border-b last:border-none hover:bg-muted/20 transition"
+                  onClick={() => openDatasetAdd(file.id)}
+                  className="border-b last:border-none hover:bg-muted/20 transition cursor-pointer group"
                 >
                   <td className="px-4 py-2.5">
                     <div className="flex items-center gap-2">
-                      <FileSpreadsheet className="size-4 text-primary shrink-0" />
+                      <FileSpreadsheet className="size-4 text-zinc-500 shrink-0" />
                       <span
-                        className="font-medium text-foreground truncate max-w-[260px]"
+                        className="font-medium text-foreground truncate max-w-[260px] group-hover:text-primary transition-colors"
                         title={file.name}
                       >
                         {file.name}
@@ -1031,38 +906,15 @@ const DataLibrary = () => {
                     ).toLocaleDateString()}
                   </td>
                   <td className="px-4 py-2.5 text-right">
-                    <div className="flex items-center justify-end gap-1.5">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 px-2 text-xs cursor-pointer gap-1 border-primary/30 hover:bg-primary/5 text-foreground font-medium"
-                        onClick={() => handleOpenAddModal(file)}
-                        disabled={isOpeningModal === file.id}
-                        title="Add Column or Row"
-                      >
-                        {isOpeningModal === file.id ? (
-                          <Loader2 className="size-3 animate-spin text-primary" />
-                        ) : (
-                          <Plus className="size-3 text-primary" />
-                        )}
-                        <span>Add</span>
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 px-2 text-xs cursor-pointer gap-1 border-border/80 hover:bg-muted/50 text-foreground font-medium"
-                        onClick={() => handleOpenEditModal(file)}
-                        disabled={isOpeningModal === file.id}
-                        title="Edit dataset"
-                      >
-                        <Pencil className="size-3 text-muted-foreground" />
-                        <span>Edit</span>
-                      </Button>
+                    <div className="flex items-center justify-end gap-1">
                       <Button
                         size="sm"
                         variant="ghost"
-                        className="h-7 w-7 p-0 cursor-pointer"
-                        onClick={() => handlePreview(file)}
+                        className="h-7 w-7 p-0 cursor-pointer text-muted-foreground hover:text-foreground"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handlePreview(file);
+                        }}
                         title="Preview"
                       >
                         <Eye className="size-3.5" />
@@ -1070,8 +922,11 @@ const DataLibrary = () => {
                       <Button
                         size="sm"
                         variant="ghost"
-                        className="h-7 w-7 p-0 cursor-pointer"
-                        onClick={() => handleDownload(file)}
+                        className="h-7 w-7 p-0 cursor-pointer text-muted-foreground hover:text-foreground"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDownload(file);
+                        }}
                         title="Download"
                       >
                         <Download className="size-3.5" />
@@ -1080,7 +935,10 @@ const DataLibrary = () => {
                         size="sm"
                         variant="ghost"
                         className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive cursor-pointer"
-                        onClick={() => handleDelete(file.id, file.name)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDelete(file.id, file.name);
+                        }}
                         disabled={deletingFileId === file.id}
                         title="Delete"
                       >
@@ -1158,17 +1016,18 @@ const DataLibrary = () => {
                       return (
                         <div
                           key={file.id}
-                          className="relative flex flex-col justify-between p-3.5 rounded-xl border bg-card hover:bg-muted/15 hover:border-primary/40 shadow-2xs transition-all gap-3 group"
+                          onClick={() => openDatasetAdd(file.id)}
+                          className="relative flex flex-col justify-between p-3.5 rounded-xl border border-zinc-200/80 dark:border-zinc-800/80 bg-card hover:bg-muted/15 hover:border-zinc-400 dark:hover:border-zinc-600 shadow-2xs transition-all gap-3 group cursor-pointer"
                         >
                           {/* Top Info Section: Icon, Name, Badge, Date & Time */}
                           <div className="flex items-start gap-3 min-w-0">
-                            <div className="size-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0 mt-0.5">
+                            <div className="size-9 rounded-lg bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700/60 text-zinc-700 dark:text-zinc-300 flex items-center justify-center shrink-0 mt-0.5">
                               <FileSpreadsheet className="size-4.5" />
                             </div>
                             <div className="min-w-0 flex-1">
                               <div className="flex items-center gap-1.5 justify-between">
                                 <h4
-                                  className="font-semibold text-xs text-foreground truncate"
+                                  className="font-semibold text-xs text-foreground truncate group-hover:text-primary transition-colors"
                                   title={file.name}
                                 >
                                   {file.name}
@@ -1188,47 +1047,21 @@ const DataLibrary = () => {
                             </div>
                           </div>
 
-                          {/* Bottom Action Row: Add & Edit on left, Preview, Download, Delete on right */}
-                          <div className="pt-2 border-t flex items-center justify-between gap-1">
-                            <div className="flex items-center gap-1.5">
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-7 px-2.5 text-xs cursor-pointer gap-1 border-primary/30 hover:border-primary/60 hover:bg-primary/5 text-foreground font-medium shadow-2xs"
-                                onClick={() => handleOpenAddModal(file)}
-                                disabled={isOpeningModal === file.id}
-                                title="Add Column or Row"
-                              >
-                                {isOpeningModal === file.id ? (
-                                  <Loader2 className="size-3 animate-spin text-primary" />
-                                ) : (
-                                  <Plus className="size-3 text-primary" />
-                                )}
-                                <span>Add</span>
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-7 px-2.5 text-xs cursor-pointer gap-1 border-border/80 hover:bg-muted/50 text-foreground font-medium shadow-2xs"
-                                onClick={() => handleOpenEditModal(file)}
-                                disabled={isOpeningModal === file.id}
-                                title="Edit dataset"
-                              >
-                                {isOpeningModal === file.id ? (
-                                  <Loader2 className="size-3 animate-spin" />
-                                ) : (
-                                  <Pencil className="size-3 text-muted-foreground" />
-                                )}
-                                <span>Edit</span>
-                              </Button>
-                            </div>
+                          {/* Bottom Action Row: Open hint and Preview, Download, Delete on right */}
+                          <div className="pt-2 border-t border-zinc-100 dark:border-zinc-800/80 flex items-center justify-between gap-1">
+                            <span className="text-[10px] text-zinc-400 font-medium group-hover:text-primary transition-colors">
+                              Open dataset →
+                            </span>
 
                             <div className="flex items-center gap-0.5">
                               <Button
                                 size="sm"
                                 variant="ghost"
                                 className="h-7 w-7 p-0 cursor-pointer text-muted-foreground hover:text-foreground"
-                                onClick={() => handlePreview(file)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handlePreview(file);
+                                }}
                                 title="Preview spreadsheet"
                               >
                                 <Eye className="size-3.5" />
@@ -1237,7 +1070,10 @@ const DataLibrary = () => {
                                 size="sm"
                                 variant="ghost"
                                 className="h-7 w-7 p-0 cursor-pointer text-muted-foreground hover:text-foreground"
-                                onClick={() => handleDownload(file)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDownload(file);
+                                }}
                                 title="Download"
                               >
                                 <Download className="size-3.5" />
@@ -1246,7 +1082,10 @@ const DataLibrary = () => {
                                 size="sm"
                                 variant="ghost"
                                 className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive cursor-pointer"
-                                onClick={() => handleDelete(file.id, file.name)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDelete(file.id, file.name);
+                                }}
                                 disabled={deletingFileId === file.id}
                                 title="Delete"
                               >
@@ -1280,66 +1119,12 @@ const DataLibrary = () => {
         fileType={files.find((f) => f.id === previewFile)?.fileType || "csv"}
         columns={previewData?.columns || []}
         data={previewData?.data || []}
+        columnTypes={(files.find((f) => f.id === previewFile)?.metadata as any)?.columnTypes}
         isLoading={previewLoading}
         onOpenEdit={() => {
           const target = files.find((f) => f.id === previewFile);
           if (target) {
-            handleOpenEditModal(target);
-          }
-        }}
-      />
-
-      {/* Add Column / Row Wizard Modal */}
-      <AddDataModal
-        isOpen={isAddModalOpen}
-        onClose={() => setIsAddModalOpen(false)}
-        file={activeFile}
-        columns={activeColumns}
-        rows={activeRows}
-        onAddRow={handleAddRowToFile}
-        onStartSlideshow={handleStartSlideshow}
-      />
-
-      {/* Rapid Entry Slideshow Overlay Modal */}
-      {slideshowConfig && activeFile && (
-        <EntrySlideshowModal
-          isOpen={isSlideshowOpen}
-          onClose={() => {
-            setIsSlideshowOpen(false);
-            refreshStoredSessions();
-          }}
-          file={activeFile}
-          columns={activeColumns}
-          rows={activeRows}
-          columnName={slideshowConfig.columnName}
-          inputType={slideshowConfig.inputType}
-          optionsList={slideshowConfig.optionsList}
-          keyColIndex={slideshowConfig.keyColIndex}
-          initialAnswers={slideshowConfig.initialAnswers}
-          initialIndex={slideshowConfig.initialIndex}
-          userId={userId}
-          onCompleted={() => {
-            fetchFiles();
-            refreshStoredSessions();
-            setIsSlideshowOpen(false);
-            setSlideshowConfig(null);
-          }}
-        />
-      )}
-
-      {/* Dataset Cell & Structure Editor Modal */}
-      <DatasetEditorModal
-        isOpen={isEditModalOpen}
-        onClose={() => setIsEditModalOpen(false)}
-        file={activeFile}
-        initialColumns={activeColumns}
-        initialRows={activeRows}
-        userId={userId}
-        dashid={dashid}
-        onSaved={fetchFiles}
-        onOpenAddWizard={() => {
-          if (activeFile) {
-            handleOpenAddModal(activeFile);
+            router.push(`/${project}/dash/${dashid}/data-library/${target.id}/edit`);
           }
         }}
       />

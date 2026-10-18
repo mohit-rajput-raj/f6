@@ -83,6 +83,12 @@ const TEMPLATES: Record<
     sampleKeys: ["STU-101", "STU-102", "STU-103", "STU-104", "STU-105"],
     description: "Classroom or employee attendance tracker",
   },
+  collegeAttendance: {
+    name: "Attendance Roster",
+    columns: ["Enrollment", "Name"],
+    sampleKeys: [],
+    description: "Classroom or employee attendance tracker",
+  },
   numbered: {
     name: "Numeric Key Sequence",
     columns: ["Key", "Title", "Type", "Priority", "Assigned_To"],
@@ -527,7 +533,11 @@ export function SyncfusionSheetModal({
             </DropdownMenu>
 
             {/* Quick Auto-fill Keys Popover */}
-            <Popover modal={false} open={isKeyGenOpen} onOpenChange={setIsKeyGenOpen}>
+            <Popover
+              modal={false}
+              open={isKeyGenOpen}
+              onOpenChange={setIsKeyGenOpen}
+            >
               <PopoverTrigger asChild>
                 <Button
                   size="sm"

@@ -32,6 +32,7 @@ import {
   getStoredSlideshow,
   clearStoredSlideshow,
   SlideshowSession,
+  type SlideshowInputType,
 } from "../lib/dataset-helpers";
 
 interface AddDataModalProps {
@@ -48,7 +49,7 @@ interface AddDataModalProps {
   onAddRow: (newRow: string[]) => Promise<void>;
   onStartSlideshow: (config: {
     columnName: string;
-    inputType: "options" | "text" | "number";
+    inputType: SlideshowInputType;
     optionsList: string[];
     keyColIndex: number;
     resumeSession?: SlideshowSession;
@@ -59,10 +60,30 @@ type AddMode = "select" | "column" | "row";
 type ColumnInputType = "options" | "text" | "number";
 
 const PRESET_OPTIONS = [
-  { id: "pa", label: "P / A", options: ["P", "A"], description: "Present / Absent" },
-  { id: "truefalse", label: "True / False", options: ["True", "False"], description: "Boolean" },
-  { id: "yesno", label: "Yes / No / Maybe", options: ["Yes", "No", "Maybe"], description: "Decisions" },
-  { id: "passfail", label: "Pass / Fail", options: ["Pass", "Fail"], description: "Evaluation" },
+  {
+    id: "pa",
+    label: "P / A",
+    options: ["P", "A"],
+    description: "Present / Absent",
+  },
+  {
+    id: "truefalse",
+    label: "True / False",
+    options: ["True", "False"],
+    description: "Boolean",
+  },
+  {
+    id: "yesno",
+    label: "Yes / No / Maybe",
+    options: ["Yes", "No", "Maybe"],
+    description: "Decisions",
+  },
+  {
+    id: "passfail",
+    label: "Pass / Fail",
+    options: ["Pass", "Fail"],
+    description: "Evaluation",
+  },
   { id: "custom", label: "Custom", options: [], description: "Custom values" },
 ];
 
@@ -76,13 +97,15 @@ export const AddDataModal: React.FC<AddDataModalProps> = ({
   onStartSlideshow,
 }) => {
   const [mode, setMode] = useState<AddMode>("select");
-  const [existingSession, setExistingSession] = useState<SlideshowSession | null>(null);
+  const [existingSession, setExistingSession] =
+    useState<SlideshowSession | null>(null);
 
   // Column mode state
   const [columnName, setColumnName] = useState("");
   const [inputType, setInputType] = useState<ColumnInputType>("options");
   const [selectedPreset, setSelectedPreset] = useState("pa");
-  const [customOptionsText, setCustomOptionsText] = useState("High, Medium, Low");
+  const [customOptionsText, setCustomOptionsText] =
+    useState("High, Medium, Low");
   const [keyColIndex, setKeyColIndex] = useState(0);
 
   // Row mode state
@@ -176,8 +199,8 @@ export const AddDataModal: React.FC<AddDataModalProps> = ({
             {mode === "select"
               ? "Choose whether to add a column or a new row record"
               : mode === "column"
-              ? "Configure column details and launch the rapid entry slideshow"
-              : "Enter row values to append a record to this dataset"}
+                ? "Configure column details and launch the rapid entry slideshow"
+                : "Enter row values to append a record to this dataset"}
           </DialogDescription>
         </DialogHeader>
 
@@ -239,7 +262,10 @@ export const AddDataModal: React.FC<AddDataModalProps> = ({
                   <p className="text-[10px] sm:text-[11px] text-muted-foreground line-clamp-2">
                     Date, attendance, score or tags with rapid slideshow input
                   </p>
-                  <Badge variant="outline" className="mt-2.5 text-[9px] sm:text-[10px] bg-background">
+                  <Badge
+                    variant="outline"
+                    className="mt-2.5 text-[9px] sm:text-[10px] bg-background"
+                  >
                     Interactive Slideshow
                   </Badge>
                 </button>
@@ -259,7 +285,10 @@ export const AddDataModal: React.FC<AddDataModalProps> = ({
                   <p className="text-[10px] sm:text-[11px] text-muted-foreground line-clamp-2">
                     Append a new student or entry for all existing columns
                   </p>
-                  <Badge variant="outline" className="mt-2.5 text-[9px] sm:text-[10px] bg-background">
+                  <Badge
+                    variant="outline"
+                    className="mt-2.5 text-[9px] sm:text-[10px] bg-background"
+                  >
                     Direct Form Entry
                   </Badge>
                 </button>
@@ -285,7 +314,9 @@ export const AddDataModal: React.FC<AddDataModalProps> = ({
                     type="button"
                     size="sm"
                     variant="outline"
-                    onClick={() => setColumnName(getCurrentDateColumnName("iso"))}
+                    onClick={() =>
+                      setColumnName(getCurrentDateColumnName("iso"))
+                    }
                     className="h-6 text-[10px] px-2 py-0 cursor-pointer gap-1"
                   >
                     <Calendar className="size-2.5 text-primary" />
@@ -298,7 +329,9 @@ export const AddDataModal: React.FC<AddDataModalProps> = ({
                         type="button"
                         size="sm"
                         variant="outline"
-                        onClick={() => setColumnName(getIncrementedColumnName(lastColumn))}
+                        onClick={() =>
+                          setColumnName(getIncrementedColumnName(lastColumn))
+                        }
                         className="h-6 text-[10px] px-2 py-0 cursor-pointer gap-1"
                         title={`Increment from "${lastColumn}"`}
                       >
@@ -310,7 +343,9 @@ export const AddDataModal: React.FC<AddDataModalProps> = ({
                         type="button"
                         size="sm"
                         variant="outline"
-                        onClick={() => setColumnName(getDecrementedColumnName(lastColumn))}
+                        onClick={() =>
+                          setColumnName(getDecrementedColumnName(lastColumn))
+                        }
                         className="h-6 text-[10px] px-2 py-0 cursor-pointer gap-1"
                         title={`Decrement from "${lastColumn}"`}
                       >
@@ -347,7 +382,9 @@ export const AddDataModal: React.FC<AddDataModalProps> = ({
                   >
                     <ListFilter className="size-4 text-primary shrink-0" />
                     <div>
-                      <div className="text-xs font-semibold text-foreground">Options Type</div>
+                      <div className="text-xs font-semibold text-foreground">
+                        Options Type
+                      </div>
                       <div className="text-[10px] text-muted-foreground">
                         P/A, Yes/No, or custom buttons
                       </div>
@@ -365,7 +402,9 @@ export const AddDataModal: React.FC<AddDataModalProps> = ({
                   >
                     <Type className="size-4 text-primary shrink-0" />
                     <div>
-                      <div className="text-xs font-semibold text-foreground">Text Input</div>
+                      <div className="text-xs font-semibold text-foreground">
+                        Text Input
+                      </div>
                       <div className="text-[10px] text-muted-foreground">
                         Free text typing per entry
                       </div>
@@ -383,7 +422,9 @@ export const AddDataModal: React.FC<AddDataModalProps> = ({
                   >
                     <TrendingUp className="size-4 text-primary shrink-0" />
                     <div>
-                      <div className="text-xs font-semibold text-foreground">Number Input</div>
+                      <div className="text-xs font-semibold text-foreground">
+                        Number Input
+                      </div>
                       <div className="text-[10px] text-muted-foreground">
                         Numeric scores or counts
                       </div>
@@ -414,7 +455,9 @@ export const AddDataModal: React.FC<AddDataModalProps> = ({
                             : "border-border/60 bg-card hover:bg-muted/40 text-muted-foreground"
                         }`}
                       >
-                        <div className="font-semibold text-xs">{preset.label}</div>
+                        <div className="font-semibold text-xs">
+                          {preset.label}
+                        </div>
                         <div className="text-[9px] text-muted-foreground truncate">
                           {preset.options.length > 0
                             ? preset.options.join(" • ")
@@ -440,7 +483,9 @@ export const AddDataModal: React.FC<AddDataModalProps> = ({
 
                   {/* Preview of buttons */}
                   <div className="pt-0.5 flex items-center gap-1 flex-wrap">
-                    <span className="text-[10px] text-muted-foreground mr-1">Preview:</span>
+                    <span className="text-[10px] text-muted-foreground mr-1">
+                      Preview:
+                    </span>
                     {currentOptionsList.map((opt, i) => (
                       <Badge
                         key={i}
@@ -475,7 +520,8 @@ export const AddDataModal: React.FC<AddDataModalProps> = ({
                     ))}
                   </select>
                   <p className="text-[10px] sm:text-[11px] text-muted-foreground">
-                    Using <strong>{columns[keyColIndex] || "Column 1"}</strong> as primary label.
+                    Using <strong>{columns[keyColIndex] || "Column 1"}</strong>{" "}
+                    as primary label.
                   </p>
                 </div>
               )}

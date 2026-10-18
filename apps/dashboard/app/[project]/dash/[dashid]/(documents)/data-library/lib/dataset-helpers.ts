@@ -8,10 +8,22 @@ export interface NormalizedDataset {
   rows: any[][];
 }
 
+export type SlideshowInputType =
+  | "options"
+  | "text"
+  | "number"
+  | "date"
+  | "image"
+  | "time"
+  | "boolean"
+  | "rating"
+  | "slider"
+  | "color";
+
 export interface SlideshowSession {
   fileId: string;
   columnName: string;
-  inputType: "options" | "text" | "number";
+  inputType: SlideshowInputType;
   optionsList: string[];
   keyColIndex: number;
   answers: Record<number, string>;
@@ -44,7 +56,7 @@ export function normalizeDataset(raw: any): NormalizedDataset {
       rows: parsed.data.map((row: any) =>
         Array.isArray(row)
           ? row.map((cell: any) => String(cell ?? ""))
-          : parsed.columns.map((col: string) => String(row?.[col] ?? ""))
+          : parsed.columns.map((col: string) => String(row?.[col] ?? "")),
       ),
     };
   }
@@ -54,7 +66,7 @@ export function normalizeDataset(raw: any): NormalizedDataset {
     if (typeof parsed[0] === "object" && !Array.isArray(parsed[0])) {
       const columns = Object.keys(parsed[0]);
       const rows = parsed.map((item: any) =>
-        columns.map((col) => String(item?.[col] ?? ""))
+        columns.map((col) => String(item?.[col] ?? "")),
       );
       return { columns, rows };
     }
@@ -62,9 +74,9 @@ export function normalizeDataset(raw: any): NormalizedDataset {
     // Format: 2D array [[col1, col2], [val1, val2], ...]
     if (Array.isArray(parsed[0])) {
       const columns = parsed[0].map((c: any) => String(c ?? ""));
-      const rows = parsed.slice(1).map((row: any) =>
-        row.map((cell: any) => String(cell ?? ""))
-      );
+      const rows = parsed
+        .slice(1)
+        .map((row: any) => row.map((cell: any) => String(cell ?? "")));
       return { columns, rows };
     }
   }
@@ -78,14 +90,20 @@ export function normalizeDataset(raw: any): NormalizedDataset {
 export function serializeDataset(columns: string[], rows: any[][]) {
   return {
     columns: columns.map((c) => String(c).trim()),
-    data: rows.map((r) => r.map((cell) => (cell !== undefined && cell !== null ? String(cell) : ""))),
+    data: rows.map((r) =>
+      r.map((cell) =>
+        cell !== undefined && cell !== null ? String(cell) : "",
+      ),
+    ),
   };
 }
 
 /**
  * Formats current date for column names
  */
-export function getCurrentDateColumnName(format: "iso" | "slash" | "friendly" = "iso"): string {
+export function getCurrentDateColumnName(
+  format: "iso" | "slash" | "friendly" = "iso",
+): string {
   const now = new Date();
   const year = now.getFullYear();
   const month = String(now.getMonth() + 1).padStart(2, "0");
@@ -198,10 +216,24 @@ export function getDecrementedColumnName(lastCol?: string): string {
 export function detectKeyColumnIndex(columns: string[]): number {
   if (!columns || columns.length === 0) return 0;
 
-  const keyKeywords = ["id", "roll", "rollno", "roll_no", "reg", "empid", "emp_id", "name", "username", "key", "code"];
+  const keyKeywords = [
+    "id",
+    "roll",
+    "rollno",
+    "roll_no",
+    "reg",
+    "empid",
+    "emp_id",
+    "name",
+    "username",
+    "key",
+    "code",
+  ];
 
   for (const keyword of keyKeywords) {
-    const idx = columns.findIndex((col) => col.toLowerCase().replace(/[^a-z0-9]/g, "") === keyword);
+    const idx = columns.findIndex(
+      (col) => col.toLowerCase().replace(/[^a-z0-9]/g, "") === keyword,
+    );
     if (idx !== -1) return idx;
   }
 
@@ -237,7 +269,10 @@ export function saveStoredSlideshow(session: SlideshowSession): void {
   if (typeof window === "undefined") return;
   try {
     session.updatedAt = Date.now();
-    localStorage.setItem(getSlideshowStorageKey(session.fileId), JSON.stringify(session));
+    localStorage.setItem(
+      getSlideshowStorageKey(session.fileId),
+      JSON.stringify(session),
+    );
   } catch (e) {
     console.error("Failed to save slideshow to localStorage:", e);
   }
@@ -259,4 +294,110 @@ export function hasStoredSlideshow(fileId: string): boolean {
   } catch {
     return false;
   }
+}
+
+export type DetectedColumnType =
+  | "text"
+  | "number"
+  | "date"
+  | "image"
+  | "options"
+  | "progressbar"
+  | "boolean"
+  | "rating";
+
+export function isDateValue(val: any): boolean {
+  if (typeof val !== "string" && typeof val !== "number") return false;
+  const s = String(val).trim();
+  if (!s || s.length < 6) return false;
+  // Exclude pure short numbers like 12345
+  if (/^\d+$/.test(s) && s.length <= 6) return false;
+  // Match standard date formats: YYYY-MM-DD, YYYY/MM/DD, DD-MM-YYYY, DD/MM/YYYY, ISO strings
+  const datePattern =
+    /^\d{4}[-/.]\d{1,2}[-/.]\d{1,2}$|^\d{1,2}[-/.]\d{1,2}[-/.]\d{4}$|^\d{4}-\d{2}-\d{2}T/;
+  if (!datePattern.test(s)) return false;
+  const timestamp = Date.parse(s);
+  return !isNaN(timestamp);
+}
+
+export function getColumnType(
+  columnName: string,
+  colIndex: number,
+  columnTypes?: Record<string, string>,
+  sampleValues: any[] = [],
+): DetectedColumnType {
+  // 1. Explicit metadata setting always takes absolute priority
+  if (columnTypes && columnTypes[columnName]) {
+    const raw = columnTypes[columnName].toLowerCase().trim();
+    if (raw === "progressbar" || raw === "progress" || raw === "slider")
+      return "progressbar";
+    if (raw === "date") return "date";
+    if (raw === "image" || raw === "file") return "image";
+    if (raw === "options" || raw === "status") return "options";
+    if (raw === "number") return "number";
+    if (raw === "rating") return "rating";
+    if (raw === "boolean") return "boolean";
+    if (raw === "text") return "text";
+  }
+
+  const lower = (columnName || "").toLowerCase().trim();
+
+  // Progress Bar heuristic:
+  if (
+    lower === "progress" ||
+    lower.includes("progress bar") ||
+    lower === "progressbar" ||
+    lower.endsWith("%")
+  ) {
+    return "progressbar";
+  }
+
+  // Image heuristic based on content:
+  const hasImages = sampleValues.some(
+    (v) =>
+      typeof v === "string" &&
+      (v.startsWith("http://") ||
+        v.startsWith("https://") ||
+        v.startsWith("data:image/") ||
+        /\.(png|jpe?g|webp|gif|svg)($|\?)/i.test(v)),
+  );
+  if (hasImages) return "image";
+
+  // Check if all non-empty sample values are attendance markers / status codes (e.g. P, A, Present, Absent)
+  const nonNull = sampleValues
+    .map((v) => String(v ?? "").trim())
+    .filter(Boolean);
+  const isAttendance =
+    nonNull.length > 0 &&
+    nonNull.every((v) =>
+      [
+        "P",
+        "A",
+        "L",
+        "H",
+        "PR",
+        "AB",
+        "PRESENT",
+        "ABSENT",
+        "PASS",
+        "FAIL",
+      ].includes(v.toUpperCase()),
+    );
+  if (isAttendance) {
+    return "options";
+  }
+
+  // Date heuristic: NEVER check only the column name! Must have actual date-formatted values
+  const hasRealDateValues =
+    nonNull.length > 0 && nonNull.some((v) => isDateValue(v));
+  if (
+    hasRealDateValues &&
+    (lower.includes("date") ||
+      lower.includes("dob") ||
+      lower.includes("deadline"))
+  ) {
+    return "date";
+  }
+
+  return "text";
 }

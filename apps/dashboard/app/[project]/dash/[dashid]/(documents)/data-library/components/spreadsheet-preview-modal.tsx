@@ -21,6 +21,7 @@ import {
   FileText,
 } from "lucide-react";
 import * as XLSX from "xlsx";
+import { getColumnType } from "../lib/dataset-helpers";
 
 interface SpreadsheetPreviewModalProps {
   isOpen: boolean;
@@ -31,6 +32,7 @@ interface SpreadsheetPreviewModalProps {
   isLoading?: boolean;
   onOpenEdit?: () => void;
   fileType?: string;
+  columnTypes?: Record<string, string>;
 }
 
 export const SpreadsheetPreviewModal: React.FC<SpreadsheetPreviewModalProps> = ({
@@ -42,6 +44,7 @@ export const SpreadsheetPreviewModal: React.FC<SpreadsheetPreviewModalProps> = (
   isLoading = false,
   onOpenEdit,
   fileType = "csv",
+  columnTypes,
 }) => {
   const [searchTerm, setSearchTerm] = useState("");
 
@@ -96,8 +99,38 @@ export const SpreadsheetPreviewModal: React.FC<SpreadsheetPreviewModalProps> = (
     }
   };
 
-  // Cell formatting helper for status / attendance values
-  const renderCellContent = (value: any) => {
+  // Cell formatting helper for status / attendance values & progress bars
+  const renderCellContent = (value: any, colName?: string, colIdx?: number) => {
+    const colType =
+      colName !== undefined && colIdx !== undefined
+        ? getColumnType(
+            colName,
+            colIdx,
+            columnTypes,
+            data.map((r) => r[colIdx])
+          )
+        : "text";
+
+    if (colType === "progressbar") {
+      const num = Math.min(
+        100,
+        Math.max(0, parseFloat(String(value ?? "").replace(/[^0-9.-]/g, "")) || 0)
+      );
+      return (
+        <div className="flex items-center gap-2 min-w-[110px] max-w-[160px]">
+          <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden border border-border/60">
+            <div
+              className="h-full bg-emerald-500 rounded-full transition-all"
+              style={{ width: `${num}%` }}
+            />
+          </div>
+          <span className="text-[10px] font-mono font-semibold text-muted-foreground shrink-0 w-8 text-right">
+            {num}%
+          </span>
+        </div>
+      );
+    }
+
     const str = String(value ?? "").trim();
     const upper = str.toUpperCase();
 
@@ -135,7 +168,7 @@ export const SpreadsheetPreviewModal: React.FC<SpreadsheetPreviewModalProps> = (
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="w-[98vw] sm:w-[94vw] max-w-6xl h-[94vh] sm:h-[90vh] flex flex-col p-3 sm:p-5 gap-2.5 sm:gap-3 bg-card border shadow-2xl rounded-xl sm:rounded-2xl overflow-hidden">
+      <DialogContent className="w-[98vw] sm:w-[95vw] sm:max-w-[95vw] md:max-w-[94vw] lg:max-w-[1450px] xl:max-w-[1600px] h-[94vh] sm:h-[90vh] flex flex-col p-3 sm:p-5 gap-2.5 sm:gap-3 bg-card border shadow-2xl rounded-xl sm:rounded-2xl overflow-hidden">
         {/* Header - optimized for mobile & desktop */}
         <DialogHeader className="flex flex-col gap-2 pb-2.5 sm:pb-3 border-b pr-8 sm:pr-0 shrink-0">
           <div className="flex items-center justify-between gap-2">
@@ -294,7 +327,7 @@ export const SpreadsheetPreviewModal: React.FC<SpreadsheetPreviewModalProps> = (
                             className="py-1.5 px-3 border-r border-border/60 whitespace-nowrap min-w-[110px] max-w-[260px] truncate select-text text-xs"
                             title={String(row[colIdx] ?? "")}
                           >
-                            {renderCellContent(row[colIdx])}
+                            {renderCellContent(row[colIdx], columns[colIdx], colIdx)}
                           </td>
                         ))}
                       </tr>
