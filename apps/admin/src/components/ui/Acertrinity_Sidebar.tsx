@@ -8,6 +8,7 @@ import {
 import {
   IconBell,
   IconBrandTabler,
+  IconBuildingSkyscraper,
   IconChartBar,
   IconCreditCard,
   IconFileAnalytics,
@@ -32,6 +33,13 @@ export function SidebarDemo({ children }: { children: React.ReactNode }) {
       href: "/dashboard",
       icon: (
         <IconBrandTabler className="h-5 w-5 shrink-0 text-neutral-700 dark:text-neutral-200" />
+      ),
+    },
+    {
+      label: "Organizations",
+      href: "/organizations",
+      icon: (
+        <IconBuildingSkyscraper className="h-5 w-5 shrink-0 text-neutral-700 dark:text-neutral-200" />
       ),
     },
     {

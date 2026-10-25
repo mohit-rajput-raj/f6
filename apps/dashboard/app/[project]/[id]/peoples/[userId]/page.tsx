@@ -2,6 +2,7 @@ import React from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { ArrowLeft, BookOpen, MessageSquare, GitCommit, Shield, Mail, CheckCircle2 } from "lucide-react";
+import { UserStarButton } from "@/components/UserStarButton";
 
 interface UserProfileData {
     name: string;
@@ -110,9 +111,12 @@ export default function UserProfileSubPage({
                             </p>
                         </div>
                     </div>
-                    <div className="bg-muted/50 border border-border rounded-lg p-3 text-xs">
-                        <span className="block text-muted-foreground">Member Since</span>
-                        <span className="font-semibold">{user.joinedDate}</span>
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+                        <UserStarButton targetUserId={userId} />
+                        <div className="bg-muted/50 border border-border rounded-lg p-3 text-xs">
+                            <span className="block text-muted-foreground">Member Since</span>
+                            <span className="font-semibold">{user.joinedDate}</span>
+                        </div>
                     </div>
                 </div>
 

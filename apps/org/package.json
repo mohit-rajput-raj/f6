@@ -1,0 +1,39 @@
+{
+  "name": "org",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 3004",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint"
+  },
+  "dependencies": {
+    "@repo/cloudinary": "workspace:*",
+    "@repo/db": "workspace:*",
+    "@repo/ui": "workspace:*",
+    "@tabler/icons-react": "^3.35.0",
+    "@tanstack/react-query": "^5.90.12",
+    "canvas-confetti": "^1.9.4",
+    "framer-motion": "^12.23.24",
+    "lucide-react": "0.552.0",
+    "motion": "^13.3.0",
+    "next": "16.4.3",
+    "next-themes": "^0.4.6",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "sonner": "^2.0.7",
+    "zod": "^4.1.12"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/canvas-confetti": "^1.9.0",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.4.3",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}

@@ -17,7 +17,9 @@ import {
   CheckSquare,
   X,
   FileSpreadsheet,
+  Building2,
 } from "lucide-react";
+import { OrganizationProjectsTable } from "./OrganizationProjectsTable";
 
 import { Button } from "@repo/ui/components/ui/button";
 import {
@@ -98,6 +100,7 @@ export const ProjectList = () => {
   const userId = session?.user?.id;
   const { setDashidValue } = useEditorStore();
 
+  const [activeTab, setActiveTab] = useState<"personal" | "organization">("personal");
   const [search, setSearch] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [selectMode, setSelectMode] = useState(false);
@@ -226,7 +229,7 @@ export const ProjectList = () => {
   }
 
   return (
-    <div className="max-w-7xl mx-auto p-6 md:p-10 space-y-6">
+    <div className="w-full max-w-full p-4 sm:p-6 lg:p-8 space-y-6">
       {/* ── Pending Team Invites & Requests ── */}
       <ProjectInvitesBanner onInviteAccepted={() => refetch()} />
 
@@ -238,37 +241,70 @@ export const ProjectList = () => {
               Projects
             </h1>
             <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border border-zinc-200/70 dark:border-zinc-700/60">
-              {allWorkflows.length}
+              {activeTab === "personal" ? allWorkflows.length : "Enterprise"}
             </span>
           </div>
           <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
-            Manage your visual workspaces, spreadsheet databases, and data automation flows.
+            Manage your personal visual workspaces or enterprise institutional organization projects.
           </p>
         </div>
 
-        {/* Action Toolbar */}
-        <div className="flex items-center gap-3">
-          <div className="relative w-full sm:w-64">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-zinc-400 pointer-events-none" />
-            <Input
-              placeholder="Search projects..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-8.5 h-9 text-xs bg-zinc-50/70 dark:bg-zinc-900/60 border-zinc-200 dark:border-zinc-800 focus-visible:ring-zinc-400 dark:focus-visible:ring-zinc-600 rounded-lg placeholder:text-zinc-400"
-            />
-            {search && (
-              <button
-                onClick={() => setSearch("")}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 text-xs"
-              >
-                <X className="size-3.5" />
-              </button>
-            )}
-          </div>
-
-          <CreateWorkFlow />
+        {/* ── 2 Tabs Switcher ── */}
+        <div className="inline-flex rounded-xl p-1 bg-zinc-100 dark:bg-zinc-800/60 border border-zinc-200 dark:border-zinc-700/60 self-start sm:self-auto">
+          <button
+            onClick={() => setActiveTab("personal")}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+              activeTab === "personal"
+                ? "bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 shadow-xs"
+                : "text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200"
+            }`}
+          >
+            <Layers className="size-3.5" />
+            <span>Personal Projects</span>
+            <span className="ml-1 text-[10px] px-1.5 py-0.2 rounded-full bg-zinc-200 dark:bg-zinc-700">
+              {allWorkflows.length}
+            </span>
+          </button>
+          <button
+            onClick={() => setActiveTab("organization")}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+              activeTab === "organization"
+                ? "bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 shadow-xs"
+                : "text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200"
+            }`}
+          >
+            <Building2 className="size-3.5" />
+            <span>Organization Projects</span>
+          </button>
         </div>
       </div>
+
+      {activeTab === "organization" ? (
+        <OrganizationProjectsTable />
+      ) : (
+        <>
+          {/* Action Toolbar for Personal Projects */}
+          <div className="flex items-center justify-end gap-3">
+            <div className="relative w-full sm:w-64">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-zinc-400 pointer-events-none" />
+              <Input
+                placeholder="Search personal projects..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-8.5 h-9 text-xs bg-zinc-50/70 dark:bg-zinc-900/60 border-zinc-200 dark:border-zinc-800 focus-visible:ring-zinc-400 dark:focus-visible:ring-zinc-600 rounded-lg placeholder:text-zinc-400"
+              />
+              {search && (
+                <button
+                  onClick={() => setSearch("")}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 text-xs"
+                >
+                  <X className="size-3.5" />
+                </button>
+              )}
+            </div>
+
+            <CreateWorkFlow />
+          </div>
 
       {/* ── Batch Selection Bar ── */}
       {selectMode && selectedIds.length > 0 && (
@@ -302,7 +338,7 @@ export const ProjectList = () => {
       )}
 
       {/* ── Professional Data Table ── */}
-      <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 shadow-2xs overflow-hidden">
+      <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 shadow-2xs overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow className="border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50/70 dark:bg-zinc-900/40 hover:bg-zinc-50/70 dark:hover:bg-zinc-900/40">
@@ -473,8 +509,10 @@ export const ProjectList = () => {
           </TableBody>
         </Table>
       </div>
-    </div>
-  );
+    </>
+  )}
+</div>
+);
 };
 
 /**

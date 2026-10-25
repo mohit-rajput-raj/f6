@@ -2,6 +2,7 @@ import React from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { Search, Shield, UserCheck, ExternalLink, Calendar } from "lucide-react";
+import { UserStarButton } from "@/components/UserStarButton";
 
 interface TeamMember {
   id: string;
@@ -139,7 +140,8 @@ export default function PeopleDirectoryPage({
               </div>
             </div>
 
-            <div className="mt-5 pt-3 border-t border-border flex justify-end">
+            <div className="mt-5 pt-3 border-t border-border flex items-center justify-between">
+              <UserStarButton targetUserId={member.id} />
               <Link
                 href={`./people/${member.id}`}
                 className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline"

@@ -44,7 +44,9 @@
     "UPSTASH_REDIS_REST_TOKEN",
     "REDIS_URL",
     "RESEND_API_KEY",
-    "EMAIL_FROM"
+    "EMAIL_FROM",
+    "ORG_PAGE",
+    "NEXT_PUBLIC_ORG_PAGE"
   ],
   "tasks": {
     
@@ -119,7 +121,9 @@
         "NEXT_PUBLIC_AUTH_BASE_URL",
         "CLOUDINARY_CLOUD_NAME",
         "CLOUDINARY_API_KEY",
-        "CLOUDINARY_API_SECRET"
+        "CLOUDINARY_API_SECRET",
+        "ORG_PAGE",
+        "NEXT_PUBLIC_ORG_PAGE"
       ]
     },
     "lint": {
@@ -150,7 +154,9 @@
         "NEXT_PUBLIC_AUTH_BASE_URL",
         "CLOUDINARY_CLOUD_NAME",
         "CLOUDINARY_API_KEY",
-        "CLOUDINARY_API_SECRET"
+        "CLOUDINARY_API_SECRET",
+        "ORG_PAGE",
+        "NEXT_PUBLIC_ORG_PAGE"
       ],
       "cache": false,
       "persistent": true,

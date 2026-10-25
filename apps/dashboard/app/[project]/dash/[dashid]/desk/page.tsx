@@ -7,7 +7,7 @@ import React, {
   useEffect,
   useMemo,
 } from "react";
-import { Plus, Camera, X, Settings2, Loader2, ArrowDown } from "lucide-react";
+import { Plus, Camera, X, Settings2, Loader2, ArrowDown, ShieldAlert, ArrowLeft, Search } from "lucide-react";
 import { Button } from "@/components/ui/components";
 import { toast } from "sonner";
 import { useSession } from "@/lib/auth-client";
@@ -76,6 +76,7 @@ export default function DeskPage() {
   const setOcrProcessing = useDeskStore((s) => s.setOcrProcessing);
 
   const [isAddingBlock, setIsAddingBlock] = useState(false);
+  const [accessDeniedError, setAccessDeniedError] = useState<string | null>(null);
 
   // OCR file input ref
   const ocrFileRef = useRef<HTMLInputElement>(null);
@@ -103,20 +104,41 @@ export default function DeskPage() {
     enabled: !!dashid,
   });
 
+  // ─── Reset blocks on dashid switch ──────────────────────
+  useEffect(() => {
+    return () => {
+      setBlocks([]);
+      setAccessDeniedError(null);
+    };
+  }, [dashid, setBlocks]);
+
   // ─── Load blocks from DB on mount (cached with TanStack Query) ─────
-  const { data: _deskData, isLoading: isDeskQueryLoading } = useQuery({
-    queryKey: ["desk-load", dashid, userId],
+  const { data: deskData, isLoading: isDeskQueryLoading } = useQuery({
+    queryKey: ["desk-load", dashid, userEmail],
     queryFn: async () => {
+      if (!dashid || !userEmail) return null;
       setProjectWorkflowId(dashid);
 
-      // Parallel fetch: access check + blocks initialization + active server runs
-      const [access, dbBlocks, activeRuns] = await Promise.all([
-        userEmail ? getSharedDeskAccess(dashid, userEmail) : null,
+      // Check access permission first
+      const access = await getSharedDeskAccess(dashid, userEmail);
+      if (access?.isDenied) {
+        setAccessDeniedError(access.denialReason || "Access restricted.");
+        setBlocks([]);
+        return { access, blocks: [], activeRuns: [] };
+      }
+
+      setAccessDeniedError(null);
+      setDeskAccess({
+        isOwner: access.isOwner,
+        isGuest: access.isGuest,
+        permission: access.permission === "viewer" ? "viewer" : "editor",
+      });
+
+      // Parallel fetch: blocks initialization + active server runs
+      const [dbBlocks, activeRuns] = await Promise.all([
         initializeDefaultDesk(dashid, userId!),
         getActiveDeskRuns(dashid).catch(() => []),
       ]);
-
-      if (access) setDeskAccess(access);
 
       // Build active runs lookup (blockId -> runId) so running state survives browser refresh
       const runningMap: Record<string, string> = {};
@@ -676,10 +698,10 @@ export default function DeskPage() {
   const hasResumedPollingRef = useRef(false);
   useEffect(() => {
     if (hasResumedPollingRef.current) return;
-    if (!_deskData?.activeRuns?.length) return;
+    if (!deskData?.activeRuns?.length) return;
 
     hasResumedPollingRef.current = true;
-    const activeRuns = _deskData.activeRuns.filter(
+    const activeRuns = deskData.activeRuns.filter(
       (r: any) => r.status === "running" || r.status === "paused",
     );
 
@@ -710,7 +732,7 @@ export default function DeskPage() {
         if (pollCount > 150) clearInterval(pollInterval); // timeout after ~2 minutes
       }, 800);
     }
-  }, [_deskData?.activeRuns, completeRun, failRun]);
+  }, [deskData?.activeRuns, completeRun, failRun]);
 
   const handleServerExecuteBlock = useCallback(
     async (
@@ -1093,14 +1115,39 @@ export default function DeskPage() {
   //   }
   // }, [setOcrResult, setOcrProcessing])
 
+  if (accessDeniedError || deskData?.access?.isDenied) {
+    return (
+      <div className="h-full w-full min-h-[500px] flex flex-col items-center justify-center p-6 bg-background text-center space-y-4">
+        <div className="size-14 rounded-2xl bg-destructive/10 border border-destructive/20 flex items-center justify-center text-destructive shadow-xs">
+          <ShieldAlert className="size-7" />
+        </div>
+        <div className="space-y-1.5 max-w-md">
+          <h2 className="text-xl font-bold tracking-tight text-foreground">Access Restricted</h2>
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            {accessDeniedError || deskData?.access?.denialReason || "You are not an authorized member of this desk."}
+          </p>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => router.back()}
+          className="text-xs font-semibold gap-1.5 mt-2"
+        >
+          <ArrowLeft className="size-3.5" />
+          <span>Return to Projects</span>
+        </Button>
+      </div>
+    );
+  }
+
   // ─── Render ───────────────────────────────────────────────
-  if (isLoading) {
+  if (!userEmail || isDeskQueryLoading || isOwnerLoading || isLoading) {
     return <DeskPageSkeleton />;
   }
 
   return (
     <div className="h-full w-full flex flex-col bg-background">
-      {/* ─── Owner Profile Header (Exact match to 2nd image) ─── */}
+      {/* ─── Owner Profile Header ─── */}
       <div className="px-4 pt-3 pb-1 shrink-0">
         <DeskOwnerHeader
           dashid={dashid}
@@ -1117,11 +1164,11 @@ export default function DeskPage() {
 
       {/* ─── OCR Result Banner ───────────────────────────── */}
       {ocrResult && (
-        <div className="mx-4 mt-3 rounded-lg border border-emerald-300 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-950 p-3 animate-in slide-in-from-top">
+        <div className="mx-4 mt-3 rounded-lg border border-border bg-card p-3 animate-in slide-in-from-top">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
-              <span className="text-lg">🔍</span>
-              <span className="text-sm font-medium text-emerald-800 dark:text-emerald-200">
+              <Search className="size-4 text-primary" />
+              <span className="text-sm font-medium text-foreground">
                 OCR Result — {ocrResult.data.length} rows ×{" "}
                 {ocrResult.columns.length} columns
               </span>
