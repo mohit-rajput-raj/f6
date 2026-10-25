@@ -1,6 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  env: {
+    ORG_PAGE: process.env.ORG_PAGE || "http://localhost:3004/register",
+  },
   serverExternalPackages: ["@prisma/client"],
   images: {
     remotePatterns: [

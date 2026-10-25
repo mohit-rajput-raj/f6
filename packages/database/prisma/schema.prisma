@@ -49,6 +49,10 @@ model User {
   subscriptions      Subscription[]
   auditLogs          AuditLog[]
   systemUsageMetrics SystemUsageMetric[]
+  organizationMemberships OrganizationMember[]
+  joinRequests            OrganizationJoinRequest[]
+  receivedStars           UserStar[]           @relation("UserReceivedStars")
+  givenStars              UserStar[]           @relation("UserGivenStars")
 
   @@unique([email])
   @@map("user")
@@ -117,6 +121,9 @@ model Workflow {
   isTemplate Boolean  @default(false)
   tags       String[] @default([])
 
+  organizationId String?  @db.Uuid
+  groupId        String?  @db.Uuid
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -129,6 +136,8 @@ model Workflow {
 
   @@index([userId])
   @@index([isPublic])
+  @@index([organizationId])
+  @@index([groupId])
   @@index([isTemplate])
   @@map("workflow")
 }
@@ -433,4 +442,278 @@ model Admin {
   updatedAt    DateTime  @updatedAt
 
   @@map("admin")
+}
+
+// ==========================================
+// ORGANIZATION & ORGANIZER MODELS
+// ==========================================
+
+model Organizer {
+  id                   String                  @id @default(uuid()) @db.Uuid
+  name                 String
+  email                String                  @unique
+  password             String?
+  avatar               String?
+  role                 String                  @default("ORGANIZER")
+  phone                String?
+  status               String                  @default("ACTIVE") // ACTIVE, SUSPENDED
+  activeOrganizationId String?                 @db.Uuid
+  metadata             Json?                   @default("{}") // Extensible for sidebar/enterprise features
+  lastLoginAt          DateTime?
+  createdAt            DateTime                @default(now())
+  updatedAt            DateTime                @updatedAt
+
+  handledOrganizations OrganizerOrganization[]
+  auditLogs            OrganizationAuditLog[]
+
+  @@map("organizer")
+}
+
+model OrganizerOrganization {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizerId    String       @db.Uuid
+  organizationId String       @db.Uuid
+  role           String       @default("owner") // "owner" | "admin" | "manager"
+  isDefault      Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+
+  organizer      Organizer    @relation(fields: [organizerId], references: [id], onDelete: Cascade)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizerId, organizationId])
+  @@index([organizerId])
+  @@index([organizationId])
+  @@map("organizer_organization")
+}
+
+model Organization {
+  id           String   @id @default(uuid()) @db.Uuid
+  name         String
+  slug         String   @unique
+  logoUrl      String?
+  tagline      String?
+  description  String?
+  website      String?
+  contactEmail String?
+  phone        String?
+  location     String?
+  ownerId      String   // Organizer ID who created/owns this org
+  ownerEmail   String
+  rules        Json?    // Array of compliance rules string[]
+  settings     Json?    // { allowJoinRequests, autoApproveMembers, workingHours, defaultDeskTemplate }
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  handlers      OrganizerOrganization[]
+  members       OrganizationMember[]
+  groups        OrganizationGroup[]
+  assignments   OrganizationDeskAssignment[]
+  joinRequests  OrganizationJoinRequest[]
+  announcements OrganizationAnnouncement[]
+  assets        OrganizationAsset[]
+  messages      OrganizationMessage[]
+  projects      OrganizationProject[]
+  auditLogs     OrganizationAuditLog[]
+
+  @@index([ownerId])
+  @@index([slug])
+  @@map("organization")
+}
+
+model OrganizationMember {
+  id             String                    @id @default(uuid()) @db.Uuid
+  organizationId String                    @db.Uuid
+  userId         String?
+  name           String
+  email          String
+  avatar         String?
+  role           String                    @default("member") // "owner" | "admin" | "member"
+  title          String?
+  department     String?
+  status         String                    @default("ACTIVE") // "ACTIVE" | "INACTIVE"
+  joinedAt       DateTime                  @default(now())
+
+  organization     Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user             User?                     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  groupMemberships OrganizationGroupMember[]
+
+  @@unique([organizationId, email])
+  @@index([organizationId])
+  @@index([userId])
+  @@map("organization_member")
+}
+
+model OrganizationGroup {
+  id             String                    @id @default(uuid()) @db.Uuid
+  organizationId String                    @db.Uuid
+  name           String                    // e.g. "Robotics Core", "Telemetry Data Desk"
+  slug           String
+  description    String?
+  deskName       String?                   // Associated Desk pipeline
+  leaderId       String?                   @db.Uuid // member ID who has ownership to lead the group
+  leaderName     String?
+  leaderEmail    String?
+  status         String                    @default("active")
+  createdAt      DateTime                  @default(now())
+  updatedAt      DateTime                  @updatedAt
+
+  organization   Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  members        OrganizationGroupMember[]
+
+  @@unique([organizationId, slug])
+  @@index([organizationId])
+  @@map("organization_group")
+}
+
+model OrganizationGroupMember {
+  id        String             @id @default(uuid()) @db.Uuid
+  groupId   String             @db.Uuid
+  memberId  String             @db.Uuid
+  role      String             @default("member") // "leader" | "member"
+  joinedAt  DateTime           @default(now())
+
+  group     OrganizationGroup  @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  member    OrganizationMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, memberId])
+  @@index([groupId])
+  @@index([memberId])
+  @@map("organization_group_member")
+}
+
+model OrganizationDeskAssignment {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  deskName       String
+  groupName      String?
+  assignedToUser String?
+  status         String       @default("active")
+  assignedAt     DateTime     @default(now())
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@map("organization_desk_assignment")
+}
+
+model OrganizationJoinRequest {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  userId         String
+  userName       String
+  userEmail      String
+  userAvatar     String?
+  department     String?
+  message        String?
+  status         String       @default("PENDING") // "PENDING" | "APPROVED" | "REJECTED"
+  reviewedBy     String?
+  reviewedAt     DateTime?
+  createdAt      DateTime     @default(now())
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+  @@index([organizationId, status])
+  @@index([userId])
+  @@map("organization_join_request")
+}
+
+model OrganizationAnnouncement {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  title          String
+  content        String
+  priority       String       @default("normal") // "normal" | "urgent" | "event"
+  authorName     String
+  authorRole     String
+  createdAt      DateTime     @default(now())
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@map("organization_announcement")
+}
+
+model OrganizationAsset {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  name           String
+  type           String       @default("image") // "image" | "template" | "dataset" | "guideline"
+  fileUrl        String?      // Image URL or file link
+  fileSize       Int?         // Size in bytes
+  mimeType       String?      // e.g. "image/png", "image/jpeg"
+  description    String?
+  downloadsCount Int          @default(0)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@map("organization_asset")
+}
+
+model OrganizationMessage {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  senderId       String
+  senderName     String
+  senderRole     String
+  senderAvatar   String?
+  content        String
+  channel        String       @default("general") // "general" | "announcements" | "staff"
+  createdAt      DateTime     @default(now())
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, channel])
+  @@map("organization_message")
+}
+
+model OrganizationProject {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  name           String
+  description    String?
+  status         String       @default("active")
+  createdByEmail String?
+  createdByName  String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@map("organization_project")
+}
+
+model OrganizationAuditLog {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  organizerId    String?      @db.Uuid
+  action         String
+  details        Json?
+  createdAt      DateTime     @default(now())
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organizer      Organizer?   @relation(fields: [organizerId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@map("organization_audit_log")
+}
+
+model UserStar {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   // Target user being starred
+  starredById String   // Who gave the star
+  createdAt   DateTime @default(now())
+
+  targetUser  User     @relation("UserReceivedStars", fields: [userId], references: [id], onDelete: Cascade)
+  starredBy   User     @relation("UserGivenStars", fields: [starredById], references: [id], onDelete: Cascade)
+
+  @@unique([userId, starredById])
+  @@index([userId])
+  @@index([starredById])
+  @@map("user_star")
 }

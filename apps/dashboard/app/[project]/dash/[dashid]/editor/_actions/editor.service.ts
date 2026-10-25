@@ -107,10 +107,11 @@ export async function getAllWorkFlow(id: string) {
     .map((s: any) => s.projectWorkflowId)
     .filter((wId: any): wId is string => !!wId);
 
-  // Fetch workflows owned by user OR shared with user
+  // Fetch workflows owned by user OR shared with user (strictly personal workflows without organizationId)
   let wfQuery = supabase
     .from("workflow")
-    .select("name, id, tags, userId, createdAt, updatedAt")
+    .select("name, id, tags, userId, organizationId, groupId, createdAt, updatedAt")
+    .is("organizationId", null)
     .order("createdAt", { ascending: false });
 
   if (sharedWorkflowIds.length > 0) {
@@ -121,9 +122,11 @@ export async function getAllWorkFlow(id: string) {
 
   const { data: workflows } = await wfQuery;
 
-  // Filter out workflows tagged with 'desk-block-editor'
+  // Filter out workflows tagged with 'desk-block-editor' or belonging to organizations
   const filteredWorkflows = (workflows || []).filter(
-    (wf: any) => !wf.tags || !wf.tags.includes("desk-block-editor")
+    (wf: any) =>
+      (!wf.tags || !wf.tags.includes("desk-block-editor")) &&
+      !wf.organizationId
   );
 
   // For each workflow, fetch collaborators via DeskShare

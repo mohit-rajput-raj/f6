@@ -357,47 +357,181 @@ export async function rejectInvite(shareId: string) {
   return updatedShare;
 }
 
+export interface SharedDeskAccessResult {
+  hasAccess: boolean;
+  isOwner: boolean;
+  isGuest: boolean;
+  permission: "editor" | "viewer" | null;
+  isDenied: boolean;
+  isOrgProject?: boolean;
+  organizationId?: string | null;
+  groupId?: string | null;
+  denialReason?: string;
+}
+
 /** Check user permission on a project/workflow (owner, editor guest, or viewer guest) */
-export async function getSharedDeskAccess(projectWorkflowId: string, userEmail: string) {
+export async function getSharedDeskAccess(
+  projectWorkflowId: string,
+  userEmail: string
+): Promise<SharedDeskAccessResult> {
   if (!projectWorkflowId || !userEmail) {
-    return { isOwner: true, isGuest: false, permission: "editor" as const };
+    return {
+      hasAccess: false,
+      isOwner: false,
+      isGuest: false,
+      permission: null,
+      isDenied: true,
+      denialReason: "Authentication required to access desk.",
+    };
   }
 
+  const cleanEmail = userEmail.toLowerCase().trim();
+
+  // 1. Fetch workflow details
   const { data: workflow } = await supabase
     .from("workflow")
-    .select("userId")
+    .select("id, userId, organizationId, groupId")
     .eq("id", projectWorkflowId)
     .maybeSingle();
 
-  if (workflow?.userId) {
+  if (!workflow) {
+    return {
+      hasAccess: false,
+      isOwner: false,
+      isGuest: false,
+      permission: null,
+      isDenied: true,
+      denialReason: "Desk project not found.",
+    };
+  }
+
+  // 2. Organization Project Access Control
+  if (workflow.organizationId) {
+    // Check if user is the executive organization owner
+    const { data: org } = await supabase
+      .from("organization")
+      .select("ownerEmail")
+      .eq("id", workflow.organizationId)
+      .maybeSingle();
+
+    if (org?.ownerEmail?.toLowerCase().trim() === cleanEmail) {
+      return {
+        hasAccess: true,
+        isOwner: true,
+        isGuest: false,
+        permission: "editor",
+        isDenied: false,
+        isOrgProject: true,
+        organizationId: workflow.organizationId,
+        groupId: workflow.groupId,
+      };
+    }
+
+    if (workflow.groupId) {
+      // Check if user is an assigned member of this desk group
+      const { data: member } = await supabase
+        .from("organization_member")
+        .select("id")
+        .eq("organizationId", workflow.organizationId)
+        .ilike("email", cleanEmail)
+        .maybeSingle();
+
+      if (member?.id) {
+        const { data: grpMember } = await supabase
+          .from("organization_group_member")
+          .select("id, role")
+          .eq("groupId", workflow.groupId)
+          .eq("memberId", member.id)
+          .maybeSingle();
+
+        if (grpMember) {
+          const { data: group } = await supabase
+            .from("organization_group")
+            .select("leaderEmail")
+            .eq("id", workflow.groupId)
+            .maybeSingle();
+
+          const isLeader = group?.leaderEmail?.toLowerCase().trim() === cleanEmail || grpMember.role === "leader";
+
+          return {
+            hasAccess: true,
+            isOwner: isLeader,
+            isGuest: !isLeader,
+            permission: "editor",
+            isDenied: false,
+            isOrgProject: true,
+            organizationId: workflow.organizationId,
+            groupId: workflow.groupId,
+          };
+        }
+      }
+    }
+
+    // Access Denied: User is not an active member or owner of this organization desk!
+    return {
+      hasAccess: false,
+      isOwner: false,
+      isGuest: false,
+      permission: null,
+      isDenied: true,
+      isOrgProject: true,
+      organizationId: workflow.organizationId,
+      groupId: workflow.groupId,
+      denialReason:
+        "Access Restricted: You are not an assigned member of this organization desk. If you were recently removed, access has been revoked.",
+    };
+  }
+
+  // 3. Regular Personal Project Access Control
+  if (workflow.userId) {
     const { data: ownerUser } = await supabase
       .from("user")
       .select("email")
       .eq("id", workflow.userId)
       .maybeSingle();
 
-    if (ownerUser?.email?.toLowerCase() === userEmail.toLowerCase()) {
-      return { isOwner: true, isGuest: false, permission: "editor" as const };
+    if (ownerUser?.email?.toLowerCase().trim() === cleanEmail) {
+      return {
+        hasAccess: true,
+        isOwner: true,
+        isGuest: false,
+        permission: "editor",
+        isDenied: false,
+        isOrgProject: false,
+      };
     }
   }
 
+  // Check DeskShare for accepted collaborator
   const { data: share } = await supabase
     .from("desk_share")
     .select("*")
     .eq("projectWorkflowId", projectWorkflowId)
-    .ilike("invitedEmail", userEmail)
+    .ilike("invitedEmail", cleanEmail)
     .eq("status", "accepted")
     .maybeSingle();
 
   if (share) {
     return {
+      hasAccess: true,
       isOwner: false,
       isGuest: true,
       permission: (share.permission as "editor" | "viewer") || "editor",
+      isDenied: false,
+      isOrgProject: false,
     };
   }
 
-  return { isOwner: true, isGuest: false, permission: "editor" as const };
+  // Not owner, not collaborator -> Deny access
+  return {
+    hasAccess: false,
+    isOwner: false,
+    isGuest: false,
+    permission: null,
+    isDenied: true,
+    isOrgProject: false,
+    denialReason: "You do not have permission to view or edit this visual workspace.",
+  };
 }
 
 /** Remove a collaborator share and clean up associated notifications */

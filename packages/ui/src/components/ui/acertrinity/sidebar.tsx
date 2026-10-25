@@ -15,6 +15,8 @@ interface SidebarContextProps {
   open: boolean;
   setOpen: React.Dispatch<React.SetStateAction<boolean>>;
   animate: boolean;
+  openWidth?: string;
+  collapsedWidth?: string;
 }
 
 const SidebarContext = createContext<SidebarContextProps | undefined>(
@@ -34,11 +36,15 @@ export const SidebarProvider = ({
   open: openProp,
   setOpen: setOpenProp,
   animate = true,
+  openWidth = "260px",
+  collapsedWidth = "60px",
 }: {
   children: React.ReactNode;
   open?: boolean;
   setOpen?: React.Dispatch<React.SetStateAction<boolean>>;
   animate?: boolean;
+  openWidth?: string;
+  collapsedWidth?: string;
 }) => {
   const [openState, setOpenState] = useState(false);
 
@@ -46,7 +52,9 @@ export const SidebarProvider = ({
   const setOpen = setOpenProp !== undefined ? setOpenProp : setOpenState;
 
   return (
-    <SidebarContext.Provider value={{ open, setOpen, animate: animate }}>
+    <SidebarContext.Provider
+      value={{ open, setOpen, animate, openWidth, collapsedWidth }}
+    >
       {children}
     </SidebarContext.Provider>
   );
@@ -57,14 +65,24 @@ export const Sidebar = ({
   open,
   setOpen,
   animate,
+  openWidth = "260px",
+  collapsedWidth = "60px",
 }: {
   children: React.ReactNode;
   open?: boolean;
   setOpen?: React.Dispatch<React.SetStateAction<boolean>>;
   animate?: boolean;
+  openWidth?: string;
+  collapsedWidth?: string;
 }) => {
   return (
-    <SidebarProvider open={open} setOpen={setOpen} animate={animate}>
+    <SidebarProvider
+      open={open}
+      setOpen={setOpen}
+      animate={animate}
+      openWidth={openWidth}
+      collapsedWidth={collapsedWidth}
+    >
       {children}
     </SidebarProvider>
   );
@@ -84,16 +102,26 @@ export const DesktopSidebar = ({
   children,
   ...props
 }: React.ComponentProps<typeof motion.div>) => {
-  const { open, setOpen, animate } = useSidebar();
+  const {
+    open,
+    setOpen,
+    animate,
+    openWidth = "260px",
+    collapsedWidth = "60px",
+  } = useSidebar();
   return (
     <>
       <motion.div
         className={cn(
-          "h-full px-4 py-4 hidden  md:flex md:flex-col bg-neutral-100 dark:bg-neutral-800 w-[300px] shrink-0",
+          "h-full px-3 py-4 hidden md:flex md:flex-col bg-neutral-100 dark:bg-neutral-800 shrink-0",
           className,
         )}
         animate={{
-          width: animate ? (open ? "150px" : "60px") : "150px",
+          width: animate ? (open ? openWidth : collapsedWidth) : openWidth,
+        }}
+        transition={{
+          duration: 0.2,
+          ease: "easeInOut",
         }}
         onMouseEnter={() => setOpen(true)}
         onMouseLeave={() => setOpen(false)}

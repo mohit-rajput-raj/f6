@@ -7,6 +7,7 @@ import usersRoutes from "../modules/admin/users/users.routes.js";
 import subscribersRoutes from "../modules/admin/subscribers/subscribers.routes.js";
 import emailRoutes from "../modules/email/email.routes.js";
 import executionRoutes from "../modules/execution/execution.routes.js";
+import organizationRoutes from "../modules/organization/organization.routes.js";
 
 const router: Router = Router();
 
@@ -22,6 +23,7 @@ router.use("/desk", deskRoutes);
 router.use("/team", teamRoutes);
 router.use("/notifications", notificationRoutes);
 router.use("/email", emailRoutes);
+router.use("/organization", organizationRoutes);
 
 // ─── Admin Routes ───────────────────────────────────────────
 router.use("/admin", usersRoutes);

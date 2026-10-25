@@ -31,6 +31,7 @@ import {
   IconPuzzle,
   IconRefresh,
   IconReceipt,
+  IconBuilding,
 } from "@tabler/icons-react";
 
 import { NavDocuments } from "@/components/nav/nav-documents";
@@ -257,6 +258,11 @@ const data = {
       icon: IconDatabase,
     },
     {
+      name: "Organizations",
+      url: "/organizations",
+      icon: IconBuilding,
+    },
+    {
       name: "Connections",
       url: "/connections",
       icon: IconPlugConnected,
@@ -385,7 +391,12 @@ export const AppSidebar = ({ val, ...props }: AppSidebarProps) => {
               <div className="flex items-center gap-2.5 min-w-0">
                 <Avatar className="size-5 rounded-full ring-1 ring-sidebar-border shrink-0">
                   <AvatarImage
-                    src={userImage || (userEmail ? `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(userEmail)}&backgroundColor=27272a,3f3f46&textColor=ffffff` : undefined)}
+                    src={
+                      userImage ||
+                      (userEmail
+                        ? `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(userEmail)}&backgroundColor=27272a,3f3f46&textColor=ffffff`
+                        : undefined)
+                    }
                     alt={userName || userEmail || "User"}
                     className="object-cover"
                   />
@@ -420,7 +431,12 @@ export const AppSidebar = ({ val, ...props }: AppSidebarProps) => {
             >
               <Avatar className="size-5 rounded-full ring-1 ring-border/50 shrink-0">
                 <AvatarImage
-                  src={userImage || (userEmail ? `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(userEmail)}&backgroundColor=27272a,3f3f46&textColor=ffffff` : undefined)}
+                  src={
+                    userImage ||
+                    (userEmail
+                      ? `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(userEmail)}&backgroundColor=27272a,3f3f46&textColor=ffffff`
+                      : undefined)
+                  }
                   alt={userName || userEmail || "User"}
                   className="object-cover"
                 />
@@ -539,7 +555,10 @@ export const AppSidebar = ({ val, ...props }: AppSidebarProps) => {
           <div className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg bg-sidebar-accent/50 text-sidebar-accent-foreground min-w-0 border border-sidebar-border/50">
             <Avatar className="size-8 rounded-full ring-1 ring-sidebar-border/80 shrink-0">
               <AvatarImage
-                src={userImage || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(userEmail)}&backgroundColor=27272a,3f3f46&textColor=ffffff`}
+                src={
+                  userImage ||
+                  `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(userEmail)}&backgroundColor=27272a,3f3f46&textColor=ffffff`
+                }
                 alt={userName || userEmail}
                 className="object-cover"
               />

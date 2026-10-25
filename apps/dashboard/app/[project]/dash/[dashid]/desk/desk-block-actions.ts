@@ -8,6 +8,7 @@ import {
   verifyUnlockToken,
 } from "@/lib/password-utils";
 import { toast } from "sonner";
+import { getSharedDeskAccess } from "./desk-share-actions";
 
 // ─── Types ──────────────────────────────────────────────────
 export interface DeskTextInput {
@@ -291,6 +292,21 @@ export async function initializeDefaultDesk(
   projectWorkflowId: string,
   userId: string,
 ): Promise<DeskBlockData[]> {
+  if (userId) {
+    const { data: user } = await supabase
+      .from("user")
+      .select("email")
+      .eq("id", userId)
+      .maybeSingle();
+
+    if (user?.email) {
+      const access = await getSharedDeskAccess(projectWorkflowId, user.email);
+      if (access.isDenied) {
+        return [];
+      }
+    }
+  }
+
   const { count } = await supabase
     .from("desk_block")
     .select("id", { count: "exact", head: true })

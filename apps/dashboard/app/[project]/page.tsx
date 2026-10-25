@@ -4,21 +4,21 @@ import { useRouteAuthContextHook } from '@/context/routeContext';
 import { useRouter } from 'next/navigation';
 import React, { useEffect } from 'react'
 
+import { useSession } from '@/lib/auth-client';
+
 type Props = {}
 
 const Projects = (props: Props) => {
-  // setTimeout(() => {}, 3000);
-  
   const {dash_id , main_id} = useRouteAuthContextHook();
+  const { data: session } = useSession();
   const router = useRouter();
+
   useEffect(() => {
-    
     if(main_id){
       const url = `/projects/${main_id}/projects`;
       router.push(url);
     }
-    
-  },[dash_id, main_id, router]);
+  }, [dash_id, main_id, router, session]);
   return (
    <BootstrapCardDataTable/>
   )
