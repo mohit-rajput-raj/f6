@@ -78,24 +78,130 @@ export async function getDeskBlocks(
     .eq("projectWorkflowId", projectWorkflowId)
     .order("blockOrder", { ascending: true });
 
-  return (blocks || []).map((b: any) => ({
-    id: b.id,
-    name: b.name,
-    blockOrder: b.blockOrder,
-    editorWorkflowId: b.editorWorkflowId,
-    projectWorkflowId: b.projectWorkflowId,
-    parentId: b.parentId,
-    treeDepth: b.treeDepth,
-    reservedColumns: b.reservedColumns || [],
-    coOwnerEmail: b.coOwnerEmail || null,
-    isPasswordProtected: Boolean(b.isPasswordProtected && b.passwordHash),
-    settings: b.settings || {},
-    textInputs: (b.textInputs as unknown as DeskTextInput[]) ?? [],
-    sheets: (b.sheets as unknown as DeskSheet[]) ?? [],
-    outputPreview: (b.outputPreview as unknown as Dataset) ?? null,
-    checkboxFields: (b.checkboxFields as unknown as CheckboxField[]) ?? [],
-    pushedFiles: (b.pushedFiles as unknown as PushedFileRecord[]) ?? [],
-  }));
+  if (!blocks || blocks.length === 0) return [];
+
+  // Fetch workflow definitions for all blocks in one batch query to ensure inputs/sheets
+  // are ALWAYS in sync with the actual editor nodes even if previous saves lagged
+  const editorIds = blocks
+    .map((b: any) => b.editorWorkflowId)
+    .filter(Boolean);
+
+  const { data: workflows } = editorIds.length > 0
+    ? await supabase
+        .from("workflow")
+        .select("id, definition")
+        .in("id", editorIds)
+    : { data: [] };
+
+  const workflowMap = new Map<string, any>();
+  (workflows || []).forEach((wf: any) => {
+    workflowMap.set(wf.id, wf.definition);
+  });
+
+  const updatesToPersist: Promise<any>[] = [];
+
+  const mappedBlocks = blocks.map((b: any) => {
+    const existingInputs = (b.textInputs as unknown as DeskTextInput[]) ?? [];
+    const existingSheets = (b.sheets as unknown as DeskSheet[]) ?? [];
+
+    const wfDef = b.editorWorkflowId ? workflowMap.get(b.editorWorkflowId) : null;
+    let textInputs = existingInputs;
+    let sheets = existingSheets;
+
+    if (wfDef?.reactFlow?.nodes && Array.isArray(wfDef.reactFlow.nodes)) {
+      const nodes: any[] = wfDef.reactFlow.nodes;
+
+      // Extract text inputs from DeskTextInputNode nodes
+      const derivedInputs: DeskTextInput[] = nodes
+        .filter(
+          (n: any) =>
+            n.type === "DeskTextInputNode" || n.data?.type === "DeskTextInputNode",
+        )
+        .map((n: any) => {
+          const inputId = n.data?.deskInputId || n.id;
+          const existing = existingInputs.find((e) => e.id === inputId);
+          return {
+            id: inputId,
+            placeholder: n.data?.placeholder ?? existing?.placeholder ?? "Text Input",
+            value: existing?.value ?? "",
+          };
+        });
+
+      // Extract sheets from DeskSheetNode nodes
+      const derivedSheets: DeskSheet[] = nodes
+        .filter(
+          (n: any) =>
+            n.type === "DeskSheetNode" || n.data?.type === "DeskSheetNode",
+        )
+        .map((n: any) => {
+          const sheetId = n.data?.deskSheetId || n.id;
+          const existing = existingSheets.find((e) => e.id === sheetId);
+          return {
+            id: sheetId,
+            name: n.data?.sheetName ?? existing?.name ?? "Sheet",
+            data: existing?.data ?? null,
+          };
+        });
+
+      // If workflow has nodes or has derived inputs, sync textInputs
+      if (derivedInputs.length > 0 || nodes.length > 0) {
+        textInputs = derivedInputs;
+      }
+
+      // If workflow has DeskSheetNode, use derivedSheets.
+      // If workflow has other nodes but no DeskSheetNode, sheets is empty.
+      // If workflow is completely empty (nodes: []), keep initial sheet if present.
+      if (derivedSheets.length > 0 || nodes.length > 0) {
+        sheets = derivedSheets;
+      }
+
+      // Check if derived differs from DB and persist
+      const currentInputKey = existingInputs.map((t) => `${t.id}:${t.placeholder}`).sort().join(",");
+      const derivedInputKey = textInputs.map((t) => `${t.id}:${t.placeholder}`).sort().join(",");
+      const currentSheetKey = existingSheets.map((s) => `${s.id}:${s.name}`).sort().join(",");
+      const derivedSheetKey = sheets.map((s) => `${s.id}:${s.name}`).sort().join(",");
+
+      if (currentInputKey !== derivedInputKey || currentSheetKey !== derivedSheetKey) {
+        updatesToPersist.push(
+          (async () => {
+            await supabase
+              .from("desk_block")
+              .update({
+                textInputs: textInputs as any,
+                sheets: sheets as any,
+                updatedAt: new Date().toISOString(),
+              })
+              .eq("id", b.id);
+          })(),
+        );
+      }
+    }
+
+    return {
+      id: b.id,
+      name: b.name,
+      blockOrder: b.blockOrder,
+      editorWorkflowId: b.editorWorkflowId,
+      projectWorkflowId: b.projectWorkflowId,
+      parentId: b.parentId,
+      treeDepth: b.treeDepth,
+      reservedColumns: b.reservedColumns || [],
+      coOwnerEmail: b.coOwnerEmail || null,
+      isPasswordProtected: Boolean(b.isPasswordProtected && b.passwordHash),
+      settings: b.settings || {},
+      textInputs,
+      sheets,
+      outputPreview: (b.outputPreview as unknown as Dataset) ?? null,
+      checkboxFields: (b.checkboxFields as unknown as CheckboxField[]) ?? [],
+      pushedFiles: (b.pushedFiles as unknown as PushedFileRecord[]) ?? [],
+    };
+  });
+
+  if (updatesToPersist.length > 0) {
+    Promise.allSettled(updatesToPersist).catch(() => {});
+  }
+
+  return mappedBlocks;
 }
 
 // ─── Create a new block ─────────────────────────────────────
@@ -196,27 +302,34 @@ export async function createDeskBlock(
 }
 
 // ─── Sync block fields from workflow nodes ──────────────────
-export async function syncBlockFieldsFromWorkflow(editorWorkflowId: string) {
+export async function syncBlockFieldsFromWorkflow(
+  editorWorkflowId: string,
+  providedNodes?: any[],
+) {
   // Find the block that owns this editor
-  const { data: block } = await supabase
+  const { data: block, error: blockErr } = await supabase
     .from("desk_block")
     .select("*")
     .eq("editorWorkflowId", editorWorkflowId)
     .maybeSingle();
 
-  if (!block) return;
+  if (blockErr || !block) return;
 
-  // Load the workflow to scan nodes
-  const { data: workflow } = await supabase
-    .from("workflow")
-    .select("definition")
-    .eq("id", editorWorkflowId)
-    .maybeSingle();
+  let nodes: any[] = [];
+  if (providedNodes && Array.isArray(providedNodes)) {
+    nodes = providedNodes;
+  } else {
+    // Load the workflow to scan nodes
+    const { data: workflow, error: wfErr } = await supabase
+      .from("workflow")
+      .select("definition")
+      .eq("id", editorWorkflowId)
+      .maybeSingle();
 
-  if (!workflow?.definition) return;
-
-  const def = workflow.definition as any;
-  const nodes: any[] = def?.reactFlow?.nodes ?? [];
+    if (wfErr || !workflow?.definition) return;
+    const def = workflow.definition as any;
+    nodes = def?.reactFlow?.nodes ?? [];
+  }
 
   // Existing fields (preserve user values)
   const existingInputs = (block.textInputs as unknown as DeskTextInput[]) ?? [];
@@ -235,7 +348,7 @@ export async function syncBlockFieldsFromWorkflow(editorWorkflowId: string) {
       const existing = existingInputs.find((e) => e.id === inputId);
       return {
         id: inputId,
-        placeholder: n.data?.placeholder ?? "Text Input",
+        placeholder: n.data?.placeholder ?? existing?.placeholder ?? "Text Input",
         value: existing?.value ?? "",
       };
     });
@@ -251,7 +364,7 @@ export async function syncBlockFieldsFromWorkflow(editorWorkflowId: string) {
       const existing = existingSheets.find((e) => e.id === sheetId);
       return {
         id: sheetId,
-        name: n.data?.sheetName ?? "Sheet",
+        name: n.data?.sheetName ?? existing?.name ?? "Sheet",
         data: existing?.data ?? null,
       };
     });
@@ -259,7 +372,7 @@ export async function syncBlockFieldsFromWorkflow(editorWorkflowId: string) {
   const checkboxFields: CheckboxField[] = [];
 
   // Update the block
-  await supabase
+  const { error: updateErr } = await supabase
     .from("desk_block")
     .update({
       textInputs: textInputs as any,
@@ -268,6 +381,10 @@ export async function syncBlockFieldsFromWorkflow(editorWorkflowId: string) {
       updatedAt: new Date().toISOString(),
     })
     .eq("id", block.id);
+
+  if (updateErr) {
+    console.error("Failed to update desk_block in syncBlockFieldsFromWorkflow:", updateErr);
+  }
 
   return { textInputs, sheets, checkboxFields };
 }

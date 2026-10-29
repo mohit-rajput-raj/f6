@@ -352,9 +352,11 @@ export const useWorkflowEditorStore = create<WorkflowEditorStore>((set, get) => 
 
       await saveWorkflow(workflowId, cleanNodes, current.edges);
 
-      if (current.deskBlockId) {
-        await syncBlockFieldsFromWorkflow(workflowId).catch(() => {});
-      }
+      // ALWAYS sync block fields from workflow nodes (handles desk block tabs)
+      // Pass cleanNodes directly to eliminate redundant DB fetch and race conditions
+      await syncBlockFieldsFromWorkflow(workflowId, cleanNodes).catch((err) => {
+        console.error("Failed to sync block fields from workflow:", err);
+      });
 
       get().setHasUnsavedChanges(workflowId, false);
     } catch (err) {
