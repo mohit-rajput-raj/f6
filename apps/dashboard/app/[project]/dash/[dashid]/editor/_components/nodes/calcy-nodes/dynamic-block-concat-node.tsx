@@ -1,10 +1,16 @@
 'use client';
 
 import { memo, useCallback } from 'react';
-import { Handle, Position, useReactFlow } from '@xyflow/react';
+import { Position, useReactFlow } from '@xyflow/react';
 import { Layers } from 'lucide-react';
 import {
-  BaseNode, BaseNodeContent, BaseNodeHeader, BaseNodeHeaderTitle,
+  BaseNode,
+  BaseNodeContent,
+  BaseNodeHeader,
+  BaseNodeHeaderTitle,
+  BaseNodeIcon,
+  NodeHeaderActions,
+  NodeHandle,
 } from "@/components/dashboard/flow/Node/baseNode";
 import { NodeMenu } from "../node-menu";
 import { IconTrash } from "@tabler/icons-react";
@@ -25,7 +31,6 @@ export const DynamicBlockConcatNode = memo(({ id, data }: { id: string; data: an
   const handleDelete = useDeleteNode();
   const config: DynamicBlockConcatConfig = data.config || {};
 
-  // Resolved values (from ports or manual config)
   const resolvedSheetName = data.resolvedSheetName || config.sheetName || '';
   const resolvedCode = data.resolvedBlockCode || config.blockCode || '';
   const resolvedType = data.resolvedSectionType || config.sectionType || '';
@@ -35,8 +40,8 @@ export const DynamicBlockConcatNode = memo(({ id, data }: { id: string; data: an
   const mastersheetColumns: string[] = data.mastersheetColumns ?? [];
   const blockColumns: string[] = data.blockColumns ?? [];
   const allColumns: string[] = data.result?.columns ?? [];
-  const hasMastersheet = data.hasMastersheet ?? false;
-  const isReplacing = data.isReplacing ?? false;
+  const hasMastersheet = mastersheetColumns.length > 0;
+  const hasBlockData = blockColumns.length > 0;
 
   const updateConfig = useCallback((updates: Partial<DynamicBlockConcatConfig>) => {
     setNodes(nds =>
@@ -47,152 +52,126 @@ export const DynamicBlockConcatNode = memo(({ id, data }: { id: string; data: an
   }, [id, setNodes, config]);
 
   return (
-    <>
-      <div className="flex justify-between items-center px-2 pt-1">
-        <NodeMenu />
-        <IconTrash className="size-4 cursor-pointer text-red-400 hover:text-red-600" onClick={handleDelete} />
-      </div>
-
-      <BaseNode className="min-w-[340px]">
-        <BaseNodeHeader className="border-b flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-fuchsia-600 to-violet-600 text-white rounded-t-md">
-          <Layers className="size-4" />
-          <BaseNodeHeaderTitle className="text-white">Dynamic Block Concat</BaseNodeHeaderTitle>
+    <BaseNode variant="combine" className="min-w-[340px]">
+      <BaseNodeHeader variant="combine">
+        <div className="flex items-center gap-2 min-w-0">
+          <BaseNodeIcon variant="combine">
+            <Layers className="size-3.5" />
+          </BaseNodeIcon>
+          <BaseNodeHeaderTitle>Dynamic Block Concat</BaseNodeHeaderTitle>
           {blockPrefix && (
-            <Badge variant="outline" className="text-[10px] border-white/30 text-white/80 ml-auto">
+            <Badge variant="outline" className="text-[10px] font-mono border-fuchsia-500/30 text-fuchsia-700 dark:text-fuchsia-300">
               {blockPrefix}
             </Badge>
           )}
-        </BaseNodeHeader>
+        </div>
+        <NodeHeaderActions>
+          <NodeMenu />
+          <IconTrash
+            className="size-3.5 cursor-pointer text-muted-foreground hover:text-destructive transition-colors"
+            onClick={handleDelete}
+          />
+        </NodeHeaderActions>
+      </BaseNodeHeader>
 
-        <BaseNodeContent className="p-3 space-y-3">
-          <p className="text-[10px] text-muted-foreground bg-fuchsia-50 dark:bg-fuchsia-950 p-2 rounded leading-relaxed">
-            Merges a single Subject Block into a MasterSheet by <strong>code + type</strong>.
-            Connect code &amp; type ports (same as Subject Block) to identify the target block.
-          </p>
+      <BaseNodeContent className="p-3.5 space-y-3">
+        <p className="text-[11px] text-muted-foreground bg-muted/40 p-2 rounded-lg border border-border/40">
+          Merges a single Subject Block into MasterSheet by <strong>code + type</strong>.
+        </p>
 
-          {/* Status indicators */}
-          <div className="space-y-1.5">
-            {[
-              { label: 'Sheet Name', val: resolvedSheetName, color: 'amber' },
-              { label: 'Key Column', val: resolvedKey, color: 'lime' },
-              { label: 'Block Code', val: resolvedCode, color: 'teal' },
-              { label: 'Section Type', val: resolvedType, color: 'cyan' },
-              { label: 'MasterSheet', val: hasMastersheet ? `${mastersheetColumns.length} cols` : '', color: 'orange' },
-              { label: 'Block Data', val: blockColumns.length > 0 ? `${blockColumns.length} cols` : '', color: 'purple' },
-            ].map(({ label, val, color }) => (
-              <div key={label} className="flex items-center gap-2">
-                <div className={`w-2 h-2 rounded-full ${val ? `bg-${color}-500` : 'bg-zinc-300 dark:bg-zinc-600'}`} />
-                <span className="text-[10px] text-muted-foreground">
-                  {label}: <span className="font-semibold text-foreground">{val || 'Connect →'}</span>
-                </span>
-              </div>
-            ))}
-          </div>
-
-          {/* Manual fallbacks */}
-          {!data.resolvedSheetName && (
-            <div className="space-y-1">
-              <Label className="text-xs">Sheet Name (manual)</Label>
-              <Input
-                value={config.sheetName ?? ''}
-                onChange={e => updateConfig({ sheetName: e.target.value })}
-                placeholder="e.g. 8th Semester Section B"
-                className="h-7 text-xs nodrag"
-              />
-            </div>
-          )}
-          {!data.resolvedKeyColumn && (
-            <div className="space-y-1">
-              <Label className="text-xs">Key Column (manual)</Label>
-              <Input
-                value={config.keyColumn ?? ''}
-                onChange={e => updateConfig({ keyColumn: e.target.value })}
-                placeholder="e.g. Enrollment_No"
-                className="h-7 text-xs nodrag"
-              />
-            </div>
-          )}
-          {!data.resolvedBlockCode && (
-            <div className="space-y-1">
-              <Label className="text-xs">Block Code (manual)</Label>
-              <Input
-                value={config.blockCode ?? ''}
-                onChange={e => updateConfig({ blockCode: e.target.value })}
-                placeholder="e.g. CO24553"
-                className="h-7 text-xs nodrag"
-              />
-            </div>
-          )}
-          {!data.resolvedSectionType && (
-            <div className="space-y-1">
-              <Label className="text-xs">Section Type (manual)</Label>
-              <Input
-                value={config.sectionType ?? ''}
-                onChange={e => updateConfig({ sectionType: e.target.value })}
-                placeholder="e.g. Th, Tut, Lab"
-                className="h-7 text-xs nodrag"
-              />
-            </div>
-          )}
-
-          {/* Block replacement status */}
-          {blockPrefix && (
-            <div className="border-t pt-2">
-              <span className={`text-[10px] font-medium ${isReplacing
-                ? 'text-amber-600 dark:text-amber-400'
-                : 'text-emerald-600 dark:text-emerald-400'
-                }`}>
-                {isReplacing
-                  ? `🔄 Will replace existing block "${blockPrefix}" in mastersheet`
-                  : `✨ Will add new block "${blockPrefix}" to mastersheet`
-                }
+        <div className="space-y-1.5 bg-muted/30 border border-border/40 p-2.5 rounded-xl">
+          {[
+            { label: 'Sheet Name', val: resolvedSheetName, dot: 'bg-amber-500' },
+            { label: 'Key Column', val: resolvedKey, dot: 'bg-lime-500' },
+            { label: 'Block Code', val: resolvedCode, dot: 'bg-teal-500' },
+            { label: 'Section Type', val: resolvedType, dot: 'bg-cyan-500' },
+            { label: 'MasterSheet', val: hasMastersheet ? `${mastersheetColumns.length} cols` : '', dot: 'bg-orange-500' },
+            { label: 'Block Data', val: hasBlockData ? `${blockColumns.length} cols` : '', dot: 'bg-fuchsia-500' },
+          ].map(({ label, val, dot }) => (
+            <div key={label} className="flex items-center gap-2">
+              <div className={`w-2 h-2 rounded-full ${val ? dot : 'bg-muted-foreground/40'}`} />
+              <span className="text-[11px] text-muted-foreground">
+                {label}: <span className="font-semibold text-foreground">{val || 'Connect →'}</span>
               </span>
             </div>
-          )}
+          ))}
+        </div>
 
-          {data.rowCount !== undefined && (
-            <div className="text-xs text-fuchsia-600 font-medium text-center pt-2 border-t">
-              {data.rowCount} rows • {allColumns.length} columns
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground">Master Sheet Name (fallback)</Label>
+          <Input
+            value={config.sheetName ?? ''}
+            onChange={e => updateConfig({ sheetName: e.target.value })}
+            placeholder="e.g. MasterSheet_IT"
+            className="h-8 text-xs nodrag"
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground">Key Column (fallback, e.g. Enrollment)</Label>
+          <Input
+            value={config.keyColumn ?? ''}
+            onChange={e => updateConfig({ keyColumn: e.target.value })}
+            placeholder="e.g. Enrollment"
+            className="h-8 text-xs nodrag"
+          />
+        </div>
+
+        {allColumns.length > 0 && (
+          <div className="space-y-1 border-t border-border/40 pt-2">
+            <span className="text-[10px] font-medium text-muted-foreground">Columns ({allColumns.length})</span>
+            <div className="flex flex-wrap gap-1 max-h-[70px] overflow-y-auto">
+              {allColumns.slice(0, 10).map((col, i) => (
+                <span key={i} className="text-[9px] px-1.5 py-0.5 rounded bg-muted/60 border border-border/40 text-foreground font-mono">
+                  {col}
+                </span>
+              ))}
+              {allColumns.length > 10 && (
+                <span className="text-[9px] text-muted-foreground">+{allColumns.length - 10} more</span>
+              )}
             </div>
-          )}
+          </div>
+        )}
 
-          {data.error && (
-            <div className="text-xs text-red-500 bg-red-50 dark:bg-red-950 p-2 rounded">⚠ {data.error}</div>
-          )}
-        </BaseNodeContent>
+        {data.rowCount !== undefined && (
+          <div className="text-[11px] text-fuchsia-600 dark:text-fuchsia-400 font-medium text-center pt-1 border-t border-border/40">
+            {data.rowCount} rows • {allColumns.length} columns
+          </div>
+        )}
 
-        {/* Input handles — 6 ports */}
-        <Handle type="target" position={Position.Left} id="sheet-name" className="w-3 h-3 bg-amber-500" style={{ top: '8%' }} />
-        <Handle type="target" position={Position.Left} id="key" className="w-3 h-3 bg-lime-500" style={{ top: '18%' }} />
-        <Handle type="target" position={Position.Left} id="mastersheet" className="w-3 h-3 bg-orange-500" style={{ top: '30%' }} />
-        <Handle type="target" position={Position.Left} id="code" className="w-3 h-3 bg-teal-500" style={{ top: '44%' }} />
-        <Handle type="target" position={Position.Left} id="type" className="w-3 h-3 bg-cyan-500" style={{ top: '56%' }} />
-        <Handle type="target" position={Position.Left} id="block" className="w-3 h-3 bg-purple-500" style={{ top: '70%' }} />
+        {data.error && (
+          <div className="text-xs text-destructive bg-destructive/10 border border-destructive/20 p-2 rounded-lg">⚠ {data.error}</div>
+        )}
+      </BaseNodeContent>
 
-        {/* Handle labels */}
-        <div className="absolute left-[-4px] text-[7px] text-amber-500 font-medium" style={{ top: '5%', transform: 'translateX(-100%)' }}>
-          Sheet Name
-        </div>
-        <div className="absolute left-[-4px] text-[7px] text-lime-500 font-medium" style={{ top: '15%', transform: 'translateX(-100%)' }}>
-          Key
-        </div>
-        <div className="absolute left-[-4px] text-[7px] text-orange-500 font-medium" style={{ top: '27%', transform: 'translateX(-100%)' }}>
-          MasterSheet
-        </div>
-        <div className="absolute left-[-4px] text-[7px] text-teal-500 font-medium" style={{ top: '41%', transform: 'translateX(-100%)' }}>
-          Code
-        </div>
-        <div className="absolute left-[-4px] text-[7px] text-cyan-500 font-medium" style={{ top: '53%', transform: 'translateX(-100%)' }}>
-          Type
-        </div>
-        <div className="absolute left-[-4px] text-[7px] text-purple-500 font-medium" style={{ top: '67%', transform: 'translateX(-100%)' }}>
-          Block Data
-        </div>
+      <NodeHandle variant="combine" type="target" position={Position.Left} id="sheet-name" style={{ top: '8%' }} />
+      <NodeHandle variant="combine" type="target" position={Position.Left} id="key" style={{ top: '18%' }} />
+      <NodeHandle variant="combine" type="target" position={Position.Left} id="mastersheet" style={{ top: '30%' }} />
+      <NodeHandle variant="combine" type="target" position={Position.Left} id="code" style={{ top: '44%' }} />
+      <NodeHandle variant="combine" type="target" position={Position.Left} id="type" style={{ top: '56%' }} />
+      <NodeHandle variant="combine" type="target" position={Position.Left} id="block" style={{ top: '70%' }} />
 
-        {/* Output handle */}
-        <Handle type="source" position={Position.Right} id="out" className="w-3 h-3 bg-fuchsia-600" />
-      </BaseNode>
-    </>
+      <div className="absolute left-[-4px] text-[7px] text-amber-500 font-medium" style={{ top: '5%', transform: 'translateX(-100%)' }}>
+        Sheet Name
+      </div>
+      <div className="absolute left-[-4px] text-[7px] text-lime-500 font-medium" style={{ top: '15%', transform: 'translateX(-100%)' }}>
+        Key
+      </div>
+      <div className="absolute left-[-4px] text-[7px] text-orange-500 font-medium" style={{ top: '27%', transform: 'translateX(-100%)' }}>
+        MasterSheet
+      </div>
+      <div className="absolute left-[-4px] text-[7px] text-teal-500 font-medium" style={{ top: '41%', transform: 'translateX(-100%)' }}>
+        Code
+      </div>
+      <div className="absolute left-[-4px] text-[7px] text-cyan-500 font-medium" style={{ top: '53%', transform: 'translateX(-100%)' }}>
+        Type
+      </div>
+      <div className="absolute left-[-4px] text-[7px] text-fuchsia-500 font-medium" style={{ top: '67%', transform: 'translateX(-100%)' }}>
+        Block Data
+      </div>
+
+      <NodeHandle variant="combine" type="source" position={Position.Right} id="out" />
+    </BaseNode>
   );
 });
 

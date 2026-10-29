@@ -99,7 +99,7 @@ const Page = async ({ params, searchParams }: Props) => {
     const deskUrl = `/${project}/dash/${dashId}/desk`;
 
     return (
-        <div className="w-full h-screen p-1 flex flex-col gap-1 bg-zinc-950">
+        <div className="w-full h-screen p-2 flex flex-col gap-2 bg-background text-foreground">
             <ErrorBoundary fallback={<p className="text-red-500 p-4">Something went wrong</p>}>
                 <Suspense fallback={<p className="text-zinc-400 p-4">Loading workflow...</p>}>
                     <BlockEditorClientWrapper

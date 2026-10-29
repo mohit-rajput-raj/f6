@@ -1,13 +1,16 @@
 'use client';
 
 import { memo, useCallback } from 'react';
-import { Handle, Position, useReactFlow } from '@xyflow/react';
+import { Position, useReactFlow } from '@xyflow/react';
 import { Calculator } from 'lucide-react';
 import {
   BaseNode,
   BaseNodeContent,
   BaseNodeHeader,
   BaseNodeHeaderTitle,
+  BaseNodeIcon,
+  NodeHeaderActions,
+  NodeHandle,
 } from "@/components/dashboard/flow/Node/baseNode";
 import { NodeMenu } from "../node-menu";
 import { IconTrash } from "@tabler/icons-react";
@@ -28,8 +31,8 @@ interface MathColumnConfig {
   column?: string;
   operation?: MathOp;
   value?: string;
-  sourceColumn?: string; // optional: use another column instead of a constant
-  resultColumn?: string; // name for the result column
+  sourceColumn?: string;
+  resultColumn?: string;
 }
 
 export const MathColumnNode = memo(({ id, data }: { id: string; data: any }) => {
@@ -49,95 +52,99 @@ export const MathColumnNode = memo(({ id, data }: { id: string; data: any }) => 
   }, [id, setNodes, config]);
 
   return (
-    <>
-      <div className="flex justify-between items-center px-2 pt-1">
-        <NodeMenu />
-        <IconTrash className="size-4 cursor-pointer text-red-400 hover:text-red-600" onClick={handleDelete} />
-      </div>
-
-      <BaseNode className="min-w-[320px]">
-        <BaseNodeHeader className="border-b flex items-center gap-2 px-3 py-1.5 bg-blue-700 text-white">
-          <Calculator className="size-4" />
+    <BaseNode variant="math" className="min-w-[320px]">
+      <BaseNodeHeader variant="math">
+        <div className="flex items-center gap-2 min-w-0">
+          <BaseNodeIcon variant="math">
+            <Calculator className="size-3.5" />
+          </BaseNodeIcon>
           <BaseNodeHeaderTitle>Math (Column)</BaseNodeHeaderTitle>
-        </BaseNodeHeader>
+        </div>
+        <NodeHeaderActions>
+          <NodeMenu />
+          <IconTrash
+            className="size-3.5 cursor-pointer text-muted-foreground hover:text-destructive transition-colors"
+            onClick={handleDelete}
+          />
+        </NodeHeaderActions>
+      </BaseNodeHeader>
 
-        <BaseNodeContent className="p-4 space-y-3">
-          <div className="space-y-1">
-            <Label className="text-xs">Column</Label>
-            <Select value={config.column} onValueChange={v => updateConfig({ column: v })} disabled={columns.length === 0}>
-              <SelectTrigger className="h-8">
-                <SelectValue placeholder={columns.length === 0 ? "Connect input first" : "Select column"} />
-              </SelectTrigger>
-              <SelectContent>
-                {columns.map(col => (
-                  <SelectItem key={col} value={col}>{col}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+      <BaseNodeContent className="p-3.5 space-y-3">
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground">Target column</Label>
+          <Select value={config.column} onValueChange={v => updateConfig({ column: v })} disabled={columns.length === 0}>
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue placeholder={columns.length === 0 ? "Connect input first" : "Select column"} />
+            </SelectTrigger>
+            <SelectContent>
+              {columns.map(col => (
+                <SelectItem key={col} value={col}>{col}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground">Operation</Label>
+          <Select value={config.operation} onValueChange={v => updateConfig({ operation: v as MathOp })}>
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue placeholder="Select operation" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="add">+ Add</SelectItem>
+              <SelectItem value="subtract">− Subtract</SelectItem>
+              <SelectItem value="multiply">× Multiply</SelectItem>
+              <SelectItem value="divide">÷ Divide</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground">Value (constant)</Label>
+          <Input
+            value={config.value ?? ''}
+            onChange={e => updateConfig({ value: e.target.value })}
+            placeholder="e.g. 10"
+            className="h-8 text-xs nodrag"
+            type="number"
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground">Or second column</Label>
+          <Select value={config.sourceColumn} onValueChange={v => updateConfig({ sourceColumn: v })} disabled={columns.length === 0}>
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue placeholder="(optional)" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__none__">(use constant value)</SelectItem>
+              {columns.map(col => (
+                <SelectItem key={col} value={col}>{col}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground">Result column name</Label>
+          <Input
+            value={config.resultColumn ?? ''}
+            onChange={e => updateConfig({ resultColumn: e.target.value })}
+            placeholder="e.g. result"
+            className="h-8 text-xs nodrag"
+          />
+        </div>
+
+        {data.rowCount !== undefined && (
+          <div className="text-[11px] text-blue-600 dark:text-blue-400 font-medium text-center pt-2 border-t border-border/40">
+            {data.rowCount} rows • {data.result?.columns?.length ?? '?'} cols
           </div>
+        )}
+      </BaseNodeContent>
 
-          <div className="space-y-1">
-            <Label className="text-xs">Operation</Label>
-            <Select value={config.operation} onValueChange={v => updateConfig({ operation: v as MathOp })}>
-              <SelectTrigger className="h-8">
-                <SelectValue placeholder="Select operation" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="add">+ Add</SelectItem>
-                <SelectItem value="subtract">− Subtract</SelectItem>
-                <SelectItem value="multiply">× Multiply</SelectItem>
-                <SelectItem value="divide">÷ Divide</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-1">
-            <Label className="text-xs">Value (constant)</Label>
-            <Input
-              value={config.value ?? ''}
-              onChange={e => updateConfig({ value: e.target.value })}
-              placeholder="e.g. 10"
-              className="h-8"
-              type="number"
-            />
-          </div>
-
-          <div className="space-y-1">
-            <Label className="text-xs">Or use column</Label>
-            <Select value={config.sourceColumn} onValueChange={v => updateConfig({ sourceColumn: v })} disabled={columns.length === 0}>
-              <SelectTrigger className="h-8">
-                <SelectValue placeholder="(optional)" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__none__">(use constant value)</SelectItem>
-                {columns.map(col => (
-                  <SelectItem key={col} value={col}>{col}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-1">
-            <Label className="text-xs">Result column name</Label>
-            <Input
-              value={config.resultColumn ?? ''}
-              onChange={e => updateConfig({ resultColumn: e.target.value })}
-              placeholder="e.g. result"
-              className="h-8"
-            />
-          </div>
-
-          {data.rowCount !== undefined && (
-            <div className="text-xs text-blue-600 font-medium text-center pt-2 border-t">
-              {data.rowCount} rows • {data.result?.columns?.length ?? '?'} cols
-            </div>
-          )}
-        </BaseNodeContent>
-
-        <Handle type="target" position={Position.Left} id="in" className="w-3 h-3 bg-blue-600" />
-        <Handle type="source" position={Position.Right} id="out" className="w-3 h-3 bg-blue-600" />
-      </BaseNode>
-    </>
+      <NodeHandle variant="math" type="target" position={Position.Left} id="in" />
+      <NodeHandle variant="math" type="source" position={Position.Right} id="out" />
+    </BaseNode>
   );
 });
 

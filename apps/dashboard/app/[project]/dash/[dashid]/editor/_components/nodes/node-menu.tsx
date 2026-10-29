@@ -95,10 +95,16 @@ export function NodeMenu() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost"><IconMenu className="size-4" /></Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-5 w-5 p-0 text-muted-foreground hover:text-foreground hover:bg-foreground/5 cursor-pointer nodrag transition-colors rounded-md"
+        >
+          <IconMenu className="size-3.5" />
+        </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent className="w-44" align="start">
-        <DropdownMenuLabel>Node Actions</DropdownMenuLabel>
+      <DropdownMenuContent className="w-44 rounded-xl border-border/50 shadow-md text-xs" align="start">
+        <DropdownMenuLabel className="text-[11px] font-semibold text-muted-foreground">Node Actions</DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
           <DropdownMenuItem onClick={handleDuplicate}>

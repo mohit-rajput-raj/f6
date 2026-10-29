@@ -1,10 +1,16 @@
 'use client';
 
 import { memo, useEffect, useCallback } from 'react';
-import { Handle, Position, useReactFlow } from '@xyflow/react';
+import { Position, useReactFlow } from '@xyflow/react';
 import { FileSpreadsheet, Table2 } from 'lucide-react';
 import {
-  BaseNode, BaseNodeContent, BaseNodeHeader, BaseNodeHeaderTitle,
+  BaseNode,
+  BaseNodeContent,
+  BaseNodeHeader,
+  BaseNodeHeaderTitle,
+  BaseNodeIcon,
+  NodeHeaderActions,
+  NodeHandle,
 } from "@/components/dashboard/flow/Node/baseNode";
 import { NodeMenu } from "../node-menu";
 import { IconTrash } from "@tabler/icons-react";
@@ -20,7 +26,7 @@ import { useEditorWorkFlow } from '@/context/WorkFlowContextProvider';
  * data.sheetName   = name of the sheet (display label)
  * data.text        = { columns, data } (synced from desk store at execution time)
  */
-export const DeskSheetNode = memo(({ id, data }: { id: string; data: any }) => {
+export const DeskSheetNode = memo(({ id, data, selected }: { id: string; data: any; selected?: boolean }) => {
   const { setNodes } = useReactFlow();
   const defaultHandleDelete = useDeleteNode();
   const { deskBlockId: contextBlockId } = useEditorWorkFlow();
@@ -73,96 +79,107 @@ export const DeskSheetNode = memo(({ id, data }: { id: string; data: any }) => {
   const rows: any[][] = sheetData?.data ?? [];
 
   return (
-    <>
-      <div className="flex justify-between items-center px-2 pt-1">
-        <NodeMenu />
-        <IconTrash className="size-4 cursor-pointer text-red-400 hover:text-red-600" onClick={handleDelete} />
-      </div>
-
-      <BaseNode className="min-w-[280px]">
-        <BaseNodeHeader className="border-b flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-orange-500 to-amber-500 text-white">
+    <BaseNode variant="input" selected={selected} className="min-w-[280px]">
+      <BaseNodeHeader variant="input">
+        <BaseNodeIcon variant="input">
           <FileSpreadsheet className="size-4" />
-          <BaseNodeHeaderTitle className="text-white text-sm">
-            📊 {displayName}
-          </BaseNodeHeaderTitle>
-        </BaseNodeHeader>
+        </BaseNodeIcon>
+        <BaseNodeHeaderTitle>{displayName}</BaseNodeHeaderTitle>
+        <NodeHeaderActions>
+          <NodeMenu />
+          <IconTrash
+            className="size-4 cursor-pointer text-muted-foreground hover:text-destructive transition-colors"
+            onClick={handleDelete}
+          />
+        </NodeHeaderActions>
+      </BaseNodeHeader>
 
-        <BaseNodeContent className="p-3 space-y-2">
-          {columns.length > 0 ? (
-            <>
-              <div className="text-xs text-orange-600 font-semibold text-center">
-                {rows.length} rows × {columns.length} columns
-              </div>
+      <BaseNodeContent className="p-3 space-y-2.5">
+        {columns.length > 0 ? (
+          <>
+            <div className="text-[11px] text-muted-foreground font-mono text-center">
+              {rows.length} rows × {columns.length} columns
+            </div>
 
-              {/* Column badges */}
-              <div className="flex flex-wrap gap-1">
-                {columns.slice(0, 8).map((col, i) => (
-                  <span
-                    key={i}
-                    className="text-[10px] px-1.5 py-0.5 rounded-full bg-orange-100 dark:bg-orange-900 text-orange-700 dark:text-orange-300 border border-orange-200 dark:border-orange-700"
-                  >
-                    {col}
-                  </span>
-                ))}
-                {columns.length > 8 && (
-                  <span className="text-[10px] px-1.5 py-0.5 text-muted-foreground">
-                    +{columns.length - 8} more
-                  </span>
-                )}
-              </div>
+            {/* Column badges */}
+            <div className="flex flex-wrap gap-1">
+              {columns.slice(0, 8).map((col, i) => (
+                <span
+                  key={i}
+                  className="text-[10px] px-2 py-0.5 rounded-md bg-muted/60 text-foreground border border-border/40 font-mono"
+                >
+                  {col}
+                </span>
+              ))}
+              {columns.length > 8 && (
+                <span className="text-[10px] px-1.5 py-0.5 text-muted-foreground">
+                  +{columns.length - 8} more
+                </span>
+              )}
+            </div>
 
-              {/* Preview table */}
-              <div className="max-h-[80px] overflow-auto border rounded">
-                <table className="w-full text-[10px]">
-                  <thead>
-                    <tr className="bg-orange-50 dark:bg-orange-900/40">
-                      {columns.slice(0, 5).map((col, i) => (
-                        <th key={i} className="px-1 py-0.5 text-left font-medium border-r last:border-r-0 truncate max-w-[60px]">
-                          {col}
-                        </th>
+            {/* Preview table */}
+            <div className="max-h-[85px] overflow-auto border border-border/40 rounded-lg bg-background">
+              <table className="w-full text-[10px]">
+                <thead>
+                  <tr className="bg-muted/40 border-b border-border/40 text-muted-foreground font-medium">
+                    {columns.slice(0, 5).map((col, i) => (
+                      <th
+                        key={i}
+                        className="px-2 py-1 text-left border-r border-border/30 last:border-r-0 truncate max-w-[65px]"
+                      >
+                        {col}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/25">
+                  {rows.slice(0, 3).map((row, ri) => (
+                    <tr key={ri} className="hover:bg-muted/30">
+                      {row.slice(0, 5).map((cell: any, ci: number) => (
+                        <td
+                          key={ci}
+                          className="px-2 py-1 border-r border-border/25 last:border-r-0 truncate max-w-[65px] font-mono text-foreground"
+                        >
+                          {String(cell ?? '')}
+                        </td>
                       ))}
                     </tr>
-                  </thead>
-                  <tbody>
-                    {rows.slice(0, 3).map((row, ri) => (
-                      <tr key={ri} className="border-t">
-                        {row.slice(0, 5).map((cell: any, ci: number) => (
-                          <td key={ci} className="px-1 py-0.5 border-r last:border-r-0 truncate max-w-[60px]">
-                            {String(cell ?? '')}
-                          </td>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                {rows.length > 3 && (
-                  <div className="text-[10px] text-center text-muted-foreground py-0.5 border-t">
-                    + {rows.length - 3} more rows
-                  </div>
-                )}
-              </div>
-            </>
-          ) : (
-            <div className="text-xs text-muted-foreground text-center py-3 italic flex flex-col items-center gap-2">
-              <Table2 className="size-5 opacity-50" />
-              No data loaded — upload CSV on Desk panel
+                  ))}
+                </tbody>
+              </table>
+              {rows.length > 3 && (
+                <div className="text-[10px] text-center text-muted-foreground py-1 border-t border-border/30 bg-muted/20">
+                  + {rows.length - 3} more rows
+                </div>
+              )}
             </div>
-          )}
+          </>
+        ) : (
+          <div className="text-xs text-muted-foreground text-center py-4 italic flex flex-col items-center gap-1.5">
+            <Table2 className="size-4 opacity-50" />
+            <span>No data loaded — upload CSV on Desk panel</span>
+          </div>
+        )}
 
-          {!deskBlockId && (
-            <p className="text-[9px] text-amber-500 text-center">
-              ⚠ No block ID set. Open this editor from a desk block.
-            </p>
-          )}
-
-          <p className="text-[9px] text-muted-foreground text-center">
-            📊 Data loaded from Desk panel
+        {!deskBlockId && (
+          <p className="text-[9px] text-muted-foreground/80 text-center">
+            ⚠ No block ID set. Open this editor from a desk block.
           </p>
-        </BaseNodeContent>
+        )}
 
-        <Handle type="source" position={Position.Right} id="out" className="w-3 h-3 bg-orange-500" />
-      </BaseNode>
-    </>
+        <p className="text-[10px] text-muted-foreground/80 text-center font-medium">
+          Data loaded from Desk panel
+        </p>
+      </BaseNodeContent>
+
+      <NodeHandle
+        variant="input"
+        type="source"
+        position={Position.Right}
+        id="out"
+      />
+    </BaseNode>
   );
 });
 

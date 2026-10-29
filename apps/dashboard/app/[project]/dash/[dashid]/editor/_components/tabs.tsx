@@ -13,21 +13,21 @@ import FileTreeDemo from "@/components/files/fele-tree"
 import { useCallback, useState } from "react"
 export function TabsDemo() {
   return (
-    <div className="flex w-full h-full flex-col gap-6 ">
-      <Tabs defaultValue="node">
-        <TabsList>
-          <TabsTrigger value="account">Settings</TabsTrigger>
-          <TabsTrigger value="node">Nodes</TabsTrigger>
+    <div className="flex w-full h-full flex-col p-3 overflow-y-auto">
+      <Tabs defaultValue="node" className="w-full flex-1 flex flex-col">
+        <TabsList className="w-full grid grid-cols-2 bg-muted/60 p-1 rounded-xl mb-3 border border-border/30">
+          <TabsTrigger value="account" className="text-xs rounded-lg py-1">Settings</TabsTrigger>
+          <TabsTrigger value="node" className="text-xs rounded-lg py-1">Nodes</TabsTrigger>
         </TabsList>
-        <TabsContent value="account">
+        <TabsContent value="account" className="flex-1 mt-0">
           <PanelSettings />
         </TabsContent>
-        <TabsContent value="node">
+        <TabsContent value="node" className="flex-1 mt-0">
           <ItemImage />
         </TabsContent>
       </Tabs>
     </div>
-  )
+  );
 }
 
 export function TabsNodesOnly() {
@@ -207,12 +207,6 @@ const nodes = [
         icon: <IconDatabase />,
         description: "Load existing MasterSheet from library",
       },
-      {
-        title: "Action Button",
-        type: "ActionButtonNode",
-        icon: <IconForms />,
-        description: "Button for Desk MasterSheet panel",
-      },
     ]
   },
   {
@@ -253,12 +247,6 @@ const nodes = [
         type: "DropColumnNode",
         icon: <IconColumnRemove />,
         description: "Remove specific columns",
-      },
-      {
-        title: "AI Schema Align",
-        type: "AISchemaAlignNode",
-        icon: <IconSparkles />,
-        description: "AI-assisted schema alignment & row matching",
       },
       {
         title: "Dynamic MasterSheet Node",
@@ -461,19 +449,20 @@ export function ItemImage() {
   };
 
   return (
-    <div className="w-full max-w-md px-1">
-      <Accordion type="multiple" defaultValue={["Input", "Transform", "Math", "Combine", "Output"]} className="w-full">
+    <div className="w-full px-0.5 space-y-2">
+      <Accordion type="multiple" defaultValue={["Input", "Transform", "Math", "Combine", "Output"]} className="w-full space-y-1.5">
         {nodes.map((group) => (
           <AccordionItem
             key={group.title}
             value={group.title}
+            className="border border-border/40 rounded-xl px-2.5 overflow-hidden bg-card/60 shadow-2xs"
           >
-            <AccordionTrigger className="text-sm font-semibold">
+            <AccordionTrigger className="text-xs font-semibold py-2 hover:no-underline text-foreground">
               {group.title}
             </AccordionTrigger>
 
-            <AccordionContent>
-              <div className="flex flex-col gap-2">
+            <AccordionContent className="pb-2">
+              <div className="flex flex-col gap-1.5">
                 {group.types.map((item, i) => (
                   <button
                     key={i}
@@ -483,17 +472,17 @@ export function ItemImage() {
                       e.dataTransfer.setData("application/reactflow", item.type);
                       e.dataTransfer.effectAllowed = "move";
                     }}
-                    className="flex items-center gap-3 rounded-md border p-2.5 text-left hover:bg-muted transition cursor-grab active:cursor-grabbing"
+                    className="flex items-center gap-2.5 rounded-lg border border-border/40 bg-muted/30 p-2 text-left hover:bg-muted/70 transition-all cursor-grab active:cursor-grabbing text-foreground shadow-2xs"
                   >
-                    <span className="text-muted-foreground">
+                    <span className="text-muted-foreground size-4 shrink-0 flex items-center justify-center">
                       {item.icon}
                     </span>
 
-                    <div className="flex flex-col">
-                      <span className="text-sm font-medium">
+                    <div className="flex flex-col min-w-0">
+                      <span className="text-xs font-medium text-foreground truncate">
                         {item.title}
                       </span>
-                      <span className="text-xs text-muted-foreground">
+                      <span className="text-[10px] text-muted-foreground truncate">
                         {item.description}
                       </span>
                     </div>

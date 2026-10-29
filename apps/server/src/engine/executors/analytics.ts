@@ -421,26 +421,6 @@ export class DynamicMasterSheetExecutor implements INodeExecutor {
   }
 }
 
-// ── AISchemaAlignNode ───────────────────────────────────────
-// Interactive AI node — needs data from prev nodes before user can configure
-export class AISchemaAlignExecutor implements INodeExecutor {
-  type = "AISchemaAlignNode";
-
-  async execute(ctx: ExecutionContext): Promise<any> {
-    const masterGridData = ctx.inputs.get("master-grid");
-    const csvFileData = ctx.inputs.get("csv-file");
-
-    ctx.emitNodeMeta({
-      masterGrid: masterGridData,
-      csvContent: csvFileData,
-      fileData: csvFileData,
-    });
-
-    // This node's result comes from user interaction — just pass through stored result
-    return ctx.nodeData?.result || { updates: [], alignment: null };
-  }
-}
-
 export function createAnalyticsExecutors(
   deskResolver: DeskInputResolver,
 ): INodeExecutor[] {
@@ -449,6 +429,6 @@ export function createAnalyticsExecutors(
     new MasterSheetPreviewExecutor(deskResolver),
     new UpdatedMergedPreviewExecutor(deskResolver),
     new DynamicMasterSheetExecutor(deskResolver),
-    new AISchemaAlignExecutor(),
   ];
 }
+

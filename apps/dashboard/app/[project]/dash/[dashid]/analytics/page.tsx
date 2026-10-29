@@ -63,18 +63,18 @@ import {
 import { exportSheetToExcel, exportSheetToCsv } from '@/lib/sheet-utils';
 import { generateAnalyticsPdfReport } from './_lib/analytics-pdf-report';
 
-// Color palette for charts
+// Color palette for charts (Sky Blue everywhere, NO green)
 const CHART_COLORS = {
-  present: '#10b981', // Emerald for P (Present)
+  present: '#0ea5e9', // Sky Blue for P (Present)
   absent: '#f43f5e', // Rose/Red for A (Absent)
   primary: '#8b5cf6', // Violet
   secondary: '#0ea5e9', // Sky
   amber: '#f59e0b', // Amber
-  teal: '#14b8a6', // Teal
+  teal: '#0ea5e9', // Sky Blue
   pink: '#ec4899', // Pink
 };
 
-const PALETTE = ['#8b5cf6', '#10b981', '#0ea5e9', '#f59e0b', '#f43f5e', '#ec4899', '#14b8a6', '#6366f1'];
+const PALETTE = ['#0ea5e9', '#38bdf8', '#8b5cf6', '#0284c7', '#f59e0b', '#f43f5e', '#ec4899', '#6366f1'];
 
 export default function AnalyticsPage() {
   const params = useParams();
@@ -313,7 +313,7 @@ export default function AnalyticsPage() {
     const defaulters = studentsList.filter((s) => s.percentage < 60).length;
 
     return [
-      { name: 'Eligible (>= 75%)', value: safe, color: '#10b981' },
+      { name: 'Eligible (>= 75%)', value: safe, color: '#0ea5e9' },
       { name: 'Warning (60% - 74%)', value: warning, color: '#f59e0b' },
       { name: 'Critical Shortage (< 60%)', value: defaulters, color: '#f43f5e' },
     ].filter((d) => d.value > 0);
@@ -329,7 +329,7 @@ export default function AnalyticsPage() {
         'Attendance (%)': s.percentage,
         'Attended Classes': s.attend,
         'Total Classes': s.total,
-        fill: s.percentage >= 75 ? '#10b981' : s.percentage >= 60 ? '#f59e0b' : '#f43f5e',
+        fill: s.percentage >= 75 ? '#0ea5e9' : s.percentage >= 60 ? '#f59e0b' : '#f43f5e',
       }));
   }, [studentsList]);
 
@@ -1608,7 +1608,7 @@ export default function AnalyticsPage() {
                           }}
                         />
                         <Legend />
-                        <Bar dataKey="Safe (>=75%)" fill="#10b981" stackId="tier" radius={[0, 0, 0, 0]} />
+                        <Bar dataKey="Safe (>=75%)" fill="#0ea5e9" stackId="tier" radius={[0, 0, 0, 0]} />
                         <Bar dataKey="Warning (60-74%)" fill="#f59e0b" stackId="tier" radius={[0, 0, 0, 0]} />
                         <Bar dataKey="Defaulters (<60%)" fill="#f43f5e" stackId="tier" radius={[4, 4, 0, 0]} />
                       </BarChart>
@@ -1666,7 +1666,7 @@ export default function AnalyticsPage() {
                           <Line
                             type="monotone"
                             dataKey={`${studentsList.find((s) => s.enroll === selectedStudentKey)?.name || selectedStudentKey} (%)`}
-                            stroke="#10b981"
+                            stroke="#0ea5e9"
                             strokeWidth={3}
                             dot={{ r: 5 }}
                           />

@@ -10,6 +10,9 @@ import {
   BaseNodeContent,
   BaseNodeHeader,
   BaseNodeHeaderTitle,
+  BaseNodeIcon,
+  NodeHeaderActions,
+  NodeHandle,
 } from "@/components/dashboard/flow/Node/baseNode";
 import { NodeMenu } from "../node-menu";
 import { IconTrash } from "@tabler/icons-react";
@@ -209,22 +212,25 @@ export const GetFileNode = memo(({ id, data }: { id: string; data: any }) => {
   }, [selectedFileName, data.dynamicFileName, data.dynamicFolderName, data.dynamicFolderPath, dashid, selectedFolderPath, id, setNodes]);
 
   return (
-    <>
-      <div className="flex justify-between items-center px-2 pt-1">
-        <NodeMenu />
-        <IconTrash className="size-4 cursor-pointer text-red-400 hover:text-red-600" onClick={handleDelete} />
-      </div>
-
-      <BaseNode className="min-w-[320px] shadow-lg border-teal-500/20">
-        <BaseNodeHeader className="border-b flex items-center justify-between px-3 py-1.5 bg-gradient-to-r from-teal-700 to-teal-600 text-white">
-          <div className="flex items-center gap-2">
-            <FolderOpen className="size-4" />
-            <BaseNodeHeaderTitle>Get from Files</BaseNodeHeaderTitle>
-          </div>
-          <span className="text-[10px] bg-white/20 px-1.5 py-0.5 rounded font-mono">
-            Input
+    <BaseNode variant="input" className="min-w-[320px]">
+      <BaseNodeHeader variant="input">
+        <div className="flex items-center gap-2 min-w-0">
+          <BaseNodeIcon variant="input">
+            <FolderOpen className="size-3.5" />
+          </BaseNodeIcon>
+          <BaseNodeHeaderTitle>Get from Files</BaseNodeHeaderTitle>
+          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-md bg-sky-500/15 text-sky-700 dark:text-sky-300 font-medium">
+            Files
           </span>
-        </BaseNodeHeader>
+        </div>
+        <NodeHeaderActions>
+          <NodeMenu />
+          <IconTrash
+            className="size-3.5 cursor-pointer text-muted-foreground hover:text-destructive transition-colors"
+            onClick={handleDelete}
+          />
+        </NodeHeaderActions>
+      </BaseNodeHeader>
 
         <BaseNodeContent className="p-3.5 space-y-3">
           {/* Folder Path Selector */}
@@ -392,32 +398,31 @@ export const GetFileNode = memo(({ id, data }: { id: string; data: any }) => {
           </Button>
         </BaseNodeContent>
 
-        {/* Input Handles (Left - Optional Dynamic overrides) */}
-        <Handle
-          type="target"
-          position={Position.Left}
-          id="folder-name"
-          className="w-3 h-3 bg-amber-600 top-[35%]"
-          title="Dynamic Folder Path (e.g. A/B/C)"
-        />
-        <Handle
-          type="target"
-          position={Position.Left}
-          id="file-name"
-          className="w-3 h-3 bg-emerald-600 top-[65%]"
-          title="Dynamic File Name"
-        />
-
-        {/* Output Handle (Right) */}
-        <Handle
-          type="source"
-          position={Position.Right}
-          id="out"
-          className="w-3 h-3 bg-teal-600 top-[50%]"
-          title="Dataset (columns & data)"
-        />
-      </BaseNode>
-    </>
+      <NodeHandle
+        variant="input"
+        type="target"
+        position={Position.Left}
+        id="folder-name"
+        style={{ top: '35%' }}
+        title="Dynamic Folder Path (e.g. A/B/C)"
+      />
+      <NodeHandle
+        variant="input"
+        type="target"
+        position={Position.Left}
+        id="file-name"
+        style={{ top: '65%' }}
+        title="Dynamic File Name"
+      />
+      <NodeHandle
+        variant="input"
+        type="source"
+        position={Position.Right}
+        id="out"
+        style={{ top: '50%' }}
+        title="Dataset (columns & data)"
+      />
+    </BaseNode>
   );
 });
 

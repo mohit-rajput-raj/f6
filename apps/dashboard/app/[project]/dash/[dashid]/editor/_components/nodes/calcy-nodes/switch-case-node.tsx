@@ -8,6 +8,9 @@ import {
   BaseNodeContent,
   BaseNodeHeader,
   BaseNodeHeaderTitle,
+  BaseNodeIcon,
+  NodeHeaderActions,
+  NodeHandle,
 } from "@/components/dashboard/flow/Node/baseNode";
 import { NodeMenu } from "../node-menu";
 import { IconTrash } from "@tabler/icons-react";
@@ -33,35 +36,26 @@ const COLORS = [
   'bg-cyan-500', 'bg-lime-500', 'bg-orange-500', 'bg-teal-500',
 ];
 
-/**
- * SwitchCaseNode — routes rows based on exact matches of a single column.
- * Number of outputs = number of cases + 1 (default).
- */
 export const SwitchCaseNode = memo(({ id, data }: { id: string; data: any }) => {
   const { setNodes } = useReactFlow();
   const handleDelete = useDeleteNode();
 
   const config: SwitchCaseConfig = data.config || {};
-  const cases = config.cases ?? ['Value 1'];
-  const availableColumns: string[] = data.inputColumns ?? [];
   const selectedColumn = config.column || '';
+  const cases = config.cases ?? ['Case 1'];
+  const availableColumns: string[] = data.inputColumns ?? [];
 
   const updateConfig = useCallback((updates: Partial<SwitchCaseConfig>) => {
+    const newConfig = { ...config, ...updates };
     setNodes(nds =>
       nds.map(n =>
-        n.id === id ? { ...n, data: { ...n.data, config: { ...(n.data.config || {}), ...updates } } } : n
+        n.id === id ? { ...n, data: { ...n.data, config: newConfig } } : n
       )
     );
-  }, [id, setNodes]);
-
-  const updateCase = useCallback((index: number, val: string) => {
-    const newCases = [...cases];
-    newCases[index] = val;
-    updateConfig({ cases: newCases });
-  }, [cases, updateConfig]);
+  }, [id, setNodes, config]);
 
   const addCase = useCallback(() => {
-    updateConfig({ cases: [...cases, `Value ${cases.length + 1}`] });
+    updateConfig({ cases: [...cases, `Case ${cases.length + 1}`] });
   }, [cases, updateConfig]);
 
   const removeCase = useCallback((index: number) => {
@@ -69,109 +63,119 @@ export const SwitchCaseNode = memo(({ id, data }: { id: string; data: any }) => 
     updateConfig({ cases: cases.filter((_, i) => i !== index) });
   }, [cases, updateConfig]);
 
-  // Compute output handle positions
+  const updateCase = useCallback((index: number, val: string) => {
+    const next = [...cases];
+    next[index] = val;
+    updateConfig({ cases: next });
+  }, [cases, updateConfig]);
+
   const totalOutputs = cases.length + 1; // +1 for default
   const getHandleTop = (index: number) => {
     return `${((index + 1) / (totalOutputs + 1)) * 100}%`;
   };
 
   return (
-    <>
-      <div className="flex justify-between items-center px-2 pt-1">
-        <NodeMenu />
-        <IconTrash className="size-4 cursor-pointer text-red-400 hover:text-red-600" onClick={handleDelete} />
-      </div>
-
-      <BaseNode className="min-w-[280px]">
-        <BaseNodeHeader className="border-b flex items-center gap-2 px-3 py-1.5 bg-sky-600 text-white">
-          <GitFork className="size-4" />
+    <BaseNode variant="logic" className="min-w-[280px]">
+      <BaseNodeHeader variant="logic">
+        <div className="flex items-center gap-2 min-w-0">
+          <BaseNodeIcon variant="logic">
+            <GitFork className="size-3.5" />
+          </BaseNodeIcon>
           <BaseNodeHeaderTitle>Switch Case</BaseNodeHeaderTitle>
-          <span className="ml-auto text-[10px] bg-white/20 px-1.5 py-0.5 rounded">
+          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-md bg-amber-500/15 text-amber-700 dark:text-amber-300 font-medium">
             {totalOutputs} outputs
           </span>
-        </BaseNodeHeader>
+        </div>
+        <NodeHeaderActions>
+          <NodeMenu />
+          <IconTrash
+            className="size-3.5 cursor-pointer text-muted-foreground hover:text-destructive transition-colors"
+            onClick={handleDelete}
+          />
+        </NodeHeaderActions>
+      </BaseNodeHeader>
 
-        <BaseNodeContent className="p-3 space-y-3">
-          <div className="space-y-1">
-            <Label className="text-xs">Switch Column</Label>
-            <Select value={selectedColumn} onValueChange={v => updateConfig({ column: v })} disabled={availableColumns.length === 0}>
-              <SelectTrigger className="h-8">
-                <SelectValue placeholder={availableColumns.length === 0 ? "Connect input first" : "Select column"} />
-              </SelectTrigger>
-              <SelectContent>
-                {availableColumns.map(col => (
-                  <SelectItem key={col} value={col}>{col}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+      <BaseNodeContent className="p-3.5 space-y-3">
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground">Switch Column</Label>
+          <Select value={selectedColumn} onValueChange={v => updateConfig({ column: v })} disabled={availableColumns.length === 0}>
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue placeholder={availableColumns.length === 0 ? "Connect input first" : "Select column"} />
+            </SelectTrigger>
+            <SelectContent>
+              {availableColumns.map(col => (
+                <SelectItem key={col} value={col}>{col}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
 
-          <div className="space-y-2">
-            <Label className="text-xs">Cases (exact match)</Label>
+        <div className="space-y-2">
+          <Label className="text-xs text-muted-foreground">Cases (exact match)</Label>
+          <div className="space-y-1.5 max-h-[140px] overflow-y-auto">
             {cases.map((c, i) => (
               <div key={i} className="flex items-center gap-2">
-                <div className={`w-2 h-2 rounded-full flex-shrink-0 ${COLORS[i % COLORS.length]}`} />
+                <div className={`w-2 h-2 rounded-full shrink-0 ${COLORS[i % COLORS.length]}`} />
                 <Input
                   value={c}
                   onChange={e => updateCase(i, e.target.value)}
                   placeholder={`Case ${i + 1} value`}
-                  className="h-7 text-xs flex-1"
+                  className="h-7 text-xs flex-1 nodrag"
                 />
                 {cases.length > 1 && (
-                  <button onClick={() => removeCase(i)} className="text-muted-foreground hover:text-red-500 transition">
+                  <button
+                    onClick={() => removeCase(i)}
+                    className="text-muted-foreground hover:text-destructive transition cursor-pointer nodrag"
+                  >
                     <Trash2 className="size-3" />
                   </button>
                 )}
               </div>
             ))}
-
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={addCase}
-              className="w-full h-7 text-xs mt-1"
-            >
-              <Plus className="size-3 mr-1" /> Add Case
-            </Button>
           </div>
 
-          {/* Default label */}
-          <div className="flex items-center gap-2 px-2 py-1 border rounded-lg bg-gray-50 dark:bg-gray-900 mt-2">
-            <div className="w-2 h-2 flex-shrink-0 rounded-full bg-gray-400" />
-            <span className="text-xs font-medium text-muted-foreground">Default (no match)</span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={addCase}
+            className="w-full h-7 text-xs mt-1 nodrag"
+          >
+            <Plus className="size-3 mr-1" /> Add Case
+          </Button>
+        </div>
+
+        <div className="flex items-center gap-2 px-2.5 py-1.5 border border-border/40 rounded-lg bg-muted/30">
+          <div className="w-2 h-2 rounded-full bg-muted-foreground/60 shrink-0" />
+          <span className="text-[11px] font-medium text-muted-foreground">Default (no match)</span>
+        </div>
+
+        {data.rowCount !== undefined && (
+          <div className="text-[11px] text-amber-600 dark:text-amber-400 font-medium text-center pt-2 border-t border-border/40">
+            {data.rowCount} rows processed
           </div>
+        )}
+      </BaseNodeContent>
 
-          {data.rowCount !== undefined && (
-            <div className="text-xs text-sky-600 font-medium text-center pt-2 border-t mt-2">
-              {data.rowCount} rows processed
-            </div>
-          )}
-        </BaseNodeContent>
+      <NodeHandle variant="logic" type="target" position={Position.Left} id="in" />
 
-        {/* Input handle */}
-        <Handle type="target" position={Position.Left} id="in" className="w-3 h-3 bg-sky-600" />
-
-        {/* Dynamic output handles — one per case + default */}
-        {cases.map((c, i) => (
-          <Handle
-            key={`out_${i}`}
-            type="source"
-            position={Position.Right}
-            id={`out_${i}`}
-            className={`w-3 h-3 ${COLORS[i % COLORS.length].replace('bg-', 'bg-')}`}
-            style={{ top: getHandleTop(i) }}
-          />
-        ))}
-        {/* Default handle */}
+      {cases.map((c, i) => (
         <Handle
+          key={`out_${i}`}
           type="source"
           position={Position.Right}
-          id="out_default"
-          className="w-3 h-3 bg-gray-400"
-          style={{ top: getHandleTop(cases.length) }}
+          id={`out_${i}`}
+          className={`!w-3 !h-3 rounded-full !border-2 !border-background shadow-xs hover:!scale-130 transition-transform cursor-crosshair z-10 !${COLORS[i % COLORS.length]}`}
+          style={{ top: getHandleTop(i) }}
         />
-      </BaseNode>
-    </>
+      ))}
+      <Handle
+        type="source"
+        position={Position.Right}
+        id="out_default"
+        className="!w-3 !h-3 rounded-full !border-2 !border-background shadow-xs hover:!scale-130 transition-transform cursor-crosshair z-10 !bg-muted-foreground"
+        style={{ top: getHandleTop(cases.length) }}
+      />
+    </BaseNode>
   );
 });
 

@@ -1,45 +1,68 @@
 'use client';
 
 import React, { useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Button, Input } from '@/components/ui/components';
+import { motion, type Variants } from 'motion/react';
 import { signUp, signIn } from '@/lib/auth-client';
-import { Field, FieldDescription, FieldGroup, FieldLabel, FieldSeparator } from '@repo/ui/components/ui/field';
-import { cn } from '@repo/ui/lib/utils';
-import { IconBrandGoogle } from '@tabler/icons-react';
+import { IconArrowLeft } from '@tabler/icons-react';
 import { VerifyEmailForm } from '../../verify-email/page';
 import { sendVerificationOtpAction } from '../../actions';
-import img from "./image.png";
+import { GoogleIcon, AppleIcon } from '@/components/watermelon-ui/auth-10';
 
 export default function SignUpPage() {
   return <SignUpPageLayout />;
 }
 
-export function SignUpForm({
-  className,
-  ...props
-}: React.ComponentProps<"form">) {
+const containerVariants: Variants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.08,
+      delayChildren: 0.05,
+    },
+  },
+};
+
+const itemVariants: Variants = {
+  hidden: { opacity: 0, y: 15 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: {
+      type: 'spring',
+      stiffness: 300,
+      damping: 24,
+    },
+  },
+};
+
+export function SignUpForm() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [emailLoading, setEmailLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [authMode, setAuthMode] = useState<"register" | "verify">("register");
-  const [registeredEmail, setRegisteredEmail] = useState<string>("");
+  const [authMode, setAuthMode] = useState<'register' | 'verify'>('register');
+  const [registeredEmail, setRegisteredEmail] = useState<string>('');
 
   const handleGoogleSignUp = async () => {
     setLoading(true);
     setError(null);
     try {
-      await signIn.social({
-        provider: 'google',
-      }, {
-        onSuccess: () => {
-          router.push('/');
+      await signIn.social(
+        {
+          provider: 'google',
         },
-      });
+        {
+          onSuccess: () => {
+            router.push('/');
+          },
+        }
+      );
     } catch (err: any) {
-      setError(err?.message || 'Something went wrong');
+      setError(err?.message || 'Something went wrong with Google sign up');
     } finally {
       setLoading(false);
     }
@@ -50,38 +73,39 @@ export function SignUpForm({
     setEmailLoading(true);
     setError(null);
     const form = e.currentTarget;
-    const name = (form.elements.namedItem("name") as HTMLInputElement).value;
-    const email = (form.elements.namedItem("email") as HTMLInputElement).value;
-    const password = (form.elements.namedItem("password") as HTMLInputElement).value;
-    const confirmPassword = (form.elements.namedItem("confirmPassword") as HTMLInputElement).value;
+    const name = (form.elements.namedItem('name') as HTMLInputElement).value;
+    const email = (form.elements.namedItem('email') as HTMLInputElement).value;
+    const password = (form.elements.namedItem('password') as HTMLInputElement).value;
+    const confirmPassword = (form.elements.namedItem('confirmPassword') as HTMLInputElement).value;
 
     if (password !== confirmPassword) {
-      setError("Passwords do not match");
+      setError('Passwords do not match');
       setEmailLoading(false);
       return;
     }
 
     try {
-      await signUp.email({
-        name,
-        email,
-        password,
-      }, {
-        onSuccess: async () => {
-          setRegisteredEmail(email);
-          // Automatically trigger sending the OTP code to their verification table
-          try {
-            await sendVerificationOtpAction(email);
-          } catch (e) {
-            console.warn("Could not pre-send OTP:", e);
-          }
-          // Switch to verification tab
-          setAuthMode("verify");
+      await signUp.email(
+        {
+          name,
+          email,
+          password,
         },
-        onError: (ctx) => {
-          setError(ctx.error.message || 'Failed to sign up');
+        {
+          onSuccess: async () => {
+            setRegisteredEmail(email);
+            try {
+              await sendVerificationOtpAction(email);
+            } catch (e) {
+              console.warn('Could not pre-send OTP:', e);
+            }
+            setAuthMode('verify');
+          },
+          onError: (ctx) => {
+            setError(ctx.error.message || 'Failed to sign up');
+          },
         }
-      });
+      );
     } catch (err: any) {
       setError(err?.message || 'An unexpected error occurred');
     } finally {
@@ -89,27 +113,29 @@ export function SignUpForm({
     }
   };
 
-  // If in verify mode, render the verification tab
-  if (authMode === "verify") {
+  if (authMode === 'verify') {
     return (
-      <div className={cn("flex flex-col gap-4", className)}>
-        <div className="flex items-center justify-between border-b border-border/60 pb-3">
-          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+      <div className="flex flex-col gap-5 w-full">
+        <div className="flex items-center justify-between border-b border-neutral-800 pb-3">
+          <span className="text-xs font-mono font-semibold uppercase tracking-wider text-neutral-400">
             Step 2: Verify Your Email
           </span>
           <button
             type="button"
-            onClick={() => setAuthMode("register")}
-            className="text-xs text-primary hover:underline font-medium"
+            onClick={() => setAuthMode('register')}
+            className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline font-medium"
           >
-            ← Back
+            <IconArrowLeft className="size-3.5" />
+            <span>Back to Registration</span>
           </button>
         </div>
 
         <VerifyEmailForm
           initialEmail={registeredEmail}
           onVerified={() => {
-            router.push(`/auth/sign-in?verified=true&email=${encodeURIComponent(registeredEmail)}`);
+            router.push(
+              `/auth/sign-in?verified=true&email=${encodeURIComponent(registeredEmail)}`
+            );
           }}
         />
       </div>
@@ -117,72 +143,219 @@ export function SignUpForm({
   }
 
   return (
-    <form className={cn("flex flex-col gap-6", className)} onSubmit={handleEmailSignUp} {...props}>
-      <FieldGroup>
-        <div className="flex flex-col items-center gap-1 text-center">
-          <h1 className="text-2xl font-bold">Create an account</h1>
-          <p className="text-muted-foreground text-sm text-balance">
-            Enter your details below to create your account
-          </p>
+    <motion.div
+      variants={containerVariants}
+      initial="hidden"
+      animate="visible"
+      className="w-full"
+    >
+      <motion.div variants={itemVariants} className="mb-6">
+        <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full text-[11px] font-mono border border-neutral-800 bg-neutral-900/60 text-zinc-300 mb-4">
+          <span className="size-2 rounded-full bg-primary animate-pulse" />
+          <span>START 14-DAY ENTERPRISE PILOT</span>
         </div>
-        {error && <div className="text-sm font-medium text-destructive text-red-500 text-center">{error}</div>}
+        <h2 className="text-3xl font-bold tracking-tight text-white">
+          Create an account
+        </h2>
+        <p className="text-sm text-neutral-400 mt-1.5">
+          Get started with UNIXL visual DAG spreadsheets in seconds.
+        </p>
+      </motion.div>
 
-        <Field>
-          <FieldLabel htmlFor="name">Full Name</FieldLabel>
-          <Input id="name" name="name" type="text" placeholder="John Doe" required />
-        </Field>
-        <Field>
-          <FieldLabel htmlFor="email">Email</FieldLabel>
-          <Input id="email" name="email" type="email" placeholder="m@example.com" required />
-        </Field>
-        <Field>
-          <FieldLabel htmlFor="password">Password</FieldLabel>
-          <Input id="password" name="password" type="password" required />
-        </Field>
-        <Field>
-          <FieldLabel htmlFor="confirmPassword">Confirm Password</FieldLabel>
-          <Input id="confirmPassword" name="confirmPassword" type="password" required />
-        </Field>
+      {error && (
+        <motion.div
+          variants={itemVariants}
+          className="mb-5 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-xs font-medium text-red-400 text-center"
+        >
+          {error}
+        </motion.div>
+      )}
 
-        <Field>
-          <Button type="submit" disabled={emailLoading || loading}>
-            {emailLoading ? 'Creating account...' : 'Sign Up'}
-          </Button>
-        </Field>
-        <FieldSeparator>Or continue with</FieldSeparator>
-        <Field>
-          <Button variant="outline" type="button" onClick={handleGoogleSignUp} disabled={loading || emailLoading}>
-            <IconBrandGoogle className="mr-2 h-4 w-4" />
-            {loading ? 'Redirecting...' : 'Sign Up with Google'}
-          </Button>
-          <FieldDescription className="text-center pt-2">
-            Already have an account?{" "}
-            <a href="/auth/sign-in" className="underline underline-offset-4">
-              Sign in
-            </a>
-          </FieldDescription>
-        </Field>
-      </FieldGroup>
-    </form>
+      <form onSubmit={handleEmailSignUp} className="flex flex-col gap-3.5">
+        <motion.div variants={itemVariants} className="flex flex-col gap-1.5">
+          <label
+            htmlFor="name"
+            className="text-xs font-mono uppercase tracking-wider text-neutral-300"
+          >
+            Full Name
+          </label>
+          <input
+            id="name"
+            name="name"
+            type="text"
+            placeholder="Ada Lovelace"
+            required
+            className="w-full rounded-xl border border-neutral-800 bg-neutral-900/60 px-4 py-2.5 text-sm text-white placeholder:text-neutral-500 focus:border-primary focus:bg-neutral-900 focus:outline-none focus:ring-1 focus:ring-primary transition-all"
+          />
+        </motion.div>
+
+        <motion.div variants={itemVariants} className="flex flex-col gap-1.5">
+          <label
+            htmlFor="email"
+            className="text-xs font-mono uppercase tracking-wider text-neutral-300"
+          >
+            Work Email
+          </label>
+          <input
+            id="email"
+            name="email"
+            type="email"
+            placeholder="m@company.com"
+            required
+            className="w-full rounded-xl border border-neutral-800 bg-neutral-900/60 px-4 py-2.5 text-sm text-white placeholder:text-neutral-500 focus:border-primary focus:bg-neutral-900 focus:outline-none focus:ring-1 focus:ring-primary transition-all"
+          />
+        </motion.div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+          <motion.div variants={itemVariants} className="flex flex-col gap-1.5">
+            <label
+              htmlFor="password"
+              className="text-xs font-mono uppercase tracking-wider text-neutral-300"
+            >
+              Password
+            </label>
+            <input
+              id="password"
+              name="password"
+              type="password"
+              placeholder="••••••••••••"
+              required
+              className="w-full rounded-xl border border-neutral-800 bg-neutral-900/60 px-4 py-2.5 text-sm text-white placeholder:text-neutral-500 focus:border-primary focus:bg-neutral-900 focus:outline-none focus:ring-1 focus:ring-primary transition-all"
+            />
+          </motion.div>
+
+          <motion.div variants={itemVariants} className="flex flex-col gap-1.5">
+            <label
+              htmlFor="confirmPassword"
+              className="text-xs font-mono uppercase tracking-wider text-neutral-300"
+            >
+              Confirm
+            </label>
+            <input
+              id="confirmPassword"
+              name="confirmPassword"
+              type="password"
+              placeholder="••••••••••••"
+              required
+              className="w-full rounded-xl border border-neutral-800 bg-neutral-900/60 px-4 py-2.5 text-sm text-white placeholder:text-neutral-500 focus:border-primary focus:bg-neutral-900 focus:outline-none focus:ring-1 focus:ring-primary transition-all"
+            />
+          </motion.div>
+        </div>
+
+        <motion.div variants={itemVariants} className="pt-2">
+          <button
+            type="submit"
+            disabled={emailLoading || loading}
+            className="w-full rounded-xl bg-primary py-3.5 text-sm font-semibold text-primary-foreground shadow-lg transition-all hover:bg-primary/90 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+          >
+            {emailLoading ? 'Creating account...' : 'Create Account'}
+          </button>
+        </motion.div>
+      </form>
+
+      <motion.div
+        variants={itemVariants}
+        className="relative my-6 flex items-center"
+      >
+        <div className="grow border-t border-neutral-800"></div>
+        <span className="px-4 text-xs font-mono uppercase text-neutral-500">
+          Or continue with
+        </span>
+        <div className="grow border-t border-neutral-800"></div>
+      </motion.div>
+
+      <motion.div variants={itemVariants} className="grid grid-cols-2 gap-3">
+        <button
+          type="button"
+          onClick={handleGoogleSignUp}
+          disabled={loading || emailLoading}
+          className="flex items-center justify-center gap-2.5 rounded-xl border border-neutral-800 bg-neutral-900/50 py-3 text-xs font-medium text-white transition-all hover:bg-neutral-800 hover:border-neutral-700 active:scale-95 disabled:opacity-50 cursor-pointer"
+        >
+          <GoogleIcon className="text-base" />
+          <span>{loading ? 'Redirecting...' : 'Google'}</span>
+        </button>
+
+        <button
+          type="button"
+          className="flex items-center justify-center gap-2.5 rounded-xl border border-neutral-800 bg-neutral-900/50 py-3 text-xs font-medium text-neutral-400 transition-all hover:bg-neutral-800 hover:border-neutral-700 active:scale-95 cursor-pointer"
+          onClick={() => {
+            // Enterprise SSO or Apple dummy action
+          }}
+        >
+          <AppleIcon className="text-base" />
+          <span>Apple ID</span>
+        </button>
+      </motion.div>
+
+      <motion.div
+        variants={itemVariants}
+        className="mt-6 text-center text-xs text-neutral-400"
+      >
+        Already have an account?{' '}
+        <Link
+          href="/auth/sign-in"
+          className="font-semibold text-primary hover:underline ml-1"
+        >
+          Sign in
+        </Link>
+      </motion.div>
+    </motion.div>
   );
 }
 
 export const SignUpPageLayout = () => {
   return (
-    <div className="grid w-full h-full lg:grid-cols-2 min-h-screen">
-      <div className="flex flex-col gap-4 p-6 md:p-10">
-        <div className="flex flex-1 items-center justify-center">
-          <div className="w-full max-w-sm">
-            <SignUpForm />
+    <div className="flex min-h-screen w-full flex-col bg-[#050505] font-sans text-neutral-200 antialiased selection:bg-primary/30 selection:text-white lg:flex-row">
+      {/* Left Visual Panel with Watermelon Auth-10 aesthetic */}
+      <div className="relative flex w-full flex-col justify-between overflow-hidden p-8 md:p-12 lg:w-1/2 min-h-[40vh] lg:min-h-screen border-b lg:border-b-0 lg:border-r border-neutral-800/80">
+        <img
+          src="https://assets.watermelon.sh/auth-10.avif"
+          alt="UNIXL Abstract Graphic Background"
+          className="absolute inset-0 h-full w-full object-cover opacity-80"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent lg:bg-gradient-to-r lg:from-transparent lg:to-black/80" />
+
+        {/* Top Header */}
+        <div className="relative z-10 flex w-full items-center justify-between pt-2">
+          <Link href="/" className="inline-flex items-center gap-2.5 group">
+            <div className="size-9 rounded-xl bg-black/60 backdrop-blur-md border border-white/20 flex items-center justify-center text-primary font-mono font-bold text-sm shadow-md transition-transform group-hover:scale-105">
+              UX
+            </div>
+            <span className="text-2xl font-mono font-bold tracking-tight text-white drop-shadow-md">
+              UNIXL
+            </span>
+          </Link>
+
+          <Link
+            href="/"
+            className="text-xs font-mono text-zinc-300/80 hover:text-white transition-colors bg-black/40 backdrop-blur-sm px-3 py-1.5 rounded-full border border-white/10"
+          >
+            ← Back to Home
+          </Link>
+        </div>
+
+        {/* Bottom Hero Pitch */}
+        <div className="relative z-10 mb-4 lg:mb-10 flex w-full flex-col items-start justify-center text-left">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-mono text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 backdrop-blur-md mb-3">
+            <span>UNLIMITED PIPELINES · 0 VENDOR LOCK-IN</span>
           </div>
+          <h1 className="text-2xl font-bold leading-tight tracking-tight text-white md:text-4xl lg:text-5xl drop-shadow-lg">
+            Build data workflows
+            <br />
+            anyone can audit.
+          </h1>
+          <p className="mt-3 text-sm text-neutral-300 max-w-md leading-relaxed drop-shadow-md">
+            Connect CSVs, databases, spreadsheets, and calculations without
+            writing fragile glue code.
+          </p>
         </div>
       </div>
-      <div className="bg-muted/80 relative hidden lg:block">
-        <img
-          src={img.src || "/placeholder.svg"}
-          alt="Image"
-          className="absolute inset-0 h-full w-full object-cover dark:brightness-[0.2] dark:grayscale"
-        />
+
+      {/* Right Form Panel */}
+      <div className="flex w-full flex-col items-center justify-center p-6 sm:p-12 lg:w-1/2">
+        <div className="w-full max-w-md md:max-w-lg">
+          <SignUpForm />
+        </div>
       </div>
     </div>
   );

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { useDataset } from "../dataset-context";
 import {
   COLUMN_CATEGORIES,
@@ -10,6 +10,7 @@ import {
 } from "../../lib/column-tools-catalog";
 import {
   getCurrentDateColumnName,
+  formatIndianDate,
   getIncrementedColumnName,
   getDecrementedColumnName,
   detectKeyColumnIndex,
@@ -22,6 +23,13 @@ import {
 import { CellDatePicker } from "../../components/cell-date-picker";
 import { CellImageUploader } from "../../components/cell-image-uploader";
 import { EntrySlideshowModal } from "../../components/entry-slideshow-modal";
+import { DatasetAnalyticsTab } from "../../components/dataset-analytics-tab";
+import { Calendar } from "@repo/ui/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@repo/ui/components/ui/popover";
 import {
   Plus,
   Columns,
@@ -31,6 +39,9 @@ import {
   ChevronDown,
   CheckCircle,
   Calendar as CalendarIcon,
+  CalendarRange,
+  Image as ImageIcon,
+  ImageOff,
   TrendingUp,
   TrendingDown,
   ArrowRight,
@@ -51,12 +62,234 @@ import {
   Timer,
   Star,
   Palette,
+  BarChart3,
 } from "lucide-react";
 import { Button } from "@repo/ui/components/ui/button";
 import { Input } from "@repo/ui/components/ui/input";
 import { Badge } from "@repo/ui/components/ui/badge";
 import { toast } from "sonner";
 import Link from "next/link";
+
+/**
+ * Checks whether a cell value is an image URL or base64 data string
+ */
+function isLikelyImageUrl(val: any): boolean {
+  if (typeof val !== "string" || !val.trim()) return false;
+  const s = val.trim();
+  if (s.startsWith("data:image/")) return true;
+  if (/^https?:\/\/.+/i.test(s)) {
+    if (/\.(png|jpe?g|webp|gif|svg|avif|bmp|ico)($|\?)/i.test(s)) return true;
+    if (
+      s.includes("/image") ||
+      s.includes("unsplash") ||
+      s.includes("imgur") ||
+      s.includes("cloudinary") ||
+      s.includes("supabase.co/storage")
+    )
+      return true;
+  }
+  return false;
+}
+
+/**
+ * Small floating window on the right side that previews the hovered image URL.
+ * If URL is wrong or image fails to load, displays "No image exists".
+ */
+function ImagePreviewWindow({
+  url,
+  columnName,
+  rowIndex,
+  onClose,
+  onMouseEnter,
+  onMouseLeave,
+}: {
+  url: string;
+  columnName: string;
+  rowIndex: number;
+  onClose: () => void;
+  onMouseEnter?: () => void;
+  onMouseLeave?: () => void;
+}) {
+  const [loadStatus, setLoadStatus] = useState<"loading" | "loaded" | "error">(
+    "loading",
+  );
+
+  useEffect(() => {
+    setLoadStatus("loading");
+    if (!url || typeof url !== "string" || !url.trim()) {
+      setLoadStatus("error");
+      return;
+    }
+    const clean = url.trim();
+    if (
+      !clean.startsWith("http://") &&
+      !clean.startsWith("https://") &&
+      !clean.startsWith("data:image/")
+    ) {
+      setLoadStatus("error");
+      return;
+    }
+
+    const img = new Image();
+    img.src = clean;
+    img.onload = () => setLoadStatus("loaded");
+    img.onerror = () => setLoadStatus("error");
+  }, [url]);
+
+  return (
+    <div
+      className="fixed right-6 top-32 w-80 rounded-2xl border border-border/60 bg-card/95 backdrop-blur-md shadow-2xl p-4 z-50 text-foreground animate-in fade-in zoom-in-95 duration-150"
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+    >
+      <div className="flex items-center justify-between pb-2.5 border-b border-border/40 mb-3">
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="size-6 rounded-md bg-muted flex items-center justify-center text-muted-foreground shrink-0">
+            <ImageIcon className="size-3.5" />
+          </div>
+          <div className="min-w-0">
+            <h4 className="text-xs font-semibold text-foreground truncate">
+              {columnName || "Image Preview"}
+            </h4>
+            <p className="text-[10px] text-muted-foreground font-mono">
+              Row #{rowIndex + 1}
+            </p>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="p-1 rounded-md text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
+          title="Close preview"
+        >
+          <X className="size-4" />
+        </button>
+      </div>
+
+      {loadStatus === "loading" && (
+        <div className="h-44 w-full rounded-xl bg-muted/20 border border-border/30 flex flex-col items-center justify-center gap-2 text-muted-foreground">
+          <Loader2 className="size-5 animate-spin text-foreground" />
+          <span className="text-xs">Loading image preview...</span>
+        </div>
+      )}
+
+      {loadStatus === "error" && (
+        <div className="h-44 w-full rounded-xl bg-muted/20 border border-border/40 flex flex-col items-center justify-center p-4 text-center gap-2">
+          <div className="size-9 rounded-xl bg-muted flex items-center justify-center text-muted-foreground">
+            <ImageOff className="size-5 opacity-60" />
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-foreground">No image exists</p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">
+              URL is invalid or failed to load
+            </p>
+          </div>
+          <span className="text-[10px] text-muted-foreground/70 font-mono break-all line-clamp-2 max-w-[240px]">
+            {url}
+          </span>
+        </div>
+      )}
+
+      {loadStatus === "loaded" && (
+        <div className="space-y-2.5">
+          <div className="relative rounded-xl overflow-hidden border border-border/40 bg-muted/10 flex items-center justify-center p-2 min-h-[170px] max-h-[250px]">
+            <img
+              src={url}
+              alt={columnName}
+              className="max-h-[230px] w-full object-contain rounded-lg"
+            />
+          </div>
+          <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-1">
+            <span className="font-mono text-[10px] truncate max-w-[200px]" title={url}>
+              {url}
+            </span>
+            <a
+              href={url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-foreground flex items-center gap-1 font-medium underline shrink-0 cursor-pointer text-xs"
+            >
+              <span>Full Size</span>
+              <ExternalLink className="size-3" />
+            </a>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Reusable DateColumnPicker button that sets column name in Indian format (DD-MM-YYYY)
+ * with a quick "Today" button and an interactive Calendar popover.
+ */
+function DateColumnPicker({
+  onSelectDate,
+  currentValue,
+}: {
+  onSelectDate: (dateStr: string) => void;
+  currentValue?: string;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const todayIndian = getCurrentDateColumnName("indian");
+
+  return (
+    <Popover open={isOpen} onOpenChange={setIsOpen}>
+      <div className="flex flex-wrap items-center gap-1.5">
+        {/* Quick Today Button in Indian format DD-MM-YYYY */}
+        <button
+          type="button"
+          onClick={() => onSelectDate(todayIndian)}
+          className={`h-7 text-[11px] px-2.5 rounded-lg border flex items-center gap-1.5 cursor-pointer transition-colors ${
+            currentValue === todayIndian
+              ? "bg-zinc-900 text-zinc-100 border-zinc-900 dark:bg-zinc-100 dark:text-zinc-900 dark:border-zinc-100 font-medium shadow-2xs"
+              : "bg-zinc-100 dark:bg-zinc-800/80 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 border-zinc-200 dark:border-zinc-700"
+          }`}
+          title="Set column name to Today's date in Indian format (DD-MM-YYYY)"
+        >
+          <CalendarIcon className="size-3 shrink-0" />
+          <span>Date: Today ({todayIndian})</span>
+        </button>
+
+        {/* Choose from Calendar Popover */}
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            className="h-7 text-[11px] px-2.5 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-100 dark:bg-zinc-800/80 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 flex items-center gap-1.5 cursor-pointer transition-colors"
+            title="Pick a custom date from calendar in Indian format (DD-MM-YYYY)"
+          >
+            <CalendarRange className="size-3 shrink-0" />
+            <span>Choose from Calendar</span>
+          </button>
+        </PopoverTrigger>
+      </div>
+
+      <PopoverContent
+        className="w-auto p-0 rounded-2xl border border-border/60 shadow-xl bg-card text-card-foreground"
+        align="start"
+      >
+        <div className="flex items-center justify-between border-b border-border/40 px-3.5 py-2 bg-muted/40 text-xs">
+          <span className="font-semibold text-foreground">Pick Column Date</span>
+          <Badge variant="outline" className="text-[10px] font-mono border-border/40">
+            DD-MM-YYYY
+          </Badge>
+        </div>
+        <Calendar
+          mode="single"
+          onSelect={(d) => {
+            if (d) {
+              const formatted = formatIndianDate(d);
+              onSelectDate(formatted);
+              setIsOpen(false);
+            }
+          }}
+          initialFocus
+          className="p-3"
+        />
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 export default function DatasetAddPage() {
   const {
@@ -76,10 +309,61 @@ export default function DatasetAddPage() {
     refreshFile,
   } = useDataset();
 
-  // Sub-tabs in Add workspace: "columns" | "row" | "slideshow"
-  const [activeTab, setActiveTab] = useState<"columns" | "row" | "slideshow">(
-    "columns",
-  );
+  // Sub-tabs in Add workspace: "columns" | "row" | "slideshow" | "preview" | "analytics"
+  const [activeTab, setActiveTab] = useState<
+    "columns" | "row" | "slideshow" | "preview" | "analytics"
+  >("columns");
+
+  // Hover image preview state with debounce handlers
+  const [hoveredImage, setHoveredImage] = useState<{
+    url: string;
+    columnName: string;
+    rowIndex: number;
+  } | null>(null);
+  const hideTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+
+  const handleCellMouseEnter = (imgData: {
+    url: string;
+    columnName: string;
+    rowIndex: number;
+  }) => {
+    if (hideTimeoutRef.current) {
+      clearTimeout(hideTimeoutRef.current);
+      hideTimeoutRef.current = null;
+    }
+    setHoveredImage(imgData);
+  };
+
+  const handleCellMouseLeave = () => {
+    if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current);
+    hideTimeoutRef.current = setTimeout(() => {
+      setHoveredImage(null);
+    }, 250);
+  };
+
+  const handlePreviewMouseEnter = () => {
+    if (hideTimeoutRef.current) {
+      clearTimeout(hideTimeoutRef.current);
+      hideTimeoutRef.current = null;
+    }
+  };
+
+  const handlePreviewMouseLeave = () => {
+    if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current);
+    hideTimeoutRef.current = setTimeout(() => {
+      setHoveredImage(null);
+    }, 250);
+  };
+
+  // Preview tab search filter
+  const [previewSearch, setPreviewSearch] = useState("");
+  const filteredPreviewRows = useMemo(() => {
+    if (!previewSearch.trim()) return rows;
+    const q = previewSearch.toLowerCase();
+    return rows.filter((r) =>
+      r.some((cell) => String(cell ?? "").toLowerCase().includes(q)),
+    );
+  }, [rows, previewSearch]);
 
   // Column Catalog state
   const [selectedCategory, setSelectedCategory] = useState<
@@ -292,62 +576,94 @@ export default function DatasetAddPage() {
   return (
     <div className="space-y-6">
       {/* Sub-Header & Operation Tabs */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-2 border-b border-zinc-200/80 dark:border-zinc-800/80">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-2.5 border-b border-border/40">
         <div>
-          <h2 className="text-base sm:text-lg font-bold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
+          <h2 className="text-base sm:text-lg font-bold text-foreground flex items-center gap-2">
             <span>Add Data Workspace</span>
             <Badge
               variant="outline"
-              className="text-[10px] font-normal border-zinc-300 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400"
+              className="text-[10px] font-normal border-border/50 text-muted-foreground"
             >
               Manual Integration
             </Badge>
           </h2>
-          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+          <p className="text-xs text-muted-foreground mt-0.5">
             Add structured columns from 72 tools, append individual row records,
             or launch rapid batch slideshows.
           </p>
         </div>
 
-        {/* Tab Selector: Columns / Row / Slideshow */}
-        <div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-800/60 p-1 rounded-lg border border-zinc-200/80 dark:border-zinc-800 w-full sm:w-auto overflow-x-auto no-scrollbar shrink-0">
+        {/* Tab Selector: Columns / Row / Slideshow / Preview */}
+        <div className="flex items-center gap-1 bg-muted/50 p-1 rounded-xl border border-border/40 w-full sm:w-auto overflow-x-auto no-scrollbar shrink-0">
           <button
             type="button"
             onClick={() => setActiveTab("columns")}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium cursor-pointer transition-all shrink-0 whitespace-nowrap ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-all shrink-0 whitespace-nowrap ${
               activeTab === "columns"
-                ? "bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 shadow-xs border border-zinc-200/80 dark:border-zinc-700"
-                : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200"
+                ? "bg-card text-foreground shadow-2xs border border-border/60"
+                : "text-muted-foreground hover:text-foreground"
             }`}
           >
-            <Columns className="size-3.5 text-primary" />
+            <Columns className="size-3.5" />
             <span>Add Column Tool</span>
           </button>
 
           <button
             type="button"
             onClick={() => setActiveTab("row")}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium cursor-pointer transition-all shrink-0 whitespace-nowrap ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-all shrink-0 whitespace-nowrap ${
               activeTab === "row"
-                ? "bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 shadow-xs border border-zinc-200/80 dark:border-zinc-700"
-                : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200"
+                ? "bg-card text-foreground shadow-2xs border border-border/60"
+                : "text-muted-foreground hover:text-foreground"
             }`}
           >
-            <Rows className="size-3.5 text-primary" />
+            <Rows className="size-3.5" />
             <span>Add Row Record</span>
           </button>
 
           <button
             type="button"
             onClick={() => setActiveTab("slideshow")}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium cursor-pointer transition-all shrink-0 whitespace-nowrap ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-all shrink-0 whitespace-nowrap ${
               activeTab === "slideshow"
-                ? "bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 shadow-xs border border-zinc-200/80 dark:border-zinc-700"
-                : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200"
+                ? "bg-card text-foreground shadow-2xs border border-border/60"
+                : "text-muted-foreground hover:text-foreground"
             }`}
           >
-            <Play className="size-3.5 text-emerald-600 dark:text-emerald-400" />
+            <Play className="size-3.5" />
             <span>Rapid Slideshow</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab("preview")}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-all shrink-0 whitespace-nowrap ${
+              activeTab === "preview"
+                ? "bg-card text-foreground shadow-2xs border border-border/60"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Table2 className="size-3.5" />
+            <span>Dataset Preview</span>
+            <Badge
+              variant="secondary"
+              className="text-[10px] px-1.5 py-0 h-4 font-mono ml-0.5"
+            >
+              {rows.length}
+            </Badge>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab("analytics")}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-all shrink-0 whitespace-nowrap ${
+              activeTab === "analytics"
+                ? "bg-card text-foreground shadow-2xs border border-border/60"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <BarChart3 className="size-3.5" />
+            <span>Analytics & Graphs</span>
           </button>
         </div>
       </div>
@@ -578,18 +894,12 @@ export default function DatasetAddPage() {
                   </span>
                 </label>
 
-                {/* Quick Presets */}
-                <div className="flex flex-wrap gap-1">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setColumnName(getCurrentDateColumnName("iso"))
-                    }
-                    className="h-6 text-[10px] px-2 rounded-md border border-zinc-200 dark:border-zinc-800 bg-background hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 flex items-center gap-1 cursor-pointer"
-                  >
-                    <CalendarIcon className="size-2.5 text-primary" />
-                    <span>Today ({getCurrentDateColumnName("iso")})</span>
-                  </button>
+                {/* Date & Smart Presets (Defaults to Indian format DD-MM-YYYY) */}
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <DateColumnPicker
+                    onSelectDate={(d) => setColumnName(d)}
+                    currentValue={columnName}
+                  />
 
                   {lastColumn && (
                     <button
@@ -597,10 +907,10 @@ export default function DatasetAddPage() {
                       onClick={() =>
                         setColumnName(getIncrementedColumnName(lastColumn))
                       }
-                      className="h-6 text-[10px] px-2 rounded-md border border-zinc-200 dark:border-zinc-800 bg-background hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 flex items-center gap-1 cursor-pointer"
+                      className="h-6.5 text-[11px] px-2.5 rounded-lg border border-border/50 bg-muted/40 hover:bg-muted text-foreground flex items-center gap-1 cursor-pointer transition-colors"
                       title={`Next sequence after "${lastColumn}"`}
                     >
-                      <TrendingUp className="size-2.5 text-emerald-500" />
+                      <TrendingUp className="size-2.5 text-muted-foreground" />
                       <span>Next: {getIncrementedColumnName(lastColumn)}</span>
                     </button>
                   )}
@@ -610,7 +920,7 @@ export default function DatasetAddPage() {
                   value={columnName}
                   onChange={(e) => setColumnName(e.target.value)}
                   placeholder="Enter column name..."
-                  className="h-8.5 text-xs bg-background border-zinc-200 dark:border-zinc-800"
+                  className="h-8.5 text-xs bg-background border-border/50 text-foreground rounded-lg"
                 />
               </div>
 
@@ -1001,7 +1311,7 @@ export default function DatasetAddPage() {
         <div className="max-w-xl mx-auto rounded-xl border border-zinc-200 dark:border-zinc-800 bg-card p-5 sm:p-6 shadow-xs space-y-4">
           <div className="border-b border-zinc-100 dark:border-zinc-800 pb-3">
             <h3 className="font-bold text-sm sm:text-base text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
-              <Play className="size-4 text-emerald-600 dark:text-emerald-400" />
+              <Play className="size-4 text-foreground" />
               <span>Rapid Entry Slideshow</span>
             </h3>
             <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
@@ -1020,7 +1330,7 @@ export default function DatasetAddPage() {
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-semibold text-zinc-800 dark:text-zinc-200 flex items-center gap-1.5">
-                    <Columns className="size-3.5 text-primary" />
+                    <Columns className="size-3.5 text-foreground" />
                     <span>Target Column to Populate</span>
                   </label>
                   <button
@@ -1032,7 +1342,7 @@ export default function DatasetAddPage() {
                         setNewColumnName("");
                       }
                     }}
-                    className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1 cursor-pointer transition"
+                    className="text-xs font-semibold text-foreground hover:underline flex items-center gap-1 cursor-pointer transition"
                   >
                     {isCreatingNewColumn ? (
                       <>
@@ -1049,7 +1359,20 @@ export default function DatasetAddPage() {
                 </div>
 
                 {isCreatingNewColumn ? (
-                  <div className="space-y-1.5 p-3 rounded-lg border border-emerald-500/30 bg-emerald-500/5 animate-in fade-in duration-150">
+                  <div className="space-y-2.5 p-3 rounded-lg border border-border/70 bg-muted/20 animate-in fade-in duration-150">
+                    <div className="flex items-center justify-between flex-wrap gap-1.5">
+                      <span className="text-[11px] font-medium text-muted-foreground">
+                        Quick Date Column Name:
+                      </span>
+                      <DateColumnPicker
+                        onSelectDate={(d) => {
+                          setNewColumnName(d);
+                          setSlideshowLauncherType("date");
+                        }}
+                        currentValue={newColumnName}
+                      />
+                    </div>
+
                     <div className="flex items-center gap-2">
                       <div className="relative flex-1">
                         <Input
@@ -1067,7 +1390,8 @@ export default function DatasetAddPage() {
                               setSlideshowLauncherType("time");
                             } else if (
                               lower.includes("date") ||
-                              lower.includes("day")
+                              lower.includes("day") ||
+                              /^\d{2}-\d{2}-\d{4}$/.test(val)
                             ) {
                               setSlideshowLauncherType("date");
                             } else if (
@@ -1084,11 +1408,11 @@ export default function DatasetAddPage() {
                             }
                           }}
                           placeholder="Type new column name (e.g. Total Marks, Attendance, Time)..."
-                          className="h-8.5 text-xs bg-background border-emerald-500/40 focus-visible:ring-emerald-500/30 pr-16"
+                          className="h-8.5 text-xs bg-background border-border pr-20"
                         />
                         <Badge
                           variant="outline"
-                          className="absolute right-2 top-2 text-[9px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 font-medium"
+                          className="absolute right-2 top-2 text-[9px] bg-muted text-muted-foreground border-border font-medium"
                         >
                           New Column
                         </Badge>
@@ -1162,7 +1486,7 @@ export default function DatasetAddPage() {
                     ))}
                     <option
                       value="__NEW_COLUMN__"
-                      className="text-emerald-600 font-bold"
+                      className="font-semibold text-foreground"
                     >
                       ➕ + New Column (Create custom)...
                     </option>
@@ -1206,7 +1530,7 @@ export default function DatasetAddPage() {
                         }
                         className={`p-2 rounded-lg border text-center text-xs font-medium cursor-pointer transition flex flex-col items-center justify-center gap-1 ${
                           isActive
-                            ? "border-primary bg-primary/10 text-primary font-semibold shadow-2xs"
+                            ? "border-foreground bg-foreground/10 text-foreground font-semibold shadow-2xs"
                             : "border-zinc-200 dark:border-zinc-800 bg-background text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
                         }`}
                       >
@@ -1296,7 +1620,7 @@ export default function DatasetAddPage() {
                   setIsSlideshowOpen(true);
                 }}
                 disabled={rows.length === 0}
-                className="w-full h-9 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs cursor-pointer gap-2 justify-center shadow-xs mt-2"
+                className="w-full h-9 bg-zinc-900 text-zinc-100 dark:bg-zinc-100 dark:text-zinc-900 hover:bg-zinc-800 dark:hover:bg-zinc-200 font-semibold text-xs cursor-pointer gap-2 justify-center shadow-xs mt-2"
               >
                 <Play className="size-3.5 fill-current" />
                 <span>Launch Rapid Slideshow Session</span>
@@ -1307,156 +1631,250 @@ export default function DatasetAddPage() {
       )}
 
       {/* ============================================================
-          LIVE DATASET PREVIEW TABLE (Recent rows for quick context)
+          TAB 4: DATASET PREVIEW (Live dataset in dedicated tab)
       ============================================================ */}
-      <div className="rounded-xl border border-zinc-200/80 dark:border-zinc-800/80 bg-card overflow-hidden shadow-2xs">
-        <div className="px-4 py-2.5 border-b border-zinc-200/80 dark:border-zinc-800/80 bg-zinc-50/60 dark:bg-zinc-900/40 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Table2 className="size-3.5 text-zinc-500" />
-            <h4 className="text-xs font-semibold text-zinc-900 dark:text-zinc-100">
-              Live Dataset Preview
-            </h4>
-            <Badge
-              variant="outline"
-              className="text-[9px] px-1.5 py-0 h-4 border-zinc-300 dark:border-zinc-700 font-normal"
-            >
-              {rows.length} row{rows.length !== 1 ? "s" : ""} • {columns.length}{" "}
-              col{columns.length !== 1 ? "s" : ""}
-            </Badge>
-          </div>
+      {activeTab === "preview" && (
+        <div className="rounded-xl border border-zinc-200/80 dark:border-zinc-800/80 bg-card overflow-hidden shadow-2xs space-y-0">
+          <div className="px-4 py-3 border-b border-zinc-200/80 dark:border-zinc-800/80 bg-zinc-50/60 dark:bg-zinc-900/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <div className="size-7 rounded-lg bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-600 dark:text-zinc-300">
+                <Table2 className="size-4" />
+              </div>
+              <div>
+                <h4 className="text-xs font-semibold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
+                  <span>Live Dataset Preview</span>
+                  <Badge
+                    variant="outline"
+                    className="text-[10px] px-2 py-0 h-4.5 border-zinc-300 dark:border-zinc-700 font-mono"
+                  >
+                    {rows.length} row{rows.length !== 1 ? "s" : ""} • {columns.length}{" "}
+                    col{columns.length !== 1 ? "s" : ""}
+                  </Badge>
+                </h4>
+                <p className="text-[10px] text-zinc-500 dark:text-zinc-400">
+                  Hover over image URLs to preview them in the floating window on the right.
+                </p>
+              </div>
+            </div>
 
-          <Link
-            href={`/${project}/dash/${dashid}/data-library/${id}/edit`}
-            className="text-[11px] font-medium text-zinc-600 dark:text-zinc-400 hover:text-foreground flex items-center gap-1 cursor-pointer"
-          >
-            <span>Open full editor</span>
-            <ChevronRight className="size-3" />
-          </Link>
-        </div>
-
-        {columns.length === 0 ? (
-          <div className="py-8 text-center text-xs text-zinc-400">
-            No columns yet. Pick any tool above to add your first column!
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs min-w-[500px]">
-              <thead>
-                <tr className="border-b border-zinc-200/80 dark:border-zinc-800/80 bg-zinc-100/40 dark:bg-zinc-800/30 text-zinc-600 dark:text-zinc-400 font-medium">
-                  <th className="px-3 py-2 w-12 text-center text-[10px] text-zinc-400 font-mono">
-                    #
-                  </th>
-                  {columns.map((col, idx) => (
-                    <th
-                      key={idx}
-                      className="px-3 py-2 text-xs font-semibold text-zinc-900 dark:text-zinc-100"
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              {rows.length > 0 && (
+                <div className="relative flex-1 sm:w-60">
+                  <Search className="size-3.5 text-zinc-400 absolute left-2.5 top-2.5 pointer-events-none" />
+                  <Input
+                    value={previewSearch}
+                    onChange={(e) => setPreviewSearch(e.target.value)}
+                    placeholder="Search preview rows..."
+                    className="h-8 pl-8 text-xs bg-background border-zinc-200 dark:border-zinc-800"
+                  />
+                  {previewSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setPreviewSearch("")}
+                      className="absolute right-2 top-2 text-zinc-400 hover:text-foreground text-xs"
                     >
-                      {col || `Col ${idx + 1}`}
+                      <X className="size-3.5" />
+                    </button>
+                  )}
+                </div>
+              )}
+
+              <Link
+                href={`/${project}/dash/${dashid}/data-library/${id}/edit`}
+                className="text-xs font-medium px-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-background hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-800 dark:text-zinc-200 flex items-center gap-1.5 shrink-0 transition-colors"
+              >
+                <span>Full Spreadsheet</span>
+                <ChevronRight className="size-3 text-zinc-400" />
+              </Link>
+            </div>
+          </div>
+
+          {columns.length === 0 ? (
+            <div className="py-12 text-center text-xs text-zinc-400">
+              No columns yet. Pick any tool in &quot;Add Column Tool&quot; above to add your first column!
+            </div>
+          ) : (
+            <div className="overflow-x-auto max-h-[650px] relative">
+              <table className="w-full text-left text-xs min-w-[600px] border-collapse">
+                <thead className="sticky top-0 z-10 bg-zinc-100/90 dark:bg-zinc-800/90 backdrop-blur-sm border-b border-zinc-200/80 dark:border-zinc-800/80">
+                  <tr className="text-zinc-600 dark:text-zinc-400 font-medium">
+                    <th className="px-3 py-2.5 w-12 text-center text-[10px] text-zinc-400 font-mono">
+                      #
                     </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800/60">
-                {rows.length === 0 ? (
-                  <tr>
-                    <td
-                      colSpan={columns.length + 1}
-                      className="px-4 py-6 text-center text-xs text-zinc-400 italic"
-                    >
-                      No records in this dataset. Click "Add Row Record" above
-                      to append data.
-                    </td>
+                    {columns.map((col, idx) => (
+                      <th
+                        key={idx}
+                        className="px-3 py-2.5 text-xs font-semibold text-zinc-900 dark:text-zinc-100 whitespace-nowrap"
+                      >
+                        <div className="flex items-center gap-1.5">
+                          <span>{col || `Col ${idx + 1}`}</span>
+                          <span className="text-[9px] uppercase font-mono px-1 py-0.2 rounded-sm bg-zinc-200/70 dark:bg-zinc-700/60 text-zinc-600 dark:text-zinc-300 border border-zinc-300 dark:border-zinc-600 font-normal">
+                            {getColumnType(
+                              col,
+                              idx,
+                              file?.metadata?.columnTypes,
+                              rows.map((r) => r[idx]),
+                            )}
+                          </span>
+                        </div>
+                      </th>
+                    ))}
                   </tr>
-                ) : (
-                  rows.slice(0, 6).map((row, rIdx) => (
-                    <tr
-                      key={rIdx}
-                      className="hover:bg-zinc-50/70 dark:hover:bg-zinc-800/30 transition-colors"
-                    >
-                      <td className="px-3 py-2 text-center font-mono text-[10px] text-zinc-400">
-                        {rIdx + 1}
+                </thead>
+                <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800/60 bg-card">
+                  {filteredPreviewRows.length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan={columns.length + 1}
+                        className="px-4 py-10 text-center text-xs text-zinc-400 italic"
+                      >
+                        {rows.length === 0
+                          ? "No records in this dataset. Click 'Add Row Record' tab above to append data."
+                          : "No records matching search query."}
                       </td>
-                      {columns.map((col, cIdx) => {
-                        const cellVal = row[cIdx] ?? "";
-                        const colType = getColumnType(
-                          col,
-                          cIdx,
-                          file?.metadata?.columnTypes,
-                          rows.map((r) => r[cIdx]),
-                        );
+                    </tr>
+                  ) : (
+                    filteredPreviewRows.map((row, rIdx) => (
+                      <tr
+                        key={rIdx}
+                        className="hover:bg-zinc-50/70 dark:hover:bg-zinc-800/30 transition-colors"
+                      >
+                        <td className="px-3 py-2 text-center font-mono text-[10px] text-zinc-400">
+                          {rIdx + 1}
+                        </td>
+                        {columns.map((col, cIdx) => {
+                          const cellVal = row[cIdx] ?? "";
+                          const cellStr = String(cellVal).trim();
+                          const colType = getColumnType(
+                            col,
+                            cIdx,
+                            file?.metadata?.columnTypes,
+                            rows.map((r) => r[cIdx]),
+                          );
 
-                        const isImgCol = colType === "image";
-                        const hasValidImgUrl =
-                          typeof cellVal === "string" &&
-                          cellVal.trim() !== "" &&
-                          (isImgCol ||
-                            ((cellVal.startsWith("http") ||
-                              cellVal.startsWith("data:image/")) &&
-                              /\.(png|jpe?g|webp|gif|svg)($|\?)/i.test(
-                                cellVal,
-                              )));
+                          const isImgCandidate =
+                            colType === "image" ||
+                            isLikelyImageUrl(cellStr) ||
+                            cellStr.startsWith("data:image/") ||
+                            (/^https?:\/\/.+/i.test(cellStr) &&
+                              (/\.(png|jpe?g|webp|gif|svg|avif|bmp)($|\?)/i.test(
+                                cellStr,
+                              ) ||
+                                cellStr.includes("image") ||
+                                cellStr.includes("unsplash")));
 
-                        const isProgressBar = colType === "progressbar";
+                          const isProgressBar = colType === "progressbar";
 
-                        return (
-                          <td
-                            key={cIdx}
-                            className="px-3 py-2 min-w-[120px] max-w-[240px]"
-                          >
-                            {hasValidImgUrl ? (
-                              <img
-                                src={cellVal}
-                                alt="thumb"
-                                className="size-6 rounded object-cover border border-zinc-200 dark:border-zinc-700"
-                              />
-                            ) : isImgCol ? (
-                              <span className="text-zinc-400 dark:text-zinc-500 text-[11px] italic flex items-center gap-1">
-                                <span className="size-5 rounded border border-dashed border-zinc-300 dark:border-zinc-700 flex items-center justify-center text-[10px] text-zinc-400 not-italic">
-                                  🖼️
-                                </span>
-                                <span>No image</span>
-                              </span>
-                            ) : isProgressBar ? (
-                              (() => {
-                                const num = Math.min(
-                                  100,
-                                  Math.max(
-                                    0,
-                                    parseFloat(
-                                      String(cellVal).replace(/[^0-9.-]/g, ""),
-                                    ) || 0,
-                                  ),
-                                );
-                                return (
-                                  <div className="flex items-center gap-2 w-full max-w-[150px]">
-                                    <div className="flex-1 h-2 bg-zinc-200/80 dark:bg-zinc-800 rounded-full overflow-hidden border border-zinc-200/50 dark:border-zinc-700/50">
-                                      <div
-                                        className="h-full bg-emerald-500 rounded-full transition-all"
-                                        style={{ width: `${num}%` }}
-                                      />
-                                    </div>
-                                    <span className="text-[11px] font-mono font-semibold text-zinc-700 dark:text-zinc-300 shrink-0 w-8 text-right">
-                                      {num}%
+                          return (
+                            <td
+                              key={cIdx}
+                              className="px-3 py-2 min-w-[130px] max-w-[260px] align-middle"
+                            >
+                              {isImgCandidate ? (
+                                cellStr === "" ? (
+                                  <span className="text-zinc-400 dark:text-zinc-500 text-[11px] italic flex items-center gap-1">
+                                    <span className="size-4.5 rounded-sm border border-dashed border-zinc-300 dark:border-zinc-700 flex items-center justify-center text-[10px] not-italic">
+                                      🖼️
+                                    </span>
+                                    <span>No image</span>
+                                  </span>
+                                ) : (
+                                  <div
+                                    className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200/80 dark:hover:bg-zinc-700/80 border border-zinc-200 dark:border-zinc-700 transition-colors cursor-pointer group max-w-full"
+                                    onMouseEnter={() =>
+                                      handleCellMouseEnter({
+                                        url: cellStr,
+                                        columnName: col || `Col ${cIdx + 1}`,
+                                        rowIndex: rIdx,
+                                      })
+                                    }
+                                    onMouseLeave={handleCellMouseLeave}
+                                    title="Hover to preview image"
+                                  >
+                                    <ImageIcon className="size-3 text-zinc-500 group-hover:text-foreground shrink-0" />
+                                    <span className="text-[11px] font-mono truncate text-zinc-800 dark:text-zinc-200 underline decoration-zinc-300 dark:decoration-zinc-600 group-hover:decoration-foreground">
+                                      {cellStr.startsWith("data:image/")
+                                        ? "data:image/..."
+                                        : cellStr.replace(/^https?:\/\//i, "")}
                                     </span>
                                   </div>
-                                );
-                              })()
-                            ) : (
-                              <span className="text-zinc-800 dark:text-zinc-200 text-xs">
-                                {cellVal !== "" ? String(cellVal) : "—"}
-                              </span>
-                            )}
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+                                )
+                              ) : isProgressBar ? (
+                                (() => {
+                                  const num = Math.min(
+                                    100,
+                                    Math.max(
+                                      0,
+                                      parseFloat(
+                                        String(cellVal).replace(/[^0-9.-]/g, ""),
+                                      ) || 0,
+                                    ),
+                                  );
+                                  return (
+                                    <div className="flex items-center gap-2 w-full max-w-[140px]">
+                                      <div className="flex-1 h-2 bg-zinc-200/80 dark:bg-zinc-800 rounded-full overflow-hidden border border-zinc-200/50 dark:border-zinc-700/50">
+                                        <div
+                                          className="h-full bg-zinc-900 dark:bg-zinc-100 rounded-full transition-all"
+                                          style={{ width: `${num}%` }}
+                                        />
+                                      </div>
+                                      <span className="text-[11px] font-mono font-semibold text-zinc-700 dark:text-zinc-300 shrink-0 w-8 text-right">
+                                        {num}%
+                                      </span>
+                                    </div>
+                                  );
+                                })()
+                              ) : colType === "boolean" ? (
+                                <Badge
+                                  variant="secondary"
+                                  className={`text-[10px] px-1.5 py-0 font-medium ${
+                                    cellStr.toLowerCase() === "true" ||
+                                    cellStr === "1"
+                                      ? "bg-zinc-900/10 text-zinc-900 dark:bg-zinc-100/15 dark:text-zinc-100"
+                                      : "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400"
+                                  }`}
+                                >
+                                  {cellStr || "—"}
+                                </Badge>
+                              ) : (
+                                <span
+                                  className="text-zinc-800 dark:text-zinc-200 text-xs truncate block"
+                                  title={cellStr}
+                                >
+                                  {cellStr !== "" ? cellStr : "—"}
+                                </span>
+                              )}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ============================================================
+          TAB 5: ANALYTICS & CUSTOMIZABLE GRAPHS
+      ============================================================ */}
+      {activeTab === "analytics" && (
+        <DatasetAnalyticsTab columns={columns} rows={rows} file={file} />
+      )}
+
+      {/* Floating Image Preview Window on right side */}
+      {hoveredImage && (
+        <ImagePreviewWindow
+          url={hoveredImage.url}
+          columnName={hoveredImage.columnName}
+          rowIndex={hoveredImage.rowIndex}
+          onClose={() => setHoveredImage(null)}
+          onMouseEnter={handlePreviewMouseEnter}
+          onMouseLeave={handlePreviewMouseLeave}
+        />
+      )}
 
       {/* Entry Slideshow Modal Overlay */}
       {slideshowConfig && file && (

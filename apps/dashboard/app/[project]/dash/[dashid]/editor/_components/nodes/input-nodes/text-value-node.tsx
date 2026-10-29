@@ -1,14 +1,21 @@
 'use client';
 
 import { memo, useCallback } from 'react';
-import { Handle, Position, useReactFlow } from '@xyflow/react';
+import { Position, useReactFlow } from '@xyflow/react';
 import { Type } from 'lucide-react';
 import {
-  BaseNode, BaseNodeContent, BaseNodeHeader, BaseNodeHeaderTitle,
+  BaseNode,
+  BaseNodeContent,
+  BaseNodeHeader,
+  BaseNodeHeaderTitle,
+  BaseNodeIcon,
+  NodeHeaderActions,
+  NodeHandle,
 } from "@/components/dashboard/flow/Node/baseNode";
 import { NodeMenu } from "../node-menu";
 import { IconTrash } from "@tabler/icons-react";
 import { useDeleteNode } from "../settings/triggers";
+import { Input } from "@repo/ui/components/ui/input";
 
 export const TextValueNode = memo(({ id, data }: { id: string; data: any }) => {
   const { setNodes } = useReactFlow();
@@ -23,35 +30,39 @@ export const TextValueNode = memo(({ id, data }: { id: string; data: any }) => {
   }, [id, setNodes]);
 
   return (
-    <>
-      <div className="flex justify-between items-center px-2 pt-1">
-        <NodeMenu />
-        <IconTrash className="size-4 cursor-pointer text-red-400 hover:text-red-600" onClick={handleDelete} />
-      </div>
-
-      <BaseNode className="w-[220px]">
-        <BaseNodeHeader className="border-b flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white">
-          <Type className="size-4" />
+    <BaseNode variant="input" className="w-[230px]">
+      <BaseNodeHeader variant="input">
+        <div className="flex items-center gap-2 min-w-0">
+          <BaseNodeIcon variant="input">
+            <Type className="size-3.5" />
+          </BaseNodeIcon>
           <BaseNodeHeaderTitle>Text</BaseNodeHeaderTitle>
-        </BaseNodeHeader>
-
-        <BaseNodeContent className="p-3">
-          <input
-            value={data.text || ''}
-            onChange={e => updateText(e.target.value)}
-            placeholder="Enter text..."
-            className="w-full h-8 px-2 text-sm border rounded bg-background focus:outline-none focus:ring-1 focus:ring-blue-500 nodrag"
+        </div>
+        <NodeHeaderActions>
+          <NodeMenu />
+          <IconTrash
+            className="size-3.5 cursor-pointer text-muted-foreground hover:text-destructive transition-colors"
+            onClick={handleDelete}
           />
-          {data.text && (
-            <p className="text-[10px] text-muted-foreground mt-1 truncate">
-              → "{data.text}"
-            </p>
-          )}
-        </BaseNodeContent>
+        </NodeHeaderActions>
+      </BaseNodeHeader>
 
-        <Handle type="source" position={Position.Right} id="out" className="w-3 h-3 bg-blue-600" />
-      </BaseNode>
-    </>
+      <BaseNodeContent className="p-3.5 space-y-2">
+        <Input
+          value={data.text || ''}
+          onChange={e => updateText(e.target.value)}
+          placeholder="Enter text..."
+          className="h-8 text-xs nodrag"
+        />
+        {data.text && (
+          <p className="text-[10px] text-muted-foreground truncate font-mono">
+            &rarr; &ldquo;{data.text}&rdquo;
+          </p>
+        )}
+      </BaseNodeContent>
+
+      <NodeHandle variant="input" type="source" position={Position.Right} id="out" />
+    </BaseNode>
   );
 });
 

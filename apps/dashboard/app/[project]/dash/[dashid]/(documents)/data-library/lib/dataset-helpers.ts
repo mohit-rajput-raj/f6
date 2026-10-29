@@ -99,16 +99,19 @@ export function serializeDataset(columns: string[], rows: any[][]) {
 }
 
 /**
- * Formats current date for column names
+ * Formats current date for column names (defaults to Indian format DD-MM-YYYY)
  */
 export function getCurrentDateColumnName(
-  format: "iso" | "slash" | "friendly" = "iso",
+  format: "indian" | "iso" | "slash" | "friendly" = "indian",
 ): string {
   const now = new Date();
   const year = now.getFullYear();
   const month = String(now.getMonth() + 1).padStart(2, "0");
   const day = String(now.getDate()).padStart(2, "0");
 
+  if (format === "iso") {
+    return `${year}-${month}-${day}`;
+  }
   if (format === "slash") {
     return `${day}/${month}/${year}`;
   }
@@ -116,11 +119,36 @@ export function getCurrentDateColumnName(
     const monthShort = now.toLocaleString("default", { month: "short" });
     return `${day} ${monthShort} ${year}`;
   }
-  return `${year}-${month}-${day}`;
+  // Default: Indian format DD-MM-YYYY
+  return `${day}-${month}-${year}`;
 }
 
 /**
- * Increment previous column name intelligently (handles numbers, dates, tags)
+ * Format any date into Indian format DD-MM-YYYY
+ */
+export function formatIndianDate(date: Date | string): string {
+  if (!date) return "";
+  if (typeof date === "string") {
+    const parts = date.trim().split(/[-/]/);
+    if (parts.length === 3) {
+      if (parts[0].length === 2 && parts[2].length === 4) {
+        return `${parts[0]}-${parts[1]}-${parts[2]}`;
+      }
+      if (parts[0].length === 4) {
+        return `${parts[2]}-${parts[1]}-${parts[0]}`;
+      }
+    }
+  }
+  const d = typeof date === "string" ? new Date(date) : date;
+  if (isNaN(d.getTime())) return String(date);
+  const day = String(d.getDate()).padStart(2, "0");
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const year = d.getFullYear();
+  return `${day}-${month}-${year}`;
+}
+
+/**
+ * Increment previous column name intelligently (handles numbers, Indian/ISO dates, tags)
  */
 export function getIncrementedColumnName(lastCol?: string): string {
   if (!lastCol || !lastCol.trim()) {
@@ -128,6 +156,22 @@ export function getIncrementedColumnName(lastCol?: string): string {
   }
 
   const trimmed = lastCol.trim();
+
+  // Check if it's an Indian date: DD-MM-YYYY
+  const indianDateMatch = trimmed.match(/^(\d{2})-(\d{2})-(\d{4})$/);
+  if (indianDateMatch) {
+    const dNum = parseInt(indianDateMatch[1], 10);
+    const mNum = parseInt(indianDateMatch[2], 10) - 1;
+    const yNum = parseInt(indianDateMatch[3], 10);
+    const date = new Date(yNum, mNum, dNum);
+    if (!isNaN(date.getTime())) {
+      date.setDate(date.getDate() + 1);
+      const y = date.getFullYear();
+      const m = String(date.getMonth() + 1).padStart(2, "0");
+      const d = String(date.getDate()).padStart(2, "0");
+      return `${d}-${m}-${y}`;
+    }
+  }
 
   // Check if it's an ISO date: YYYY-MM-DD
   const isoDateMatch = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/);
@@ -174,6 +218,22 @@ export function getDecrementedColumnName(lastCol?: string): string {
   }
 
   const trimmed = lastCol.trim();
+
+  // Check if it's an Indian date: DD-MM-YYYY
+  const indianDateMatch = trimmed.match(/^(\d{2})-(\d{2})-(\d{4})$/);
+  if (indianDateMatch) {
+    const dNum = parseInt(indianDateMatch[1], 10);
+    const mNum = parseInt(indianDateMatch[2], 10) - 1;
+    const yNum = parseInt(indianDateMatch[3], 10);
+    const date = new Date(yNum, mNum, dNum);
+    if (!isNaN(date.getTime())) {
+      date.setDate(date.getDate() - 1);
+      const y = date.getFullYear();
+      const m = String(date.getMonth() + 1).padStart(2, "0");
+      const d = String(date.getDate()).padStart(2, "0");
+      return `${d}-${m}-${y}`;
+    }
+  }
 
   // Check if it's an ISO date: YYYY-MM-DD
   const isoDateMatch = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/);

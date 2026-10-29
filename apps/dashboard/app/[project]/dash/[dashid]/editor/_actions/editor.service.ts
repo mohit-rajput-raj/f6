@@ -38,30 +38,6 @@ export const createWorkFlow = async ({
 
     if (error) throw error;
 
-    // Handle full Syncfusion workbook JSON vs flat template columns
-    let sheetData: any;
-    const syncfusionJson = unwrapSyncfusionJson(templateData);
-
-    if (syncfusionJson) {
-      sheetData = syncfusionJson;
-    } else if (templateData && typeof templateData === "object") {
-      sheetData = templateData;
-    } else {
-      sheetData = {
-        columns: ["ID", "Name", "Category", "Status", "Date"],
-        data: [],
-      };
-    }
-
-    // Create MasterSheet linked to this desk/workflow
-    await createMasterSheet({
-      userId: id,
-      name: `${name} MasterSheet`,
-      data: sheetData,
-      metadata: { createdWithTemplate: true },
-      dashid: newWorkflow.id,
-    });
-
     return newWorkflow;
   } catch (error) {
     console.error("Failed to create workflow:", error);

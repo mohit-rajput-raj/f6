@@ -126,6 +126,7 @@ interface DeskState {
   projectWorkflowId: string | null;
   isLoading: boolean;
   isGuest: boolean;
+  isOwner: boolean;
   permission: "editor" | "viewer";
   isViewer: boolean;
   // masterSheetPreview: Dataset | null;
@@ -274,6 +275,7 @@ export const useDeskStore = create<DeskState>()((set, get) => ({
   projectWorkflowId: null,
   isLoading: true,
   isGuest: false,
+  isOwner: true,
   permission: "editor",
   isViewer: false,
   masterSheetPreview: null,
@@ -293,6 +295,7 @@ export const useDeskStore = create<DeskState>()((set, get) => ({
   setIsGuest: (v) => set({ isGuest: v }),
   setDeskAccess: (access) =>
     set({
+      isOwner: access.isOwner,
       isGuest: access.isGuest,
       permission: access.permission,
       isViewer: access.permission === "viewer",

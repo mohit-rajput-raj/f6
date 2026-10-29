@@ -120,6 +120,21 @@ export function DeskOwnerHeader({
     }
   }, [isTransferOpen, dashid]);
 
+  // Check if current user is the actual owner of this desk
+  const isCurrentUserOwner = React.useMemo(() => {
+    if (!isOwner) return false;
+    if (currentUserId && ownerData?.id) {
+      return currentUserId === ownerData.id;
+    }
+    if (currentUserEmail && ownerData?.email) {
+      return (
+        currentUserEmail.trim().toLowerCase() ===
+        ownerData.email.trim().toLowerCase()
+      );
+    }
+    return Boolean(isOwner);
+  }, [isOwner, currentUserId, currentUserEmail, ownerData]);
+
   // Format creation date e.g. "Jan 2024"
   const formattedOwnerSince = React.useMemo(() => {
     const rawDate = ownerData?.workflowCreatedAt || ownerData?.userCreatedAt;
@@ -135,6 +150,10 @@ export function DeskOwnerHeader({
   // Save updated desk name (project name)
   const handleSaveDeskName = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
+    if (!isCurrentUserOwner) {
+      toast.error("Only the desk owner can edit the desk name");
+      return;
+    }
     if (!deskName.trim()) {
       toast.error("Desk name cannot be empty");
       return;
@@ -155,6 +174,10 @@ export function DeskOwnerHeader({
   // Submit transfer ownership
   const handleTransferOwnership = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
+    if (!isCurrentUserOwner) {
+      toast.error("Only the desk owner can transfer ownership");
+      return;
+    }
     const cleanEmail = transferEmail.trim();
     if (!cleanEmail) {
       toast.error("Please enter a collaborator's email");
@@ -304,28 +327,37 @@ export function DeskOwnerHeader({
             </div>
           </div>
 
-          {/* Right: Action Buttons */}
-          <div className="flex items-center gap-3 shrink-0 self-end md:self-center">
-            {/* Transfer Ownership Button */}
-            <button
-              type="button"
-              onClick={() => setIsTransferOpen(true)}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-border bg-background hover:bg-muted text-foreground text-sm font-medium transition-all shadow-sm active:scale-95"
-            >
-              <ArrowLeftRight className="size-4 text-muted-foreground" />
-              <span>Transfer Ownership</span>
-            </button>
+          {/* Right: Action Buttons (Only for desk owner) */}
+          {isCurrentUserOwner ? (
+            <div className="flex items-center gap-2.5 shrink-0 self-end md:self-center">
+              {/* Transfer Ownership Button */}
+              <button
+                type="button"
+                onClick={() => setIsTransferOpen(true)}
+                className="flex items-center gap-2 px-3.5 py-2 rounded-xl border border-border bg-background hover:bg-muted text-foreground text-xs sm:text-sm font-medium transition-all shadow-xs active:scale-95 cursor-pointer"
+              >
+                <ArrowLeftRight className="size-4 text-muted-foreground" />
+                <span>Transfer Ownership</span>
+              </button>
 
-            {/* Edit Desk Name (Project Name) Button using Primary theme color */}
-            <button
-              type="button"
-              onClick={() => setIsEditOpen(true)}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-semibold transition-all shadow-sm active:scale-95"
-            >
-              <Pencil className="size-4" />
-              <span>Edit Desk</span>
-            </button>
-          </div>
+              {/* Edit Desk Name (Project Name) Button using Primary theme color */}
+              <button
+                type="button"
+                onClick={() => setIsEditOpen(true)}
+                className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground text-xs sm:text-sm font-semibold transition-all shadow-xs active:scale-95 cursor-pointer"
+              >
+                <Pencil className="size-4" />
+                <span>Edit Desk</span>
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 shrink-0 self-end md:self-center">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium border border-border bg-muted/40 text-muted-foreground shadow-2xs">
+                <ShieldCheck className="size-3.5 text-sky-500" />
+                <span>Shared Collaborator</span>
+              </span>
+            </div>
+          )}
         </div>
       </div>
 

@@ -32,7 +32,7 @@ export interface CheckboxField {
   id: string;
   label: string;
   checked: boolean;
-  nodeId: string; // the TrueFalseNode id in editor
+  nodeId: string;
 }
 
 export interface PushedFileRecord {
@@ -256,22 +256,7 @@ export async function syncBlockFieldsFromWorkflow(editorWorkflowId: string) {
       };
     });
 
-  // Derive checkboxes from TrueFalseNode nodes
-  const checkboxFields: CheckboxField[] = nodes
-    .filter(
-      (n: any) =>
-        n.type === "TrueFalseNode" || n.data?.type === "TrueFalseNode",
-    )
-    .map((n: any) => {
-      const fieldId = n.data?.checkboxId || n.id;
-      const existing = existingCheckboxes.find((e) => e.id === fieldId);
-      return {
-        id: fieldId,
-        label: n.data?.label ?? "Toggle",
-        checked: existing?.checked ?? false,
-        nodeId: n.id,
-      };
-    });
+  const checkboxFields: CheckboxField[] = [];
 
   // Update the block
   await supabase
@@ -291,8 +276,9 @@ export async function syncBlockFieldsFromWorkflow(editorWorkflowId: string) {
 export async function initializeDefaultDesk(
   projectWorkflowId: string,
   userId: string,
+  skipAccessCheck = false,
 ): Promise<DeskBlockData[]> {
-  if (userId) {
+  if (!skipAccessCheck && userId) {
     const { data: user } = await supabase
       .from("user")
       .select("email")
@@ -307,18 +293,7 @@ export async function initializeDefaultDesk(
     }
   }
 
-  const { count } = await supabase
-    .from("desk_block")
-    .select("id", { count: "exact", head: true })
-    .eq("projectWorkflowId", projectWorkflowId);
-
-  if (count && count > 0) {
-    return getDeskBlocks(projectWorkflowId);
-  }
-
-  // No blocks exist yet — return empty array.
-  // User can create blocks manually via the "+ Add Block" button.
-  return [];
+  return getDeskBlocks(projectWorkflowId);
 }
 
 // ─── Update block inputs ────────────────────────────────────

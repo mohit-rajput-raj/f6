@@ -1,10 +1,16 @@
 'use client';
 
 import { memo, useCallback, useMemo, useEffect } from 'react';
-import { Handle, Position, useReactFlow } from '@xyflow/react';
+import { Position, useReactFlow } from '@xyflow/react';
 import { Eye, EyeOff, Table2 } from 'lucide-react';
 import {
-  BaseNode, BaseNodeContent, BaseNodeHeader, BaseNodeHeaderTitle,
+  BaseNode,
+  BaseNodeContent,
+  BaseNodeHeader,
+  BaseNodeHeaderTitle,
+  BaseNodeIcon,
+  NodeHeaderActions,
+  NodeHandle,
 } from "@/components/dashboard/flow/Node/baseNode";
 import { NodeMenu } from "../node-menu";
 import { IconTrash } from "@tabler/icons-react";
@@ -28,7 +34,7 @@ interface Dataset {
  * data.previewName = string — label shown in the desk preview tab
  * data.targetTabName = string — name/id of the target tab to forward dataset to
  */
-export const OutputPreviewNode = memo(({ id, data }: { id: string; data: any }) => {
+export const OutputPreviewNode = memo(({ id, data, selected }: { id: string; data: any; selected?: boolean }) => {
   const { setNodes } = useReactFlow();
   const handleDelete = useDeleteNode();
   const { deskBlockId: contextBlockId } = useEditorWorkFlow();
@@ -92,38 +98,39 @@ export const OutputPreviewNode = memo(({ id, data }: { id: string; data: any }) 
   }, [id, setNodes]);
 
   return (
-    <>
-      <div className="flex justify-between items-center px-2 pt-1">
-        <NodeMenu />
-        <IconTrash className="size-4 cursor-pointer text-red-400 hover:text-red-600" onClick={handleDelete} />
-      </div>
-
-      <BaseNode className="min-w-[300px]">
-        <BaseNodeHeader className={`border-b flex items-center gap-2 px-3 py-2 rounded-t-md ${previewEnabled ? 'bg-gradient-to-r from-purple-600 to-violet-600 text-white' : 'bg-gradient-to-r from-zinc-600 to-zinc-700 text-zinc-300'}`}>
-          {previewEnabled ? <Eye className="size-4" /> : <EyeOff className="size-4" />}
-          <BaseNodeHeaderTitle className={previewEnabled ? 'text-white' : 'text-zinc-300'}>Output Preview</BaseNodeHeaderTitle>
-
+    <BaseNode variant="output" selected={selected} className="min-w-[300px]">
+      <BaseNodeHeader variant="output">
+        <BaseNodeIcon variant="output">
+          {previewEnabled ? <Eye className="size-4" /> : <EyeOff className="size-4 text-muted-foreground" />}
+        </BaseNodeIcon>
+        <BaseNodeHeaderTitle>Output Preview</BaseNodeHeaderTitle>
+        <NodeHeaderActions>
           {/* Preview toggle switch */}
           <button
             onClick={togglePreview}
-            className={`ml-auto relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${
-              previewEnabled ? 'bg-purple-400' : 'bg-zinc-500'
+            className={`nodrag relative inline-flex h-4 w-7 items-center rounded-full transition-colors focus:outline-none ${
+              previewEnabled ? 'bg-emerald-500' : 'bg-muted-foreground/40'
             }`}
             title={previewEnabled ? 'Preview ON — click to disable' : 'Preview OFF — click to enable'}
           >
             <span
-              className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
-                previewEnabled ? 'translate-x-4.5' : 'translate-x-0.5'
+              className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${
+                previewEnabled ? 'translate-x-3.5' : 'translate-x-0.5'
               }`}
             />
           </button>
-
-          <Badge variant="outline" className={`text-[10px] ml-1 ${previewEnabled ? 'border-white/30 text-white/80' : 'border-zinc-500 text-zinc-400'}`}>
+          <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${previewEnabled ? 'border-emerald-500/40 text-emerald-600 dark:text-emerald-400' : 'border-border text-muted-foreground'}`}>
             {previewEnabled ? '→ Desk' : 'OFF'}
           </Badge>
-        </BaseNodeHeader>
+          <NodeMenu />
+          <IconTrash
+            className="size-4 cursor-pointer text-muted-foreground hover:text-destructive transition-colors"
+            onClick={handleDelete}
+          />
+        </NodeHeaderActions>
+      </BaseNodeHeader>
 
-        <BaseNodeContent className="p-3 space-y-2">
+      <BaseNodeContent className="p-3 space-y-2">
           {/* Editable preview name */}
           <div className="space-y-1">
             <label className="text-[10px] text-muted-foreground font-medium">Output Name</label>
@@ -265,11 +272,10 @@ export const OutputPreviewNode = memo(({ id, data }: { id: string; data: any }) 
           )}
         </BaseNodeContent>
 
-        {/* Input and Output handles */}
-        <Handle type="target" position={Position.Left} id="in" className="w-3 h-3 bg-purple-600" />
-        <Handle type="source" position={Position.Right} id="out" className="w-3 h-3 bg-purple-600" />
-      </BaseNode>
-    </>
+      {/* Input and Output handles */}
+      <NodeHandle variant="output" type="target" position={Position.Left} id="in" />
+      <NodeHandle variant="output" type="source" position={Position.Right} id="out" />
+    </BaseNode>
   );
 });
 

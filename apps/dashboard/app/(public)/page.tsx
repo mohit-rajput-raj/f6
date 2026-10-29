@@ -116,8 +116,8 @@ export function HeroSection({ setImageModalOpen, handleResetZoom }: any) {
 
       <div className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 text-center space-y-7">
         {/* Release Eyebrow Pill */}
-        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-medium border border-zinc-800 bg-zinc-900/90 text-zinc-300 shadow-sm hover:border-zinc-700 transition-colors cursor-pointer backdrop-blur-sm">
-          <span className="flex size-2 rounded-full bg-primary animate-pulse" />
+        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-medium border border-zinc-800 bg-zinc-900/90 text-zinc-300 shadow-sm hover:border-zinc-700 transition-colors cursor-pointer backdrop-blur-md">
+          <span className="flex size-2 rounded-full bg-primary animate-pulse shadow-[0_0_8px_rgba(var(--primary),0.8)]" />
           <span className="font-semibold text-zinc-100 font-mono">
             ENTERPRISE v2.4
           </span>
@@ -128,8 +128,8 @@ export function HeroSection({ setImageModalOpen, handleResetZoom }: any) {
           <ArrowRight className="size-3 text-primary ml-0.5" />
         </div>
 
-        {/* Master MNC Headline */}
-        <h1 className="text-4xl sm:text-6xl lg:text-7xl font-extrabold tracking-tight text-zinc-300 max-w-4xl mx-auto leading-[1.08]">
+        {/* Master Headline with Watermelon-style gradient depth */}
+        <h1 className="text-4xl sm:text-6xl lg:text-7xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-b from-white via-zinc-100 to-zinc-400 max-w-4xl mx-auto leading-[1.08]">
           Automate complex spreadsheets with deterministic visual DAGs.
         </h1>
 
@@ -146,7 +146,7 @@ export function HeroSection({ setImageModalOpen, handleResetZoom }: any) {
           <Link href="/auth/sign-in">
             <Button
               size="lg"
-              className="h-11 px-7 text-sm font-semibold gap-2 shadow-sm cursor-pointer bg-zinc-900"
+              className="h-11 px-7 text-sm font-semibold gap-2 shadow-lg cursor-pointer bg-primary hover:bg-primary/90 text-primary-foreground transition-all hover:scale-[1.02] active:scale-[0.98]"
             >
               <span>Deploy Free Workspace</span>
               <ArrowRight className="size-4" />
@@ -157,7 +157,7 @@ export function HeroSection({ setImageModalOpen, handleResetZoom }: any) {
             <Button
               variant="outline"
               size="lg"
-              className="h-11 px-6 text-sm font-medium gap-2 border-zinc-800 bg-zinc-900/70 hover:bg-zinc-800 hover:text-white cursor-pointer backdrop-blur-sm"
+              className="h-11 px-6 text-sm font-medium gap-2 border-zinc-800 bg-zinc-900/70 hover:bg-zinc-800 hover:text-white cursor-pointer backdrop-blur-sm transition-all hover:scale-[1.02] active:scale-[0.98]"
             >
               <Play className="size-3.5 fill-current opacity-70" />
               <span>Explore Interactive Studio</span>
@@ -171,7 +171,7 @@ export function HeroSection({ setImageModalOpen, handleResetZoom }: any) {
               setImageModalOpen(true);
               handleResetZoom();
             }}
-            className="h-11 px-5 text-sm font-medium gap-2 border-zinc-800 bg-zinc-900/40 hover:bg-zinc-800 text-zinc-300 hover:text-white cursor-pointer backdrop-blur-sm"
+            className="h-11 px-5 text-sm font-medium gap-2 border-zinc-800 bg-zinc-900/40 hover:bg-zinc-800 text-zinc-300 hover:text-white cursor-pointer backdrop-blur-sm transition-all hover:scale-[1.02] active:scale-[0.98]"
           >
             <Maximize2 className="size-3.5" />
             <span>Inspect Blueprint</span>
@@ -240,16 +240,7 @@ export default function Home() {
   const handleZoomOut = () =>
     setZoomLevel((prev) => Math.max(prev - 0.25, 0.75));
   const handleResetZoom = () => setZoomLevel(1);
-  const sectionRef = useRef<HTMLElement>(null);
 
-  // 2. Track scroll position relative to this section
-  const { scrollYProgress } = useScroll({
-    target: sectionRef,
-    offset: ["start start", "end start"], // Starts tracking when top hits viewport top, ends when bottom hits viewport top
-  });
-
-  // 3. Map scroll progress (0 to 1) to vertical Y-axis offset (-100px translates the image upwards)
-  const y = useTransform(scrollYProgress, [0, 1], ["0%", "-30%"]);
   return (
     <>
       <HeroSection
@@ -1824,10 +1815,16 @@ export default function Home() {
 
       {/* ─── Pre-Footer CTA Banner ─── */}
       <section className="py-20 sm:py-28 relative overflow-hidden">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6">
-          <div className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-8 sm:p-14 text-center space-y-6 shadow-xl relative overflow-hidden">
-            <div className="space-y-2 max-w-xl mx-auto">
-              <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-white">
+        {/* Subtle ambient light glow */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[300px] bg-primary/10 blur-[150px] rounded-full pointer-events-none" />
+
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 relative z-10">
+          <div className="rounded-3xl border border-white/10 bg-gradient-to-b from-zinc-900/80 via-zinc-900/50 to-zinc-950/90 backdrop-blur-xl p-8 sm:p-14 text-center space-y-6 shadow-2xl relative overflow-hidden">
+            <div className="space-y-3 max-w-xl mx-auto">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-mono font-medium border border-primary/30 bg-primary/10 text-primary">
+                <span>INSTANT ONBOARDING</span>
+              </div>
+              <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-b from-white via-zinc-100 to-zinc-300">
                 Ready to upgrade your spreadsheet workflows?
               </h2>
               <p className="text-sm text-zinc-400 leading-relaxed">
@@ -1836,11 +1833,11 @@ export default function Home() {
               </p>
             </div>
 
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3.5 pt-2">
               <Link href="/auth/sign-in">
                 <Button
                   size="lg"
-                  className="h-11 px-7 text-sm font-semibold gap-2 shadow-xs cursor-pointer"
+                  className="h-11 px-7 text-sm font-semibold gap-2 shadow-lg cursor-pointer bg-primary hover:bg-primary/90 text-primary-foreground transition-all hover:scale-[1.02] active:scale-[0.98]"
                 >
                   <span>Create Free Account</span>
                   <ArrowRight className="size-4" />
@@ -1850,16 +1847,15 @@ export default function Home() {
                 <Button
                   variant="outline"
                   size="lg"
-                  className="h-11 px-6 text-sm font-medium border-zinc-800 bg-zinc-900 hover:bg-zinc-800 cursor-pointer"
+                  className="h-11 px-6 text-sm font-medium border-zinc-800 bg-zinc-900/80 hover:bg-zinc-800 text-zinc-200 hover:text-white cursor-pointer backdrop-blur-sm transition-all hover:scale-[1.02] active:scale-[0.98]"
                 >
                   <span>Browse Help Guides</span>
                 </Button>
               </Link>
             </div>
 
-            <p className="text-[11px] font-mono text-zinc-500">
-              Open-source friendly · Managed cloud or self-host · Instant
-              onboarding
+            <p className="text-[11px] font-mono text-zinc-500 pt-2">
+              Open-source friendly · Managed cloud or self-host · SOC-2 compliant
             </p>
           </div>
         </div>

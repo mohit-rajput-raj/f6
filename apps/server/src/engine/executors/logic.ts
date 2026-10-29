@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════
 // Logic Node Executors
-// Handles: IfElse, SwitchCase, TrueFalse
+// Handles: IfElse, SwitchCase
 // ═══════════════════════════════════════════════════════════
 
 import type { INodeExecutor, ExecutionContext, Dataset, DeskInputResolver } from "@repo/workflow-engine/types";
@@ -24,26 +24,9 @@ export class SwitchCaseExecutor implements INodeExecutor {
   }
 }
 
-// ── TrueFalseNode (reads checkbox state from desk block) ────
-export class TrueFalseExecutor implements INodeExecutor {
-  type = "TrueFalseNode";
-  constructor(private deskResolver: DeskInputResolver) {}
-
-  async execute(ctx: ExecutionContext): Promise<boolean> {
-    const deskBlockId = ctx.nodeData?.deskBlockId;
-    const checkboxId = ctx.nodeData?.checkboxId || ctx.nodeId;
-
-    if (deskBlockId) {
-      return this.deskResolver.getCheckboxValue(deskBlockId, checkboxId);
-    }
-    return false;
-  }
-}
-
-export function createLogicExecutors(deskResolver: DeskInputResolver): INodeExecutor[] {
+export function createLogicExecutors(deskResolver?: DeskInputResolver): INodeExecutor[] {
   return [
     new IfElseExecutor(),
     new SwitchCaseExecutor(),
-    new TrueFalseExecutor(deskResolver),
   ];
 }

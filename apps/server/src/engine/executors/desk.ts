@@ -1,7 +1,6 @@
 // ═══════════════════════════════════════════════════════════
 // Desk Node Executors
-// Handles: DeskTextInput, DeskSheet, ActionButton,
-//          OutputPreview, BlockOutputSender
+// Handles: DeskTextInput, DeskSheet, OutputPreview, BlockOutputSender
 // These nodes bridge the Desk UI ↔ Workflow Engine
 // ═══════════════════════════════════════════════════════════
 
@@ -59,40 +58,6 @@ export class DeskSheetExecutor implements INodeExecutor {
       return fileData as Dataset;
     }
     return { columns: [], data: [] };
-  }
-}
-
-// ── ActionButtonNode ────────────────────────────────────────
-// This is the key human-in-the-loop node!
-// When autoExecute is OFF, it pauses the workflow and waits for user click
-export class ActionButtonExecutor implements INodeExecutor {
-  type = "ActionButtonNode";
-  constructor(private deskResolver: DeskInputResolver) {}
-
-  async execute(ctx: ExecutionContext): Promise<boolean> {
-    const deskBlockId = ctx.nodeData?.deskBlockId;
-    const actionId = ctx.nodeData?.actionId;
-    const autoExecute = ctx.nodeData?.autoExecute ?? false;
-
-    // If auto-execute is ON, just return true (proceed automatically)
-    if (autoExecute) {
-      return true;
-    }
-
-    // Check if already triggered (from desk block button click)
-    if (deskBlockId && actionId) {
-      const triggered = await this.deskResolver.getActionButtonTriggered(deskBlockId, actionId);
-      if (triggered) return true;
-    }
-
-    // Not triggered and not auto — pause workflow for human input
-    throw new HumanInputRequired({
-      nodeId: ctx.nodeId,
-      nodeType: "ActionButtonNode",
-      prompt: ctx.nodeData?.label || "Click to continue",
-      inputType: "button_click",
-      data: { deskBlockId, actionId },
-    });
   }
 }
 
@@ -155,7 +120,6 @@ export function createDeskExecutors(deskResolver: DeskInputResolver): INodeExecu
   return [
     new DeskTextInputExecutor(deskResolver),
     new DeskSheetExecutor(deskResolver),
-    new ActionButtonExecutor(deskResolver),
     new OutputPreviewExecutor(deskResolver),
     new BlockOutputSenderExecutor(deskResolver),
   ];

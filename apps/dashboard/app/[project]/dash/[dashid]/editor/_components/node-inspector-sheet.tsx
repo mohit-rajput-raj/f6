@@ -66,7 +66,7 @@ export function NodeInspectorSheet() {
     }}>
       <SheetContent
         side="bottom"
-        className="dark bg-zinc-950 border-t border-zinc-800 h-[45vh] overflow-y-auto"
+        className="bg-card text-card-foreground border-t border-border/40 h-[45vh] overflow-y-auto"
       >
         <SheetHeader className="pb-3">
           <SheetTitle className="flex items-center gap-3">
@@ -75,7 +75,7 @@ export function NodeInspectorSheet() {
             </Badge>
             <span>{nodeData?.title || selectedNode.type}</span>
             {nodeData?.rowCount !== undefined && (
-              <Badge className="bg-emerald-900 text-emerald-300 text-[10px]">
+              <Badge variant="secondary" className="text-[10px]">
                 {nodeData.rowCount} rows
               </Badge>
             )}
@@ -111,7 +111,7 @@ export function NodeInspectorSheet() {
                     {upstream.data && typeof upstream.data === "object" && Array.isArray(upstream.data.columns) ? (
                       <DataPreviewTable columns={upstream.data.columns} rows={upstream.data.data} />
                     ) : upstream.data ? (
-                      <pre className="text-xs bg-zinc-900 p-2 rounded overflow-x-auto max-h-40">
+                      <pre className="text-xs bg-muted/40 border border-border/40 text-foreground p-2 rounded-lg overflow-x-auto max-h-40">
                         {typeof upstream.data === "string" ? upstream.data : JSON.stringify(upstream.data, null, 2)}
                       </pre>
                     ) : (
@@ -133,7 +133,7 @@ export function NodeInspectorSheet() {
             {isDataset ? (
               <DataPreviewTable columns={result.columns} rows={result.data} />
             ) : result ? (
-              <pre className="text-xs bg-zinc-900 p-3 rounded overflow-x-auto max-h-60">
+              <pre className="text-xs bg-muted/40 border border-border/40 text-foreground p-3 rounded-xl overflow-x-auto max-h-60">
                 {typeof result === "string" ? result : JSON.stringify(result, null, 2)}
               </pre>
             ) : (
@@ -146,9 +146,9 @@ export function NodeInspectorSheet() {
             {nodeData?.config ? (
               <div className="space-y-3">
                 {Object.entries(nodeData.config).map(([key, value]) => (
-                  <div key={key} className="flex items-start gap-3 border-b border-zinc-800 pb-2">
+                  <div key={key} className="flex items-start gap-3 border-b border-border/40 pb-2">
                     <span className="text-xs font-medium text-muted-foreground min-w-[120px]">{key}</span>
-                    <span className="text-xs font-mono text-white break-all">
+                    <span className="text-xs font-mono text-foreground break-all">
                       {typeof value === "object" ? JSON.stringify(value) : String(value ?? "—")}
                     </span>
                   </div>
@@ -181,10 +181,10 @@ function DataPreviewTable({ columns, rows }: { columns: string[]; rows: any[][] 
   const previewRows = rows.slice(0, 10);
 
   return (
-    <div className="overflow-x-auto border border-zinc-800 rounded-lg">
+    <div className="overflow-x-auto border border-border/40 rounded-xl bg-card">
       <table className="w-full text-xs">
         <thead>
-          <tr className="border-b border-zinc-800 bg-zinc-900">
+          <tr className="border-b border-border/40 bg-muted/40">
             {columns.map((col, i) => (
               <th key={i} className="px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">
                 {col}
@@ -194,7 +194,7 @@ function DataPreviewTable({ columns, rows }: { columns: string[]; rows: any[][] 
         </thead>
         <tbody>
           {previewRows.map((row, ri) => (
-            <tr key={ri} className="border-b border-zinc-800/50 hover:bg-zinc-900/50">
+            <tr key={ri} className="border-b border-border/30 hover:bg-muted/30 transition-colors">
               {columns.map((_, ci) => (
                 <td key={ci} className="px-3 py-1.5 whitespace-nowrap max-w-[200px] truncate">
                   {row[ci] ?? ''}

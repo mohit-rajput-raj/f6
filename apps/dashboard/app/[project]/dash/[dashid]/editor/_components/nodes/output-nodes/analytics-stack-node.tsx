@@ -1,7 +1,7 @@
 'use client';
 
 import { memo, useState, useCallback } from 'react';
-import { Handle, Position, useReactFlow, useEdges, useNodes } from '@xyflow/react';
+import { Position, useReactFlow, useEdges, useNodes } from '@xyflow/react';
 import {
   BarChart3,
   Layers,
@@ -19,6 +19,9 @@ import {
   BaseNodeContent,
   BaseNodeHeader,
   BaseNodeHeaderTitle,
+  BaseNodeIcon,
+  NodeHeaderActions,
+  NodeHandle,
 } from '@/components/dashboard/flow/Node/baseNode';
 import { NodeMenu } from '../node-menu';
 import { IconTrash } from '@tabler/icons-react';
@@ -32,7 +35,7 @@ import { useSession } from '@/lib/auth-client';
 import { useParams } from 'next/navigation';
 import { useDeskStore } from '@/stores/desk-store';
 
-export const AnalyticsStackNode = memo(({ id, data }: { id: string; data: any }) => {
+export const AnalyticsStackNode = memo(({ id, data, selected }: { id: string; data: any; selected?: boolean }) => {
   const { setNodes } = useReactFlow();
   const handleDelete = useDeleteNode();
   const { data: session } = useSession();
@@ -158,32 +161,30 @@ export const AnalyticsStackNode = memo(({ id, data }: { id: string; data: any })
   };
 
   return (
-    <>
-      <div className="flex justify-between items-center px-2 pt-1">
-        <NodeMenu />
-        <IconTrash
-          className="size-4 cursor-pointer text-red-400 hover:text-red-600"
-          onClick={handleDelete}
-        />
-      </div>
-
-      <BaseNode className="min-w-[320px] shadow-lg border-violet-500/20">
-        <BaseNodeHeader className="border-b flex items-center gap-2 px-3 py-2.5 bg-gradient-to-r from-violet-600 to-indigo-600 text-white rounded-t-md">
+    <BaseNode variant="ai" selected={selected} className="min-w-[320px]">
+      <BaseNodeHeader variant="ai">
+        <BaseNodeIcon variant="ai">
           <BarChart3 className="size-4" />
-          <BaseNodeHeaderTitle className="text-white font-semibold">
-            Analytics Stack Node
-          </BaseNodeHeaderTitle>
-          <Badge
-            variant="outline"
-            className={`text-[9px] font-mono ml-auto ${
-              autoExecute
-                ? 'border-emerald-400/50 text-emerald-100 bg-emerald-500/25'
-                : 'border-white/30 text-white/90 bg-white/10'
-            }`}
-          >
-            {autoExecute ? '⚡ Auto-Sync ON' : '→ Analytics'}
-          </Badge>
-        </BaseNodeHeader>
+        </BaseNodeIcon>
+        <BaseNodeHeaderTitle>Analytics Stack</BaseNodeHeaderTitle>
+        <Badge
+          variant="outline"
+          className={`text-[9px] font-mono ${
+            autoExecute
+              ? 'border-emerald-500/40 text-emerald-600 dark:text-emerald-400'
+              : 'border-border text-muted-foreground'
+          }`}
+        >
+          {autoExecute ? '⚡ Auto-Sync' : '→ Analytics'}
+        </Badge>
+        <NodeHeaderActions>
+          <NodeMenu />
+          <IconTrash
+            className="size-4 cursor-pointer text-muted-foreground hover:text-destructive transition-colors"
+            onClick={handleDelete}
+          />
+        </NodeHeaderActions>
+      </BaseNodeHeader>
 
         <BaseNodeContent className="p-3 space-y-3">
           {/* Auto Execute Switch */}
@@ -392,50 +393,49 @@ export const AnalyticsStackNode = memo(({ id, data }: { id: string; data: any })
           </div>
         </BaseNodeContent>
 
-        {/* Input & Output Ports */}
-        <Handle
-          type="target"
-          position={Position.Left}
-          id="table-name"
-          className="w-3.5 h-3.5 bg-teal-500 border-2 border-background shadow-xs hover:scale-110 transition-transform"
-          style={{ top: '35%' }}
-        />
-        <div
-          className="absolute left-[-6px] text-[7px] text-teal-600 dark:text-teal-400 font-semibold tracking-wider uppercase select-none pointer-events-none"
-          style={{ top: '32%', transform: 'translateX(-100%)' }}
-        >
-          Table Name In
-        </div>
+      {/* Input & Output Ports */}
+      <NodeHandle
+        variant="input"
+        type="target"
+        position={Position.Left}
+        id="table-name"
+        style={{ top: '35%' }}
+      />
+      <div
+        className="absolute left-[-6px] text-[7px] text-sky-500 font-semibold tracking-wider uppercase select-none pointer-events-none"
+        style={{ top: '32%', transform: 'translateX(-100%)' }}
+      >
+        Table Name In
+      </div>
 
-        <Handle
-          type="target"
-          position={Position.Left}
-          id="in"
-          className="w-3.5 h-3.5 bg-violet-600 border-2 border-background shadow-xs hover:scale-110 transition-transform"
-          style={{ top: '65%' }}
-        />
-        <div
-          className="absolute left-[-6px] text-[7px] text-violet-500 font-semibold tracking-wider uppercase select-none pointer-events-none"
-          style={{ top: '62%', transform: 'translateX(-100%)' }}
-        >
-          Data In
-        </div>
+      <NodeHandle
+        variant="ai"
+        type="target"
+        position={Position.Left}
+        id="in"
+        style={{ top: '65%' }}
+      />
+      <div
+        className="absolute left-[-6px] text-[7px] text-indigo-500 font-semibold tracking-wider uppercase select-none pointer-events-none"
+        style={{ top: '62%', transform: 'translateX(-100%)' }}
+      >
+        Data In
+      </div>
 
-        <Handle
-          type="source"
-          position={Position.Right}
-          id="out"
-          className="w-3.5 h-3.5 bg-violet-600 border-2 border-background shadow-xs hover:scale-110 transition-transform"
-          style={{ top: '50%' }}
-        />
-        <div
-          className="absolute right-[-6px] text-[7px] text-violet-500 font-semibold tracking-wider uppercase select-none pointer-events-none"
-          style={{ top: '47%', transform: 'translateX(100%)' }}
-        >
-          Data Out
-        </div>
-      </BaseNode>
-    </>
+      <NodeHandle
+        variant="ai"
+        type="source"
+        position={Position.Right}
+        id="out"
+        style={{ top: '50%' }}
+      />
+      <div
+        className="absolute right-[-6px] text-[7px] text-indigo-500 font-semibold tracking-wider uppercase select-none pointer-events-none"
+        style={{ top: '47%', transform: 'translateX(100%)' }}
+      >
+        Data Out
+      </div>
+    </BaseNode>
   );
 });
 

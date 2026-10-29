@@ -100,6 +100,86 @@ export async function getMasterSheetByName(name: string, userId?: string, dashid
   return data;
 }
 
+export async function getDeskMasterSheet(dashid: string, userId?: string) {
+  if (!dashid || !dashid.trim()) return null;
+
+  // 1. Check desk_share linked to projectWorkflowId
+  const { data: shares, error } = await supabase
+    .from("desk_share")
+    .select("*, masterSheet:master_sheet(*)")
+    .eq("projectWorkflowId", dashid.trim());
+
+  if (!error && shares && shares.length > 0) {
+    const match = shares.find((s: any) => s.masterSheet);
+    if (match?.masterSheet) {
+      return match.masterSheet;
+    }
+  }
+
+  // 2. Check metadata->>dashid in master_sheet
+  const { data: sheetsByMeta } = await supabase
+    .from("master_sheet")
+    .select("*")
+    .eq("metadata->>dashid", dashid.trim())
+    .order("updatedAt", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (sheetsByMeta) {
+    return sheetsByMeta;
+  }
+
+  return null;
+}
+
+export async function generateDeskMasterSheet({
+  dashid,
+  userId,
+  name,
+}: {
+  dashid: string;
+  userId: string;
+  name?: string;
+}) {
+  if (!dashid || !userId) {
+    throw new Error("dashid and userId are required");
+  }
+
+  const existing = await getDeskMasterSheet(dashid, userId);
+  if (existing) {
+    return existing;
+  }
+
+  let defaultName = name || "Master Sheet";
+  try {
+    const { data: wf } = await supabase
+      .from("workflow")
+      .select("name")
+      .eq("id", dashid)
+      .maybeSingle();
+    if (wf?.name) {
+      defaultName = `${wf.name} MasterSheet`;
+    }
+  } catch (e) {
+    // fallback
+  }
+
+  const initialData = {
+    columns: ["ID", "Name", "Category", "Status", "Date"],
+    data: [],
+  };
+
+  const newSheet = await createMasterSheet({
+    userId,
+    name: defaultName,
+    data: initialData,
+    metadata: { createdManually: true, dashid },
+    dashid,
+  });
+
+  return newSheet;
+}
+
 export async function createMasterSheet({
   userId,
   name,
@@ -113,9 +193,14 @@ export async function createMasterSheet({
   metadata?: any;
   dashid?: string;
 }) {
+  const mergedMetadata = {
+    ...(metadata || {}),
+    ...(dashid ? { dashid } : {}),
+  };
+
   const { data: sheet, error } = await supabase
     .from("master_sheet")
-    .insert({ userId, name, data, metadata })
+    .insert({ userId, name, data, metadata: mergedMetadata })
     .select()
     .single();
 

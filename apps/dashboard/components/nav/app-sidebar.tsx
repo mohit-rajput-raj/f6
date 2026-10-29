@@ -15,7 +15,7 @@ import {
   IconHelp,
   IconInnerShadowTop,
   IconLamp,
-  IconListDetails,
+  IconTable,
   IconPlugConnected,
   IconReport,
   IconSearch,
@@ -238,7 +238,7 @@ const data = {
     {
       name: "Sheet Library",
       url: "/sheet-library",
-      icon: IconListDetails,
+      icon: IconTable,
     },
     // {
     //   name: "Reports",

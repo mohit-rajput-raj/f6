@@ -31,7 +31,6 @@ export const EditorCanvasDefaultCardTypes: Record<string, { description: string;
   // Legacy / other
   FilterCsvNode: { description: 'CSV filter card', type: 'Action' },
   baseNodebar: { description: 'Action bar node', type: 'Action' },
-  baseNodeFull: { description: 'Full-featured node', type: 'Action' },
   InputFile: { description: 'File input', type: 'Action' },
   Email: { description: 'Send an email', type: 'Action' },
   Condition: { description: 'Conditional logic', type: 'Condition' },
@@ -67,7 +66,6 @@ export const EditorCanvasDefaultCardTypes: Record<string, { description: string;
   DeskTextInputNode: { description: 'Text input from Desk panel with editable placeholder', type: 'Input' },
   DeskSheetNode: { description: 'Sheet data loaded from Desk panel', type: 'Input' },
   OutputPreviewNode: { description: 'Preview output data in Desk panel spreadsheet', type: 'Output' },
-  TrueFalseNode: { description: 'Boolean toggle — generates a checkbox on the desk block', type: 'Input' },
   BlockOutputSenderNode: { description: 'Send output data to the next desk block', type: 'Output' },
   MasterSheetPreviewNode: { description: 'Preview data in the bottom MasterSheet panel (with ID)', type: 'Output' },
 
@@ -75,10 +73,8 @@ export const EditorCanvasDefaultCardTypes: Record<string, { description: string;
   MasterSheetLibraryNode: { description: 'Load existing MasterSheet from library by name', type: 'Input' },
   DynamicBlockConcatNode: { description: 'Code-driven block merge into MasterSheet using Subject Block codes', type: 'Combine' },
   BlockExtractorNode: { description: 'Extract block from MasterSheet by code', type: 'Combine' },
-  ActionButtonNode: { description: 'Button for Desk MasterSheet panel', type: 'Input' },
 
   // AI & MasterSheet updates
-  AISchemaAlignNode: { description: 'AI-assisted schema alignment and student row matching for CSV attendance', type: 'Action' },
   DynamicMasterSheetNode: { description: 'Dynamic sheet tab selection and custom column target mapping using TanStack Query & Gemini 2.5', type: 'Action' },
   UpdatedMergedPreviewNode: { description: 'Preview AI-merged updates with one-click MasterSheet merge confirmation', type: 'Output' },
   AnalyticsStackNode: { description: 'Stack & align datasets for Analytics graphs & charts (e.g. daily attendance matrix)', type: 'Output' },

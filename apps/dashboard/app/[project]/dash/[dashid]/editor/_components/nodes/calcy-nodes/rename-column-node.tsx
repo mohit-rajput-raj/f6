@@ -1,13 +1,16 @@
 'use client';
 
-import { memo, useCallback, useState } from 'react';
-import { Handle, Position, useReactFlow } from '@xyflow/react';
+import { memo, useCallback } from 'react';
+import { Position, useReactFlow } from '@xyflow/react';
 import { Type } from 'lucide-react';
 import {
   BaseNode,
   BaseNodeContent,
   BaseNodeHeader,
   BaseNodeHeaderTitle,
+  BaseNodeIcon,
+  NodeHeaderActions,
+  NodeHandle,
 } from "@/components/dashboard/flow/Node/baseNode";
 import { NodeMenu } from "../node-menu";
 import { IconTrash } from "@tabler/icons-react";
@@ -44,48 +47,52 @@ export const RenameColumnNode = memo(({ id, data }: { id: string; data: any }) =
   }, [id, setNodes, config]);
 
   return (
-    <>
-      <div className="flex justify-between items-center px-2 pt-1">
-        <NodeMenu />
-        <IconTrash className="size-4 cursor-pointer text-red-400 hover:text-red-600" onClick={handleDelete} />
-      </div>
-
-      <BaseNode className="min-w-[280px]">
-        <BaseNodeHeader className="border-b flex items-center gap-2 px-3 py-1.5 bg-orange-600 text-white">
-          <Type className="size-4" />
+    <BaseNode variant="transform" className="min-w-[280px]">
+      <BaseNodeHeader variant="transform">
+        <div className="flex items-center gap-2 min-w-0">
+          <BaseNodeIcon variant="transform">
+            <Type className="size-3.5" />
+          </BaseNodeIcon>
           <BaseNodeHeaderTitle>Rename Column</BaseNodeHeaderTitle>
-        </BaseNodeHeader>
+        </div>
+        <NodeHeaderActions>
+          <NodeMenu />
+          <IconTrash
+            className="size-3.5 cursor-pointer text-muted-foreground hover:text-destructive transition-colors"
+            onClick={handleDelete}
+          />
+        </NodeHeaderActions>
+      </BaseNodeHeader>
 
-        <BaseNodeContent className="p-4 space-y-3">
-          <div className="space-y-1">
-            <Label className="text-xs">Column to rename</Label>
-            <Select value={config.oldName} onValueChange={v => updateConfig({ oldName: v })} disabled={columns.length === 0}>
-              <SelectTrigger className="h-8">
-                <SelectValue placeholder={columns.length === 0 ? "Connect input first" : "Select"} />
-              </SelectTrigger>
-              <SelectContent>
-                {columns.map(col => (
-                  <SelectItem key={col} value={col}>{col}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+      <BaseNodeContent className="p-3.5 space-y-3">
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground">Column to rename</Label>
+          <Select value={config.oldName} onValueChange={v => updateConfig({ oldName: v })} disabled={columns.length === 0}>
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue placeholder={columns.length === 0 ? "Connect input first" : "Select column"} />
+            </SelectTrigger>
+            <SelectContent>
+              {columns.map(col => (
+                <SelectItem key={col} value={col}>{col}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
 
-          <div className="space-y-1">
-            <Label className="text-xs">New name</Label>
-            <Input
-              value={config.newName ?? ''}
-              onChange={e => updateConfig({ newName: e.target.value })}
-              placeholder="e.g. student_name"
-              className="h-8"
-            />
-          </div>
-        </BaseNodeContent>
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground">New name</Label>
+          <Input
+            value={config.newName ?? ''}
+            onChange={e => updateConfig({ newName: e.target.value })}
+            placeholder="e.g. student_name"
+            className="h-8 text-xs nodrag"
+          />
+        </div>
+      </BaseNodeContent>
 
-        <Handle type="target" position={Position.Left} id="in" className="w-3 h-3 bg-orange-600" />
-        <Handle type="source" position={Position.Right} id="out" className="w-3 h-3 bg-orange-600" />
-      </BaseNode>
-    </>
+      <NodeHandle variant="transform" type="target" position={Position.Left} id="in" />
+      <NodeHandle variant="transform" type="source" position={Position.Right} id="out" />
+    </BaseNode>
   );
 });
 

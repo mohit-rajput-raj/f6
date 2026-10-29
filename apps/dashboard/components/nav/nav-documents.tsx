@@ -1,106 +1,57 @@
-"use client"
+"use client";
 
-import {
-  IconDots,
-  IconFolder,
-  IconShare3,
-  IconTrash,
-  type Icon,
-} from "@tabler/icons-react"
-
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@repo/ui/components/ui/dropdown-menu"
+import React from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { type Icon } from "@tabler/icons-react";
 import {
   SidebarGroup,
   SidebarGroupLabel,
   SidebarMenu,
-  SidebarMenuAction,
   SidebarMenuButton,
   SidebarMenuItem,
-  useSidebar,
-} from "@repo/ui/components/ui/sidebar"
-import { useRouter } from "next/navigation"
-import FileTreeDemo from "../files/fele-tree"
-import React from "react"
+} from "@repo/ui/components/ui/sidebar";
 
 export function NavDocuments({
   items,
-  val,
-  main_id,
-  dashid
+  dashid,
 }: {
-  dashid?: string,
-  main_id?: string,
-  val?: string,
+  dashid?: string;
+  main_id?: string;
+  val?: string;
   items: {
-    name: string
-    url: string
-    icon: Icon
-  }[]
+    name: string;
+    url: string;
+    icon: Icon;
+  }[];
 }) {
-  const { isMobile } = useSidebar()
   const router = useRouter();
-
-
+  const pathname = usePathname();
 
   return (
     <SidebarGroup className="group-data-[collapsible=icon]:hidden">
       <SidebarGroupLabel>Documents</SidebarGroupLabel>
       <SidebarMenu>
-        {items.map((item) => (
-          <SidebarMenuItem key={item.name}>
-            <SidebarMenuButton className="cursor-pointer" asChild onClick={() => router.push("/dashboard" + "/dash/" + dashid + item.url)}>
-              <a >
-                <item.icon />
-                <span>{item.name}</span>
+        {items.map((item) => {
+          const fullUrl = `/dashboard/dash/${dashid}` + item.url;
+          const isActive =
+            pathname === fullUrl || (item.url && pathname.startsWith(fullUrl + "/"));
 
-
-              </a>
-            </SidebarMenuButton>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <SidebarMenuAction
-                  showOnHover
-                  className="data-[state=open]:bg-accent rounded-sm"
-                >
-                  <IconDots />
-                  <span className="sr-only">More</span>
-                </SidebarMenuAction>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent
-                className="w-24 rounded-lg"
-                side={isMobile ? "bottom" : "right"}
-                align={isMobile ? "end" : "start"}
+          return (
+            <SidebarMenuItem key={item.name}>
+              <SidebarMenuButton
+                tooltip={item.name}
+                className={`cursor-pointer transition-colors duration-150 ${
+                  isActive ? "bg-accent text-accent-foreground font-medium" : ""
+                }`}
+                onClick={() => router.push(fullUrl)}
               >
-                <DropdownMenuItem>
-                  <IconFolder />
-                  <span >Open</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem>
-                  <IconShare3 />
-                  <span>Share</span>
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem variant="destructive">
-                  <IconTrash />
-                  <span>Delete</span>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </SidebarMenuItem>
-        ))}
-        <SidebarMenuItem>
-          <SidebarMenuButton className="text-sidebar-foreground/70">
-            <IconDots className="text-sidebar-foreground/70" />
-            <span>More</span>
-          </SidebarMenuButton>
-        </SidebarMenuItem>
+                {item.icon && <item.icon className="size-4 shrink-0" />}
+                <span className="truncate">{item.name}</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          );
+        })}
       </SidebarMenu>
     </SidebarGroup>
-  )
+  );
 }

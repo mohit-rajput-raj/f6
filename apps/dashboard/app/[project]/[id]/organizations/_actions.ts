@@ -146,6 +146,112 @@ export async function getOrganizationsDirectoryAction(userId?: string, userEmail
 }
 
 /**
+ * Fetch a single organization's full details and user status for the /organizations/:id details page
+ */
+export async function getOrganizationDetailsAction(orgId: string, userId?: string, userEmail?: string) {
+  try {
+    const { data: org, error: orgErr } = await supabase
+      .from("organization")
+      .select("id, name, slug, logoUrl, tagline, description, website, location, contactEmail, phone, rules, settings, createdAt")
+      .eq("id", orgId)
+      .single();
+
+    if (orgErr || !org) {
+      return { success: false, error: "Organization not found" };
+    }
+
+    const [{ count: membersCount }, { count: desksCount }, { data: desks }] = await Promise.all([
+      supabase
+        .from("organization_member")
+        .select("id", { count: "exact", head: true })
+        .eq("organizationId", orgId),
+      supabase
+        .from("organization_group")
+        .select("id", { count: "exact", head: true })
+        .eq("organizationId", orgId),
+      supabase
+        .from("organization_group")
+        .select("id, name, description, slug, createdAt")
+        .eq("organizationId", orgId)
+        .order("createdAt", { ascending: true }),
+    ]);
+
+    let userStatus: UserOrgStatus = { isMember: false };
+
+    if (userId || userEmail) {
+      const emailLower = userEmail?.toLowerCase().trim();
+
+      // Check membership
+      let memberQuery = supabase
+        .from("organization_member")
+        .select("id, role, department, status")
+        .eq("organizationId", orgId);
+
+      if (userId && emailLower) {
+        memberQuery = memberQuery.or(`userId.eq.${userId},email.ilike.${emailLower}`);
+      } else if (userId) {
+        memberQuery = memberQuery.eq("userId", userId);
+      } else if (emailLower) {
+        memberQuery = memberQuery.ilike("email", emailLower);
+      }
+
+      const { data: memberRecord } = await memberQuery.maybeSingle();
+
+      if (memberRecord) {
+        userStatus = {
+          isMember: true,
+          memberRole: memberRecord.role,
+        };
+      } else {
+        // Check join request status
+        let reqQuery = supabase
+          .from("organization_join_request")
+          .select("id, status")
+          .eq("organizationId", orgId);
+
+        if (userId && emailLower) {
+          reqQuery = reqQuery.or(`userId.eq.${userId},userEmail.ilike.${emailLower}`);
+        } else if (userId) {
+          reqQuery = reqQuery.eq("userId", userId);
+        } else if (emailLower) {
+          reqQuery = reqQuery.ilike("userEmail", emailLower);
+        }
+
+        const { data: reqRecord } = await reqQuery.maybeSingle();
+        if (reqRecord) {
+          userStatus = {
+            isMember: reqRecord.status === "APPROVED",
+            requestStatus: reqRecord.status as any,
+            requestId: reqRecord.id,
+          };
+        }
+      }
+    }
+
+    return {
+      success: true,
+      data: {
+        ...org,
+        tagline: org.tagline || "Institutional Data & Transformation Workspace",
+        description: org.description || "Assigned operational desks, distributed datasets, and team workflows.",
+        location: org.location || "Global Enterprise",
+        rules: Array.isArray(org.rules) ? org.rules : [],
+        membersCount: membersCount || 1,
+        desksCount: desksCount || 1,
+        desks: desks || [],
+      },
+      userStatus,
+    };
+  } catch (err: any) {
+    console.error("[getOrganizationDetailsAction] Error:", err.message || err);
+    return {
+      success: false,
+      error: err.message || "Failed to load organization details",
+    };
+  }
+}
+
+/**
  * Apply to join an organization or auto-join if permitted
  */
 export async function applyToOrganizationAction(input: {

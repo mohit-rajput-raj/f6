@@ -18,10 +18,12 @@ import {
 } from "@repo/ui/components/ui/dialog"
 import {
   getMasterSheets,
+  getDeskMasterSheet,
   upsertMasterSheetByName,
   createMasterSheet,
   checkIsDeskOwner,
 } from "@/app/[project]/dash/[dashid]/(documents)/data-library/master-sheet-actions"
+import { useQuery } from "@tanstack/react-query"
 import dynamic from "next/dynamic"
 
 const SpreadsheetComponent = dynamic(
@@ -53,14 +55,14 @@ export function MasterSheetPanel() {
   const setMasterSheetPreview = useDeskStore((s) => s.setMasterSheetPreview)
   const blocks = useDeskStore((s) => s.blocks)
   const isViewer = useDeskStore((s) => s.isViewer)
+  const storeIsOwner = useDeskStore((s) => s.isOwner)
   const spreadsheetRef = useRef<any>(null)
   const ssInstanceRef = useRef<any>(null)
   const dataLoadedRef = useRef(false)
   const [mastersheetId, setMastersheetId] = useState("")
   const [isMounted, setIsMounted] = useState(false)
   const [sheetName, setSheetName] = useState("Master Sheet")
-  const [isLoadingDb, setIsLoadingDb] = useState(false)
-  const [isOwner, setIsOwner] = useState(false)
+  const isOwner = storeIsOwner
   const [isSaving, setIsSaving] = useState(false)
   const [saveSuccess, setSaveSuccess] = useState(false)
   const [exportSuccess, setExportSuccess] = useState(false)
@@ -79,12 +81,6 @@ export function MasterSheetPanel() {
     setIsMounted(true)
   }, [])
 
-  // Check desk owner status
-  useEffect(() => {
-    if (!dashid || !userId) return
-    checkIsDeskOwner(dashid, userId).then((owner) => setIsOwner(owner))
-  }, [dashid, userId])
-
   // Helper to safely get the real Syncfusion instance (microSheetAgent pattern: use ref directly)
   const getSsInstance = () => {
     return ssInstanceRef.current || spreadsheetRef.current
@@ -99,39 +95,36 @@ export function MasterSheetPanel() {
     openSheetInSyncfusion(target, rawData)
   }
 
-  // Auto-fetch MasterSheet from DB for this desk on mount
-  useEffect(() => {
-    if (!dashid || !userId) return
-    const fetchDeskSheet = async () => {
-      setIsLoadingDb(true)
-      try {
-        const sheets = await getMasterSheets(dashid, userId, userEmail)
-        if (sheets && sheets.length > 0) {
-          const mainSheet = sheets[0]
-          if (mainSheet.data) {
-            const name = mainSheet.name || "Master Sheet"
-            setSheetName(name)
-            dataLoadedRef.current = false
-            setDbSheetJson(mainSheet.data)
-            useDeskStore.getState().setDeskMasterSheetData(mainSheet.data)
-            useMasterSheetStore.getState().setSheetData(name, mainSheet.data)
+  // Deduplicated MasterSheet fetch via TanStack Query (shares cache with page.tsx)
+  const { data: mainSheet, isLoading: isLoadingDb } = useQuery({
+    queryKey: ["desk-master-sheet", dashid],
+    queryFn: async () => {
+      if (!dashid || !userId) return null
+      return await getDeskMasterSheet(dashid, userId)
+    },
+    enabled: Boolean(dashid && userId),
+    staleTime: 2 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  })
 
-            // Load persisted sheet histories from metadata
-            const metadata = mainSheet.metadata as any
-            if (metadata?.sheetHistories && typeof metadata.sheetHistories === "object") {
-              useMasterSheetStore.getState().setSheetHistories(metadata.sheetHistories)
-            }
-          }
-        }
-      } catch (err) {
-        console.warn("Could not load desk master sheet:", err)
-      } finally {
-        setIsLoadingDb(false)
+  // Whenever mainSheet updates from cache/query, populate store
+  useEffect(() => {
+    if (mainSheet && mainSheet.data) {
+      const name = mainSheet.name || "Master Sheet"
+      setSheetName(name)
+      if (mainSheet.id) setMastersheetId(mainSheet.id)
+      dataLoadedRef.current = false
+      setDbSheetJson(mainSheet.data)
+      useDeskStore.getState().setDeskMasterSheetData(mainSheet.data)
+      useMasterSheetStore.getState().setSheetData(name, mainSheet.data)
+
+      // Load persisted sheet histories from metadata
+      const metadata = mainSheet.metadata as any
+      if (metadata?.sheetHistories && typeof metadata.sheetHistories === "object") {
+        useMasterSheetStore.getState().setSheetHistories(metadata.sheetHistories)
       }
     }
-
-    fetchDeskSheet()
-  }, [dashid, userId, userEmail])
+  }, [mainSheet])
 
   // Whenever dbSheetJson is set or updated (from DB or import), open it in Syncfusion instance
   useEffect(() => {

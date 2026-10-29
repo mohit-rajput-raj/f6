@@ -8,6 +8,9 @@ import {
   BaseNodeContent,
   BaseNodeHeader,
   BaseNodeHeaderTitle,
+  BaseNodeIcon,
+  NodeHeaderActions,
+  NodeHandle,
 } from "@/components/dashboard/flow/Node/baseNode";
 import { NodeMenu } from "../node-menu";
 import { IconTrash } from "@tabler/icons-react";
@@ -162,17 +165,22 @@ export const UpdateMergeNode = memo(({ id, data }: { id: string; data: any }) =>
   const availableColumns = allColumns.filter(c => !targetCols.includes(c));
 
   return (
-    <>
-      <div className="flex justify-between items-center px-2 pt-1">
-        <NodeMenu />
-        <IconTrash className="size-4 cursor-pointer text-red-400 hover:text-red-600" onClick={handleDelete} />
-      </div>
-
-      <BaseNode className="min-w-[340px]">
-        <BaseNodeHeader className="border-b flex items-center gap-2 px-3 py-1.5 bg-amber-700 text-white">
-          <RefreshCcw className="size-4" />
+    <BaseNode variant="combine" className="min-w-[340px]">
+      <BaseNodeHeader variant="combine">
+        <div className="flex items-center gap-2 min-w-0">
+          <BaseNodeIcon variant="combine">
+            <RefreshCcw className="size-3.5" />
+          </BaseNodeIcon>
           <BaseNodeHeaderTitle>Update Merge</BaseNodeHeaderTitle>
-        </BaseNodeHeader>
+        </div>
+        <NodeHeaderActions>
+          <NodeMenu />
+          <IconTrash
+            className="size-3.5 cursor-pointer text-muted-foreground hover:text-destructive transition-colors"
+            onClick={handleDelete}
+          />
+        </NodeHeaderActions>
+      </BaseNodeHeader>
 
         <BaseNodeContent className="p-4 space-y-3">
           <p className="text-[10px] text-muted-foreground bg-amber-50 dark:bg-amber-950 p-2 rounded leading-relaxed">
@@ -259,11 +267,12 @@ export const UpdateMergeNode = memo(({ id, data }: { id: string; data: any }) =>
           )}
         </BaseNodeContent>
 
-        <Handle type="target" position={Position.Left} id="left" className="w-3 h-3 bg-amber-600" style={{ top: '35%' }} />
-        <Handle type="target" position={Position.Left} id="right" className="w-3 h-3 bg-amber-400" style={{ top: '65%' }} />
-        <Handle type="source" position={Position.Right} id="out" className="w-3 h-3 bg-amber-600" />
-      </BaseNode>
-    </>
+      <NodeHandle variant="combine" type="target" position={Position.Left} id="left" style={{ top: '35%' }} />
+      <NodeHandle variant="combine" type="target" position={Position.Left} id="right" style={{ top: '65%' }} />
+      <NodeHandle variant="combine" type="source" position={Position.Right} id="out" />
+    </BaseNode>
+    
+
   );
 });
 

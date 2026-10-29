@@ -1,13 +1,16 @@
 'use client';
 
 import { memo, useCallback } from 'react';
-import { Handle, Position, useReactFlow } from '@xyflow/react';
+import { Position, useReactFlow } from '@xyflow/react';
 import { Merge } from 'lucide-react';
 import {
   BaseNode,
   BaseNodeContent,
   BaseNodeHeader,
   BaseNodeHeaderTitle,
+  BaseNodeIcon,
+  NodeHeaderActions,
+  NodeHandle,
 } from "@/components/dashboard/flow/Node/baseNode";
 import { NodeMenu } from "../node-menu";
 import { IconTrash } from "@tabler/icons-react";
@@ -47,74 +50,84 @@ export const MergeNode = memo(({ id, data }: { id: string; data: any }) => {
   }, [id, setNodes, config]);
 
   return (
-    <>
-      <div className="flex justify-between items-center px-2 pt-1">
-        <NodeMenu />
-        <IconTrash className="size-4 cursor-pointer text-red-400 hover:text-red-600" onClick={handleDelete} />
-      </div>
-
-      <BaseNode className="min-w-[300px]">
-        <BaseNodeHeader className="border-b flex items-center gap-2 px-3 py-1.5 bg-cyan-700 text-white">
-          <Merge className="size-4" />
+    <BaseNode variant="combine" className="min-w-[300px]">
+      <BaseNodeHeader variant="combine">
+        <div className="flex items-center gap-2 min-w-0">
+          <BaseNodeIcon variant="combine">
+            <Merge className="size-3.5" />
+          </BaseNodeIcon>
           <BaseNodeHeaderTitle>Merge / Join</BaseNodeHeaderTitle>
-        </BaseNodeHeader>
+        </div>
+        <NodeHeaderActions>
+          <NodeMenu />
+          <IconTrash
+            className="size-3.5 cursor-pointer text-muted-foreground hover:text-destructive transition-colors"
+            onClick={handleDelete}
+          />
+        </NodeHeaderActions>
+      </BaseNodeHeader>
 
-        <BaseNodeContent className="p-4 space-y-3">
-          <div className="space-y-1">
-            <Label className="text-xs">Join type</Label>
-            <Select value={config.joinType ?? 'inner'} onValueChange={v => updateConfig({ joinType: v as JoinType })}>
-              <SelectTrigger className="h-8">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="inner">Inner Join</SelectItem>
-                <SelectItem value="left">Left Join</SelectItem>
-                <SelectItem value="right">Right Join</SelectItem>
-                <SelectItem value="outer">Outer Join</SelectItem>
-              </SelectContent>
-            </Select>
+      <BaseNodeContent className="p-3.5 space-y-3">
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground">Join type</Label>
+          <Select value={config.joinType ?? 'inner'} onValueChange={v => updateConfig({ joinType: v as JoinType })}>
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="inner">Inner Join</SelectItem>
+              <SelectItem value="left">Left Join</SelectItem>
+              <SelectItem value="right">Right Join</SelectItem>
+              <SelectItem value="outer">Outer Join</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between">
+            <Label className="text-xs text-muted-foreground">Left key column</Label>
+            <span className="text-[10px] text-fuchsia-600 dark:text-fuchsia-400 font-mono">Port: Left (top)</span>
           </div>
+          <Select value={config.leftColumn} onValueChange={v => updateConfig({ leftColumn: v })} disabled={leftColumns.length === 0}>
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue placeholder={leftColumns.length === 0 ? "Connect left input" : "Select column"} />
+            </SelectTrigger>
+            <SelectContent>
+              {leftColumns.map(col => (
+                <SelectItem key={col} value={col}>{col}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
 
-          <div className="space-y-1">
-            <Label className="text-xs">Left key column</Label>
-            <Select value={config.leftColumn} onValueChange={v => updateConfig({ leftColumn: v })} disabled={leftColumns.length === 0}>
-              <SelectTrigger className="h-8">
-                <SelectValue placeholder={leftColumns.length === 0 ? "Connect left input" : "Select"} />
-              </SelectTrigger>
-              <SelectContent>
-                {leftColumns.map(col => (
-                  <SelectItem key={col} value={col}>{col}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between">
+            <Label className="text-xs text-muted-foreground">Right key column</Label>
+            <span className="text-[10px] text-fuchsia-600 dark:text-fuchsia-400 font-mono">Port: Right (bottom)</span>
           </div>
+          <Select value={config.rightColumn} onValueChange={v => updateConfig({ rightColumn: v })} disabled={rightColumns.length === 0}>
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue placeholder={rightColumns.length === 0 ? "Connect right input" : "Select column"} />
+            </SelectTrigger>
+            <SelectContent>
+              {rightColumns.map(col => (
+                <SelectItem key={col} value={col}>{col}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
 
-          <div className="space-y-1">
-            <Label className="text-xs">Right key column</Label>
-            <Select value={config.rightColumn} onValueChange={v => updateConfig({ rightColumn: v })} disabled={rightColumns.length === 0}>
-              <SelectTrigger className="h-8">
-                <SelectValue placeholder={rightColumns.length === 0 ? "Connect right input" : "Select"} />
-              </SelectTrigger>
-              <SelectContent>
-                {rightColumns.map(col => (
-                  <SelectItem key={col} value={col}>{col}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+        {data.rowCount !== undefined && (
+          <div className="text-[11px] text-fuchsia-600 dark:text-fuchsia-400 font-medium text-center pt-2 border-t border-border/40">
+            {data.rowCount} rows merged
           </div>
+        )}
+      </BaseNodeContent>
 
-          {data.rowCount !== undefined && (
-            <div className="text-xs text-cyan-600 font-medium text-center pt-2 border-t">
-              {data.rowCount} rows merged
-            </div>
-          )}
-        </BaseNodeContent>
-
-        <Handle type="target" position={Position.Left} id="left" className="w-3 h-3 bg-cyan-600" style={{ top: '35%' }} />
-        <Handle type="target" position={Position.Left} id="right" className="w-3 h-3 bg-cyan-400" style={{ top: '65%' }} />
-        <Handle type="source" position={Position.Right} id="out" className="w-3 h-3 bg-cyan-600" />
-      </BaseNode>
-    </>
+      <NodeHandle variant="combine" type="target" position={Position.Left} id="left" style={{ top: '35%' }} />
+      <NodeHandle variant="combine" type="target" position={Position.Left} id="right" style={{ top: '65%' }} />
+      <NodeHandle variant="combine" type="source" position={Position.Right} id="out" />
+    </BaseNode>
   );
 });
 
