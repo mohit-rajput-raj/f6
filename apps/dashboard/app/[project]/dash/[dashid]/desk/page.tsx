@@ -118,6 +118,12 @@ export default function DeskPage() {
   // OCR file input ref
   const ocrFileRef = useRef<HTMLInputElement>(null);
 
+  // Auto-save, initial load & project tracking refs
+  const saveTimerRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const isInitialLoadRef = useRef(true);
+  const prevBlockSnapshotRef = useRef<Record<string, string>>({});
+  const lastDashidRef = useRef<string>(dashid);
+
   // Master sheet store
   const { sheets: masterSheets, activeSheetName } = useMasterSheetStore();
   const activeMasterSheet = activeSheetName
@@ -189,13 +195,35 @@ export default function DeskPage() {
     refetchOnWindowFocus: false,
   });
 
-  // ─── Reset blocks on dashid switch ──────────────────────
+  // ─── Reset blocks ONLY when dashid actually changes to a different project ───
   useEffect(() => {
-    return () => {
+    if (lastDashidRef.current !== dashid) {
+      lastDashidRef.current = dashid;
       setBlocks([]);
       setAccessDeniedError(null);
+      isInitialLoadRef.current = true;
+      queryClient.invalidateQueries({ queryKey: ["desk-load", dashid] });
+    }
+    setProjectWorkflowId(dashid);
+  }, [dashid, setBlocks, setProjectWorkflowId, queryClient]);
+
+  // ─── Flush pending auto-saves on unmount ───────────────────
+  useEffect(() => {
+    return () => {
+      Object.entries(saveTimerRef.current).forEach(([blockId, timer]) => {
+        clearTimeout(timer);
+        const block = useDeskStore.getState().blocks.find((b) => b.id === blockId);
+        if (block) {
+          updateDeskBlockInputs(blockId, {
+            textInputs: block.textInputs,
+            sheets: block.sheets,
+            checkboxFields: block.checkboxFields,
+          }).catch(console.error);
+        }
+      });
+      saveTimerRef.current = {};
     };
-  }, [dashid, setBlocks]);
+  }, []);
 
   // ─── Load blocks from DB on mount (cached with TanStack Query) ─────
   const { data: deskData, isLoading: isDeskQueryLoading } = useQuery({
@@ -209,7 +237,7 @@ export default function DeskPage() {
       if (access?.isDenied) {
         setAccessDeniedError(access.denialReason || "Access restricted.");
         setBlocks([]);
-        return { access, blocks: [], activeRuns: [] };
+        return { access, blocks: [], activeRuns: [], runningMap: {} };
       }
 
       setAccessDeniedError(null);
@@ -265,51 +293,145 @@ export default function DeskPage() {
         };
       });
 
-      // Snapshot freshly loaded DB blocks to prevent false auto-save triggers on initial load
-      const snapshot: Record<string, string> = {};
-      mappedBlocks.forEach((block) => {
-        snapshot[block.id] = JSON.stringify({
-          textInputs: block.textInputs,
-          sheets: block.sheets,
-          checkboxFields: block.checkboxFields,
-        });
-      });
-      prevBlockSnapshotRef.current = snapshot;
-      isInitialLoadRef.current = false;
-
-      setBlocks(mappedBlocks);
-      setServerRunningBlocks(runningMap);
-
-      // Restore merged preview if any block has outputPreview with updates
-      const blockWithMerged = mappedBlocks.find(
-        (b: any) =>
-          b.outputPreview && (b.outputPreview as any).updates?.length > 0,
-      );
-      if (blockWithMerged) {
-        useDeskStore
-          .getState()
-          .setMergedPreview(blockWithMerged.outputPreview as any);
-      }
-
-      return { access, blocks: mappedBlocks, activeRuns };
+      return { access, blocks: mappedBlocks, activeRuns, runningMap };
     },
     enabled: !!dashid && !!userId,
-    staleTime: 60 * 1000,
-    refetchOnMount: false,
+    staleTime: 10 * 1000,
+    refetchOnMount: "always",
     refetchOnWindowFocus: false,
   });
 
+  // ─── Sync query data into Zustand store ────────────────────
+  useEffect(() => {
+    if (!deskData) return;
+
+    if (deskData.access?.isDenied) {
+      setAccessDeniedError(deskData.access.denialReason || "Access restricted.");
+      setBlocks([]);
+      return;
+    }
+
+    setAccessDeniedError(null);
+    if (deskData.access) {
+      setDeskAccess({
+        isOwner: deskData.access.isOwner,
+        isGuest: deskData.access.isGuest,
+        permission: deskData.access.permission === "viewer" ? "viewer" : "editor",
+      });
+    }
+
+    if (deskData.blocks) {
+      const currentBlocks = useDeskStore.getState().blocks;
+      // Sync if store is empty or on initial load
+      if (currentBlocks.length === 0 || isInitialLoadRef.current) {
+        setBlocks(deskData.blocks);
+        if (deskData.runningMap) {
+          setServerRunningBlocks(deskData.runningMap);
+        }
+
+        const snapshot: Record<string, string> = {};
+        deskData.blocks.forEach((block) => {
+          snapshot[block.id] = JSON.stringify({
+            textInputs: block.textInputs,
+            sheets: block.sheets,
+            checkboxFields: block.checkboxFields,
+          });
+        });
+        prevBlockSnapshotRef.current = snapshot;
+        isInitialLoadRef.current = false;
+
+        const blockWithMerged = deskData.blocks.find(
+          (b: any) =>
+            b.outputPreview && (b.outputPreview as any).updates?.length > 0,
+        );
+        if (blockWithMerged) {
+          useDeskStore
+            .getState()
+            .setMergedPreview(blockWithMerged.outputPreview as any);
+        }
+      } else {
+        // ── Merge structural changes from DB ──
+        // When the user returns from the editor after adding/removing
+        // DeskSheetNode or DeskTextInputNode nodes, the DB has the updated
+        // textInputs/sheets (written by syncBlockFieldsFromWorkflow on save).
+        // We must merge those structural changes into the live store while
+        // preserving user-entered values (text input values, uploaded sheet data).
+        const store = useDeskStore.getState();
+
+        deskData.blocks.forEach((dbBlock) => {
+          const storeBlock = currentBlocks.find((b) => b.id === dbBlock.id);
+          if (!storeBlock) {
+            // Entirely new block added from another session – add it
+            store.addBlock(dbBlock);
+            return;
+          }
+
+          // Compare textInputs & sheets IDs and labels to detect structural changes
+          const storeInputKey = (storeBlock.textInputs || [])
+            .map((t) => `${t.id}:${t.placeholder}`)
+            .sort()
+            .join(",");
+          const dbInputKey = (dbBlock.textInputs || [])
+            .map((t) => `${t.id}:${t.placeholder}`)
+            .sort()
+            .join(",");
+          const storeSheetKey = (storeBlock.sheets || [])
+            .map((s) => `${s.id}:${s.name}`)
+            .sort()
+            .join(",");
+          const dbSheetKey = (dbBlock.sheets || [])
+            .map((s) => `${s.id}:${s.name}`)
+            .sort()
+            .join(",");
+
+          if (storeInputKey !== dbInputKey || storeSheetKey !== dbSheetKey) {
+            // Merge: adopt DB structure, preserve user-entered values
+            const mergedInputs = (dbBlock.textInputs || []).map((dbInput) => {
+              const existing = (storeBlock.textInputs || []).find((t) => t.id === dbInput.id);
+              return existing ? { ...dbInput, value: existing.value ?? dbInput.value ?? "" } : dbInput;
+            });
+            const mergedSheets = (dbBlock.sheets || []).map((dbSheet) => {
+              const existing = (storeBlock.sheets || []).find((s) => s.id === dbSheet.id);
+              return existing ? { ...dbSheet, data: existing.data ?? dbSheet.data ?? null } : dbSheet;
+            });
+
+            store.updateBlock(storeBlock.id, {
+              textInputs: mergedInputs,
+              sheets: mergedSheets,
+              checkboxFields: dbBlock.checkboxFields || [],
+            });
+
+            // Update the snapshot so auto-save doesn't immediately revert
+            prevBlockSnapshotRef.current[storeBlock.id] = JSON.stringify({
+              textInputs: mergedInputs,
+              sheets: mergedSheets,
+              checkboxFields: dbBlock.checkboxFields || [],
+            });
+          }
+        });
+
+        // Handle blocks that were removed from DB
+        const dbBlockIds = new Set(deskData.blocks.map((b) => b.id));
+        currentBlocks.forEach((sb) => {
+          if (!dbBlockIds.has(sb.id)) {
+            store.removeBlock(sb.id);
+          }
+        });
+      }
+    }
+  }, [deskData, setBlocks, setDeskAccess]);
+
   // Sync TanStack Query loading state with our store's isLoading
   useEffect(() => {
-    setIsLoading(isDeskQueryLoading);
+    const hasBlocks = useDeskStore.getState().blocks.length > 0;
+    if (!hasBlocks) {
+      setIsLoading(isDeskQueryLoading);
+    } else {
+      setIsLoading(false);
+    }
   }, [isDeskQueryLoading, setIsLoading]);
 
   // ─── Auto-save block state to DB (debounced, targeted) ────
-  const saveTimerRef = useRef<Record<string, ReturnType<typeof setTimeout>>>(
-    {},
-  );
-  const isInitialLoadRef = useRef(true);
-  const prevBlockSnapshotRef = useRef<Record<string, string>>({});
 
   const debouncedSaveBlock = useCallback((blockId: string) => {
     if (saveTimerRef.current[blockId]) {
@@ -401,6 +523,7 @@ export default function DeskPage() {
         "Tab 1",
       );
       addBlock({ ...firstTab, actionButtons: [], isExecuting: false });
+      queryClient.invalidateQueries({ queryKey: ["desk-load", dashid] });
 
       toast.success("BigBlock added with first tab");
     } catch (err: any) {
@@ -408,7 +531,7 @@ export default function DeskPage() {
     } finally {
       setIsAddingBlock(false);
     }
-  }, [dashid, userId, addBlock, blocks]);
+  }, [dashid, userId, addBlock, blocks, queryClient]);
 
   // ─── Execute a block ──────────────────────────────────────
   const handleExecuteBlock = useCallback(
@@ -1071,6 +1194,7 @@ export default function DeskPage() {
           `Tab ${childCount + 1}`,
         );
         addBlock({ ...newChild, actionButtons: [], isExecuting: false });
+        queryClient.invalidateQueries({ queryKey: ["desk-load", dashid] });
         toast.success(`Tab "${newChild.name}" created`);
         return newChild.id;
       } catch (err: any) {
@@ -1078,7 +1202,7 @@ export default function DeskPage() {
         toast.error(err?.message || "Failed to add tab");
       }
     },
-    [dashid, userId, blocks, addBlock],
+    [dashid, userId, blocks, addBlock, queryClient],
   );
 
   // ─── Rename a child tab ───────────────────────────────────
@@ -1112,6 +1236,7 @@ export default function DeskPage() {
             useDeskStore.getState().removeBlock(child.id);
           }
           useDeskStore.getState().removeBlock(blockId);
+          queryClient.invalidateQueries({ queryKey: ["desk-load", dashid] });
           toast.success("BigBlock deleted");
           return;
         }
@@ -1127,10 +1252,12 @@ export default function DeskPage() {
           if (remainingChildren.length === 0) {
             await deleteDeskBlock(parentId, userEmail, !isGuest);
             useDeskStore.getState().removeBlock(parentId);
+            queryClient.invalidateQueries({ queryKey: ["desk-load", dashid] });
             toast.success("BigBlock deleted (no tabs left)");
             return;
           }
         }
+        queryClient.invalidateQueries({ queryKey: ["desk-load", dashid] });
         toast.success("Tab deleted");
       } catch (err: any) {
         console.error("Failed to delete tab:", err);
@@ -1138,7 +1265,7 @@ export default function DeskPage() {
         throw err;
       }
     },
-    [sessionData?.user?.email, isGuest],
+    [sessionData?.user?.email, isGuest, dashid, queryClient],
   );
 
   // ─── Delete a BigBlock and all its child tabs ──────────────
@@ -1156,6 +1283,7 @@ export default function DeskPage() {
         }
 
         useDeskStore.getState().removeBlock(bigBlockId);
+        queryClient.invalidateQueries({ queryKey: ["desk-load", dashid] });
         toast.success("BigBlock deleted");
       } catch (err: any) {
         console.error("Failed to delete BigBlock:", err);
@@ -1163,7 +1291,7 @@ export default function DeskPage() {
         throw err;
       }
     },
-    [sessionData?.user?.email, isGuest],
+    [sessionData?.user?.email, isGuest, dashid, queryClient],
   );
 
   // Watch for triggered action buttons to auto-execute their block

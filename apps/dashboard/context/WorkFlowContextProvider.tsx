@@ -187,7 +187,7 @@ export const EditorWorkFlowContextProvider = ({
     ? (storeWorkflow?.isSaving ?? false)
     : localIsSaving;
 
-  // Debounced auto-save (4s after change)
+  // Debounced auto-save (800ms after change)
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (!hasUnsavedChanges || !workflowId) return;
@@ -197,8 +197,10 @@ export const EditorWorkFlowContextProvider = ({
     }
 
     saveTimerRef.current = setTimeout(() => {
-      saveWorkflowToDb(workflowId).catch(() => {});
-    }, 4000);
+      saveWorkflowToDb(workflowId).catch((err) => {
+        console.error("Auto-save error:", err);
+      });
+    }, 800);
 
     return () => {
       if (saveTimerRef.current) {

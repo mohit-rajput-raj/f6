@@ -564,12 +564,20 @@ const Flow = ({ handleRuns }: { handleRuns?: () => void } = {}) => {
         "BlockOutputSenderNode",
         "MasterSheetPreviewNode",
       ];
+      const nodeId = v4();
       if (deskBlockId && deskNodeTypes.includes(type)) {
         extraData.deskBlockId = deskBlockId;
       }
+      if (type === "DeskTextInputNode") {
+        extraData.deskInputId = extraData.deskInputId || nodeId;
+        extraData.placeholder = extraData.placeholder || "Text Input";
+      } else if (type === "DeskSheetNode") {
+        extraData.deskSheetId = extraData.deskSheetId || nodeId;
+        extraData.sheetName = extraData.sheetName || "Sheet";
+      }
 
       const newNode = {
-        id: v4(),
+        id: nodeId,
         type,
         position,
         data: {

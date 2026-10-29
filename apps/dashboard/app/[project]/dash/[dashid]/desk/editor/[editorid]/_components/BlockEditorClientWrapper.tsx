@@ -51,6 +51,8 @@ export function BlockEditorClientWrapper({
       initialNodes={initialNodes}
       initialEdges={initialEdges}
       deskBlockId={deskBlockId}
+      deskUrl={deskUrl}
+      tabName={tabName}
     />
   );
 }

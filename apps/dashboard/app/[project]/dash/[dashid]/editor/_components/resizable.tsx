@@ -19,6 +19,7 @@ import {
   Square,
   PanelRight,
   PanelBottom,
+  ArrowLeft,
 } from "lucide-react";
 import {
   EditorWorkFlowContextProvider,
@@ -26,7 +27,7 @@ import {
 } from "@/context/WorkFlowContextProvider";
 import { useSession } from "@/lib/auth-client";
 import { usegetWorkFlow } from "../_actions/editor.queryes";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { executeWorkflow } from "./nodes/executions/nodeExecutions";
 import React from "react";
 import { TabsBottom } from "./tabsBottom";
@@ -44,6 +45,8 @@ interface WorkFlowEditorProps {
   initialNodes?: EditorNodeType[];
   initialEdges?: Edge[];
   deskBlockId?: string;
+  deskUrl?: string;
+  tabName?: string;
 }
 
 export function WorkFlowEditor({
@@ -51,6 +54,8 @@ export function WorkFlowEditor({
   initialNodes = [],
   initialEdges = [],
   deskBlockId,
+  deskUrl,
+  tabName,
 }: WorkFlowEditorProps) {
   return (
     <EditorWorkFlowContextProvider
@@ -59,12 +64,19 @@ export function WorkFlowEditor({
       initialEdges={initialEdges}
       deskBlockId={deskBlockId}
     >
-      <WorkFlowEditorInner />
+      <WorkFlowEditorInner deskUrl={deskUrl} tabName={tabName} />
     </EditorWorkFlowContextProvider>
   );
 }
 
-function WorkFlowEditorInner() {
+function WorkFlowEditorInner({
+  deskUrl,
+  tabName,
+}: {
+  deskUrl?: string;
+  tabName?: string;
+}) {
+  const router = useRouter();
   const params = useParams();
   const flowId = params?.dashid as string | undefined;
 
@@ -307,12 +319,41 @@ function WorkFlowEditorInner() {
     }
   };
 
+  const handleBackToDesk = async () => {
+    if (hasUnsavedChanges && workflowId) {
+      try {
+        await saveToDb();
+      } catch (err) {
+        console.error("Failed to save before navigating to desk:", err);
+      }
+    }
+    if (deskUrl) {
+      router.push(deskUrl);
+    } else {
+      router.back();
+    }
+  };
+
   return (
     <div className="flex flex-col w-full h-full gap-2 text-foreground">
       {/* ─── Sleek Control Toolbar (Dual Mode, No Emojis, No Emerald) ─── */}
       <div className="flex items-center justify-between px-3 py-1.5 bg-card text-card-foreground rounded-xl border border-border/40 shadow-xs gap-2.5 shrink-0">
         <div className="flex items-center gap-1.5 flex-wrap">
           <SidebarTrigger className="-ml-1" />
+
+          {deskUrl && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleBackToDesk}
+              disabled={isSaving}
+              className="h-7 px-2.5 text-xs font-medium gap-1.5 rounded-md hover:bg-muted border-border/40 cursor-pointer text-muted-foreground hover:text-foreground"
+              title="Save changes and return to Desk"
+            >
+              <ArrowLeft className="size-3" />
+              <span>Back to Desk</span>
+            </Button>
+          )}
 
           {/* Execution Controls */}
           <div className="flex items-center gap-1 bg-muted/50 p-0.5 rounded-lg border border-border/30">
