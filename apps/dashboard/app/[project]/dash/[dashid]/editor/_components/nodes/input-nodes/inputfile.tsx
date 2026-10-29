@@ -1,15 +1,17 @@
 'use client'
-import { memo, useCallback, useEffect, useState } from "react";
-import { Handle, Position, useReactFlow } from "@xyflow/react";
-import { Rocket } from "lucide-react";
+
+import { memo, useCallback, useEffect, useState, useRef } from "react";
+import { Position, useReactFlow } from "@xyflow/react";
 import { Upload, FileText, Image, Video, X } from "lucide-react";
-import { useRef } from "react";
 import { Button } from "@repo/ui/components/ui/button";
 import {
   BaseNode,
   BaseNodeContent,
   BaseNodeHeader,
   BaseNodeHeaderTitle,
+  BaseNodeIcon,
+  NodeHeaderActions,
+  NodeHandle,
 } from "@/components/dashboard/flow/Node/baseNode";
 import { NodeMenu } from "../node-menu";
 import { IconTrash } from "@tabler/icons-react";
@@ -17,61 +19,66 @@ import { useDeleteNode } from "../settings/triggers";
 import api from "@/lib/axios";
 import { NodeData } from "./test-nodes";
 
-
-export const InputFileNode = memo(({ data, id }: { data: NodeData; id: string }) => {
+export const InputFileNode = memo(({ id }: { data: NodeData; id: string }) => {
   const [file, setFile] = useState<File | null>(null);
   const handleDelete = useDeleteNode();
-const { setNodes } = useReactFlow();
+  const { setNodes } = useReactFlow();
+
+  const updateText = useCallback((newText: string) => {
+    setNodes((nds) =>
+      nds.map((node) =>
+        node.id === id ? { ...node, data: { ...node.data, text: newText } } : node
+      )
+    );
+  }, [id, setNodes]);
+
   useEffect(() => {
-    if(!file) return;
+    if (!file) return;
     const form = new FormData();
     form.append("file", file);
-    const res =async () => {
-      const data = await api.post("/process-json-stream",form);
-      updateText(data.data);
+    const res = async () => {
+      try {
+        const data = await api.post("/process-json-stream", form);
+        updateText(data.data);
+      } catch (err) {
+        console.error(err);
+      }
     };
     res();
-    
-  }, [file]);
-  const updateText = useCallback((newText: string) => {
-      setNodes((nds) =>
-        nds.map((node) =>
-          node.id === id ? { ...node, data: { ...node.data, text: newText } } : node
-        )
-      );
-    }, [id, setNodes]);
+  }, [file, updateText]);
 
   return (
-    <>
-    <div className="flex justify-between items-center ">
-        <NodeMenu />
-        <IconTrash className="size-4 cursor-pointer p-0 text-red-300" onClick={handleDelete} />
-      </div>
-      <BaseNode>
-        <BaseNodeHeader className="border-b flex items-center gap-2">
-          <Rocket className="size-4" />
-          <BaseNodeHeaderTitle>Input File</BaseNodeHeaderTitle>
-        </BaseNodeHeader>
+    <BaseNode variant="input" className="min-w-[280px]">
+      <BaseNodeHeader variant="input">
+        <div className="flex items-center gap-2 min-w-0">
+          <BaseNodeIcon variant="input">
+            <Upload className="size-3.5" />
+          </BaseNodeIcon>
+          <BaseNodeHeaderTitle>File Input</BaseNodeHeaderTitle>
+        </div>
+        <NodeHeaderActions>
+          <NodeMenu />
+          <IconTrash
+            className="size-3.5 cursor-pointer text-muted-foreground hover:text-destructive transition-colors"
+            onClick={handleDelete}
+          />
+        </NodeHeaderActions>
+      </BaseNodeHeader>
 
-        <BaseNodeContent>
-          <FileInput file={file} onChange={setFile} />
-        </BaseNodeContent>
-      </BaseNode>
+      <BaseNodeContent className="p-3.5">
+        <FileInput file={file} onChange={setFile} />
+      </BaseNodeContent>
 
-      <Handle
+      <NodeHandle
+        variant="input"
         type="source"
         position={Position.Right}
       />
-    </>
+    </BaseNode>
   );
 });
 
 InputFileNode.displayName = "InputFileNode";
-
-
-
-
-// import { NodeMenu } from "../node-menu";
 
 type FileInputProps = {
   file?: File | null;
@@ -86,14 +93,14 @@ export function FileInput({ file, onChange }: FileInputProps) {
   };
 
   const getIcon = () => {
-    if (!file) return <Upload className="size-5 text-muted-foreground" />;
-    if (file.type.startsWith("image")) return <Image className="size-5" />;
-    if (file.type.startsWith("video")) return <Video className="size-5" />;
-    return <FileText className="size-5" />;
+    if (!file) return <Upload className="size-5 text-sky-500" />;
+    if (file.type.startsWith("image")) return <Image className="size-5 text-sky-500" />;
+    if (file.type.startsWith("video")) return <Video className="size-5 text-sky-500" />;
+    return <FileText className="size-5 text-sky-500" />;
   };
 
   return (
-    <div className="border border-dashed rounded-md p-3 text-center space-y-2">
+    <div className="border border-dashed border-border/60 rounded-xl p-3 text-center space-y-2 bg-muted/20 nodrag">
       <input
         ref={inputRef}
         type="file"
@@ -104,21 +111,21 @@ export function FileInput({ file, onChange }: FileInputProps) {
       {!file ? (
         <button
           onClick={() => inputRef.current?.click()}
-          className="w-full flex flex-col items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+          className="w-full flex flex-col items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground cursor-pointer py-2"
         >
           {getIcon()}
-          <span>Drop file here or click to upload</span>
-          <span className="text-xs">Any file supported</span>
+          <span className="font-medium">Drop file or click to upload</span>
+          <span className="text-[10px] text-muted-foreground/70">.xlsx, .csv, and more</span>
         </button>
       ) : (
         <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 min-w-0">
             {getIcon()}
-            <div className="text-left">
-              <p className="text-sm font-medium truncate max-w-[120px]">
+            <div className="text-left min-w-0">
+              <p className="text-xs font-medium truncate max-w-[150px]">
                 {file.name}
               </p>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-[10px] text-muted-foreground">
                 {(file.size / 1024).toFixed(1)} KB
               </p>
             </div>
@@ -128,8 +135,9 @@ export function FileInput({ file, onChange }: FileInputProps) {
             variant="ghost"
             size="icon"
             onClick={() => onChange(null)}
+            className="h-6 w-6"
           >
-            <X className="size-4" />
+            <X className="size-3.5" />
           </Button>
         </div>
       )}

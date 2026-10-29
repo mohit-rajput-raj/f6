@@ -8,6 +8,9 @@ import {
   BaseNodeContent,
   BaseNodeHeader,
   BaseNodeHeaderTitle,
+  BaseNodeIcon,
+  NodeHeaderActions,
+  NodeHandle,
 } from "@/components/dashboard/flow/Node/baseNode";
 import { NodeMenu } from "../node-menu";
 import { IconTrash } from "@tabler/icons-react";
@@ -113,24 +116,29 @@ export const MasterSheetLibraryNode = memo(({ id, data }: { id: string; data: an
   }, [resolvedName, sheets, selectedSheetId]);
 
   return (
-    <>
-      <div className="flex justify-between items-center px-2 pt-1">
-        <NodeMenu />
-        <IconTrash className="size-4 cursor-pointer text-red-400 hover:text-red-600" onClick={handleDelete} />
-      </div>
-
-      <BaseNode className="max-w-[300px]">
-        <BaseNodeHeader className="border-b flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-orange-600 to-amber-600 text-white rounded-t-md">
-          <Database className="size-4" />
-          <BaseNodeHeaderTitle className="text-white">MasterSheet Library</BaseNodeHeaderTitle>
+    <BaseNode variant="input" className="min-w-[290px] max-w-[320px]">
+      <BaseNodeHeader variant="input">
+        <div className="flex items-center gap-2 min-w-0">
+          <BaseNodeIcon variant="input">
+            <Database className="size-3.5" />
+          </BaseNodeIcon>
+          <BaseNodeHeaderTitle>MasterSheet Library</BaseNodeHeaderTitle>
+        </div>
+        <NodeHeaderActions>
           <button
             onClick={fetchSheets}
-            className="ml-auto p-0.5 rounded hover:bg-white/20 transition"
+            className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-foreground/5 transition cursor-pointer nodrag"
             title="Refresh sheet list"
           >
             <RefreshCw className={`size-3 ${loading ? 'animate-spin' : ''}`} />
           </button>
-        </BaseNodeHeader>
+          <NodeMenu />
+          <IconTrash
+            className="size-3.5 cursor-pointer text-muted-foreground hover:text-destructive transition-colors"
+            onClick={handleDelete}
+          />
+        </NodeHeaderActions>
+      </BaseNodeHeader>
 
         <BaseNodeContent className="p-3 space-y-2">
           {/* Resolved name indicator */}
@@ -200,21 +208,24 @@ export const MasterSheetLibraryNode = memo(({ id, data }: { id: string; data: an
           )}
         </BaseNodeContent>
 
-        {/* Sheet name input handle */}
-        <Handle type="target" position={Position.Left} id="sheet-name" className="w-3 h-3 bg-amber-500" style={{ top: '50%' }} />
-        <div className="absolute left-[-4px] text-[8px] text-amber-500 font-medium" style={{ top: '45%', transform: 'translateX(-100%)' }}>
-          Sheet Name
-        </div>
+      <NodeHandle
+        variant="input"
+        type="target"
+        position={Position.Left}
+        id="sheet-name"
+        style={{ top: '50%' }}
+      />
+      <div className="absolute left-[-4px] text-[8px] text-sky-500 font-medium" style={{ top: '45%', transform: 'translateX(-100%)' }}>
+        Sheet Name
+      </div>
 
-        {/* Output handle */}
-        <Handle
-          type="source"
-          position={Position.Right}
-          id="out"
-          className="w-3 h-3 bg-orange-600"
-        />
-      </BaseNode>
-    </>
+      <NodeHandle
+        variant="input"
+        type="source"
+        position={Position.Right}
+        id="out"
+      />
+    </BaseNode>
   );
 });
 

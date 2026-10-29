@@ -1,17 +1,30 @@
 "use client";
 
 import React, { useState } from "react";
-import { Handle, Position } from "@xyflow/react";
+import { Position } from "@xyflow/react";
 import { Table2, CheckCircle2, ArrowUpRight, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/components";
 import { Badge } from "@repo/ui/components/ui/badge";
+import {
+  BaseNode,
+  BaseNodeContent,
+  BaseNodeHeader,
+  BaseNodeHeaderTitle,
+  BaseNodeIcon,
+  NodeHeaderActions,
+  NodeHandle,
+} from "@/components/dashboard/flow/Node/baseNode";
+import { NodeMenu } from "../node-menu";
+import { IconTrash } from "@tabler/icons-react";
+import { useDeleteNode } from "../settings/triggers";
 import { useMasterSheetStore } from "@/stores/master-sheet-store";
 import { useSession } from "@/lib/auth-client";
 import { upsertMasterSheetByName, addMasterSheetHistory } from "@/app/[project]/dash/[dashid]/(documents)/data-library/master-sheet-actions";
 import { toast } from "sonner";
 
-export function MasterSheetUpdateNode({ id, data }: any) {
+export function MasterSheetUpdateNode({ id, data, selected }: any) {
   const { data: sessionData } = useSession();
+  const handleDelete = useDeleteNode();
   const [loading, setLoading] = useState(false);
   const [appliedCount, setAppliedCount] = useState<number>(0);
   const [success, setSuccess] = useState(false);
@@ -130,27 +143,30 @@ export function MasterSheetUpdateNode({ id, data }: any) {
   };
 
   return (
-    <div className="w-72 rounded-xl border border-purple-500/30 bg-card p-4 shadow-lg text-foreground">
-      <Handle type="target" position={Position.Left} id="updates" style={{ top: "50%" }} />
-
-      <div className="flex items-center justify-between border-b border-border pb-2.5 mb-3">
-        <div className="flex items-center gap-2">
-          <div className="p-1.5 bg-purple-500/10 text-purple-400 rounded-lg">
-            <Table2 className="size-4" />
-          </div>
-          <div>
-            <h3 className="text-xs font-bold tracking-tight">MasterSheet Update</h3>
-            <p className="text-[10px] text-muted-foreground">{targetSheetName}</p>
-          </div>
+    <BaseNode variant="output" selected={selected} className="w-72">
+      <BaseNodeHeader variant="output">
+        <BaseNodeIcon variant="output">
+          <Table2 className="size-4" />
+        </BaseNodeIcon>
+        <div className="min-w-0">
+          <BaseNodeHeaderTitle>MasterSheet Update</BaseNodeHeaderTitle>
+          <p className="text-[10px] text-muted-foreground truncate">{targetSheetName}</p>
         </div>
-        {updates.length > 0 && (
-          <Badge variant="secondary" className="text-[9px] bg-purple-500/20 text-purple-400 border-purple-500/30">
-            {updates.length} updates
-          </Badge>
-        )}
-      </div>
+        <NodeHeaderActions>
+          {updates.length > 0 && (
+            <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-emerald-500/30 text-emerald-600 dark:text-emerald-400">
+              {updates.length} ready
+            </Badge>
+          )}
+          <NodeMenu />
+          <IconTrash
+            className="size-4 cursor-pointer text-muted-foreground hover:text-destructive transition-colors"
+            onClick={handleDelete}
+          />
+        </NodeHeaderActions>
+      </BaseNodeHeader>
 
-      <div className="space-y-3 text-xs">
+      <BaseNodeContent className="p-3.5 space-y-3 text-xs">
         <p className="text-[11px] text-muted-foreground">
           Recalculate attendance totals, calculate percentage formulas, and push updates directly into the Master Sheet.
         </p>
@@ -159,19 +175,27 @@ export function MasterSheetUpdateNode({ id, data }: any) {
           onClick={handleApplyUpdates}
           disabled={loading || updates.length === 0}
           size="sm"
-          className="w-full bg-purple-600 hover:bg-purple-500 text-white h-8 text-xs gap-1.5"
+          className="w-full bg-emerald-600 hover:bg-emerald-500 text-white h-8 text-xs gap-1.5 nodrag shadow-xs"
         >
           {loading ? <Loader2 className="size-3.5 animate-spin" /> : <ArrowUpRight className="size-3.5" />}
           {loading ? "Merging..." : "Confirm Merge to Master Sheet"}
         </Button>
 
         {success && (
-          <div className="flex items-center gap-1.5 p-2 rounded bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[10px]">
-            <CheckCircle2 className="size-3 shrink-0" />
+          <div className="flex items-center gap-1.5 p-2 rounded-md bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-[10px]">
+            <CheckCircle2 className="size-3.5 shrink-0" />
             <span>Updated {appliedCount} rows in Master Sheet!</span>
           </div>
         )}
-      </div>
-    </div>
+      </BaseNodeContent>
+
+      <NodeHandle
+        variant="output"
+        type="target"
+        position={Position.Left}
+        id="updates"
+        style={{ top: "50%" }}
+      />
+    </BaseNode>
   );
 }

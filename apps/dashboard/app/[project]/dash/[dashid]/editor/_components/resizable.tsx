@@ -8,7 +8,18 @@ import Flow from "./reactFlow";
 import { TabsDemo } from "./tabs";
 import { useUIStore } from "@/stores/ui.store";
 import { Button } from "@repo/ui/components/ui/button";
-import { IconDirectionHorizontal } from "@tabler/icons-react";
+import {
+  Play,
+  Zap,
+  Undo2,
+  Redo2,
+  Save,
+  Download,
+  Upload,
+  Square,
+  PanelRight,
+  PanelBottom,
+} from "lucide-react";
 import {
   EditorWorkFlowContextProvider,
   useEditorWorkFlow,
@@ -297,74 +308,105 @@ function WorkFlowEditorInner() {
   };
 
   return (
-    <>
-      <div className="flex justify-between">
-        <div className="flex gap-1">
+    <div className="flex flex-col w-full h-full gap-2 text-foreground">
+      {/* ─── Sleek Control Toolbar (Dual Mode, No Emojis, No Emerald) ─── */}
+      <div className="flex items-center justify-between px-3 py-1.5 bg-card text-card-foreground rounded-xl border border-border/40 shadow-xs gap-2.5 shrink-0">
+        <div className="flex items-center gap-1.5 flex-wrap">
           <SidebarTrigger className="-ml-1" />
 
-          <Button onClick={handleRuns} disabled={isRunning || isServerRunning}>
-            {isRunning ? "Running..." : "▶ Local"}
-          </Button>
-          {isServerRunning ? (
+          {/* Execution Controls */}
+          <div className="flex items-center gap-1 bg-muted/50 p-0.5 rounded-lg border border-border/30">
             <Button
-              variant="destructive"
-              onClick={handleCancelServerRun}
-              className="gap-1"
-            >
-              ⏹ Cancel Server
-            </Button>
-          ) : (
-            <Button
-              variant="outline"
-              onClick={handleServerRun}
+              size="sm"
+              onClick={handleRuns}
               disabled={isRunning || isServerRunning}
-              className="gap-1 border-emerald-600 text-emerald-600 hover:bg-emerald-600 hover:text-white"
+              className="h-7 px-2.5 text-xs font-medium gap-1.5 bg-foreground text-background hover:bg-foreground/90 rounded-md shadow-2xs cursor-pointer"
             >
-              ⚡ Server Run
+              <Play className="size-3 fill-current" />
+              <span>{isRunning ? "Running..." : "Local Run"}</span>
             </Button>
-          )}
-          {activeRun && (
-            <span className="text-xs text-muted-foreground self-center font-mono">
-              {activeRun.completedNodes}/{activeRun.totalNodes} nodes •{" "}
-              <span
-                className={`font-semibold ${
-                  activeRun.status === "completed"
-                    ? "text-emerald-500"
-                    : activeRun.status === "error"
-                      ? "text-red-500"
-                      : activeRun.status === "running"
-                        ? "text-blue-500"
-                        : "text-muted-foreground"
-                }`}
+
+            {isServerRunning ? (
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={handleCancelServerRun}
+                className="h-7 px-2.5 text-xs font-medium gap-1.5 rounded-md cursor-pointer"
               >
+                <Square className="size-3 fill-current" />
+                <span>Cancel</span>
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={handleServerRun}
+                disabled={isRunning || isServerRunning}
+                className="h-7 px-2.5 text-xs font-medium gap-1.5 text-muted-foreground hover:text-foreground rounded-md cursor-pointer"
+              >
+                <Zap className="size-3 text-foreground" />
+                <span>Server Run</span>
+              </Button>
+            )}
+          </div>
+
+          {activeRun && (
+            <span className="text-[11px] text-muted-foreground font-mono px-2 py-0.5 bg-muted/60 rounded-md border border-border/30">
+              {activeRun.completedNodes}/{activeRun.totalNodes} nodes •{" "}
+              <span className="font-semibold text-foreground uppercase text-[10px]">
                 {activeRun.status}
               </span>
             </span>
           )}
+
+          <div className="h-4 w-px bg-border/60 mx-1" />
+
+          {/* History Controls */}
           <Button
-            variant="outline"
+            variant="ghost"
+            size="sm"
             onClick={undo}
             disabled={!canUndo}
+            className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground rounded-md cursor-pointer"
+            title="Undo"
           >
-            Undo
+            <Undo2 className="size-3.5 mr-1" />
+            <span>Undo</span>
           </Button>
+
           <Button
-            variant="outline"
+            variant="ghost"
+            size="sm"
             onClick={redo}
             disabled={!canRedo}
+            className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground rounded-md cursor-pointer"
+            title="Redo"
           >
-            Redo
+            <Redo2 className="size-3.5 mr-1" />
+            <span>Redo</span>
           </Button>
+
           <Button
             variant={hasUnsavedChanges ? "default" : "outline"}
+            size="sm"
             onClick={saveToDb}
             disabled={isSaving || !hasUnsavedChanges}
-            className={hasUnsavedChanges ? "bg-blue-600 hover:bg-blue-700 text-white" : ""}
+            className={`h-7 px-2.5 text-xs font-medium gap-1.5 rounded-md transition-all cursor-pointer ${
+              hasUnsavedChanges
+                ? "bg-foreground text-background hover:bg-foreground/90 shadow-2xs"
+                : "border-border/40 text-muted-foreground hover:text-foreground"
+            }`}
           >
-            {isSaving ? "Saving..." : hasUnsavedChanges ? "💾 Save*" : "💾 Saved"}
+            <Save className="size-3" />
+            <span>{isSaving ? "Saving..." : hasUnsavedChanges ? "Save*" : "Saved"}</span>
           </Button>
+
+          <div className="h-4 w-px bg-border/60 mx-1" />
+
+          {/* Import / Export */}
           <Button
             variant="outline"
+            size="sm"
             onClick={() => {
               const activeWfId = workflowId || flowId;
               const data = JSON.stringify(
@@ -381,11 +423,16 @@ function WorkFlowEditorInner() {
               URL.revokeObjectURL(url);
               toast.success("Workflow exported");
             }}
+            className="h-7 px-2.5 text-xs text-muted-foreground hover:text-foreground border-border/40 rounded-md cursor-pointer"
+            title="Export Workflow JSON"
           >
-            📥 Export
+            <Download className="size-3 mr-1" />
+            <span>Export</span>
           </Button>
+
           <Button
             variant="outline"
+            size="sm"
             onClick={() => {
               const input = document.createElement("input");
               input.type = "file";
@@ -413,68 +460,85 @@ function WorkFlowEditorInner() {
               };
               input.click();
             }}
+            className="h-7 px-2.5 text-xs text-muted-foreground hover:text-foreground border-border/40 rounded-md cursor-pointer"
+            title="Import Workflow JSON"
           >
-            📤 Import
+            <Upload className="size-3 mr-1" />
+            <span>Import</span>
           </Button>
         </div>
-        <div>
+
+        {/* Panel Toggles */}
+        <div className="flex items-center gap-1 shrink-0">
           <Button
-            variant={"ghost"}
+            variant="ghost"
+            size="sm"
             onClick={() => setSidebarOpen(!sidebarOpen)}
+            className={`h-7 w-7 p-0 rounded-md cursor-pointer transition-colors ${
+              !sidebarOpen ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground"
+            }`}
+            title="Toggle Nodes Panel"
           >
-            <IconDirectionHorizontal />
+            <PanelRight className="size-4" />
           </Button>
           <Button
-            variant={"ghost"}
+            variant="ghost"
+            size="sm"
             onClick={() => setBottombarOpen(!bottombarOpen)}
+            className={`h-7 w-7 p-0 rounded-md cursor-pointer transition-colors ${
+              !bottombarOpen ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground"
+            }`}
+            title="Toggle Execution & Inspection Panel"
           >
-            <IconDirectionHorizontal className="rotate-z-90" />
+            <PanelBottom className="size-4" />
           </Button>
         </div>
       </div>
+
+      {/* ─── Resizable Panels Group (Clean, theme-adaptive) ─── */}
       <ResizablePanelGroup
         direction="vertical"
-        className="min-h-[200px] w-full rounded-lg border md:min-w-[450px]"
+        className="flex-1 w-full rounded-2xl border border-border/40 bg-card overflow-hidden shadow-xs min-h-[400px]"
       >
-        <ResizablePanel defaultSize={70} minSize={0} maxSize={90}>
+        <ResizablePanel defaultSize={70} minSize={20} maxSize={90}>
           <ResizablePanelGroup
             direction="horizontal"
-            className="h-full w-full rounded-lg border"
+            className="h-full w-full"
           >
-            <ResizablePanel defaultSize={70} minSize={10} maxSize={85}>
-              <div className="flex h-full w-full items-center justify-center">
+            <ResizablePanel defaultSize={72} minSize={20} maxSize={88}>
+              <div className="flex h-full w-full bg-background/40 relative">
                 <Flow handleRuns={handleRuns} />
               </div>
             </ResizablePanel>
 
-            <ResizableHandle />
+            <ResizableHandle className="bg-border/30 hover:bg-border transition-colors w-1" />
 
             <ResizablePanel
-              defaultSize={30}
+              defaultSize={28}
               minSize={15}
-              maxSize={90}
+              maxSize={50}
               className={`${sidebarOpen ? "hidden" : ""}`}
             >
-              <div className="flex h-full w-full p-1 min-w-[250px] overflow-y-scroll flex-col ">
+              <div className="flex h-full w-full bg-card border-l border-border/40 overflow-hidden flex-col">
                 <TabsDemo />
               </div>
             </ResizablePanel>
           </ResizablePanelGroup>
         </ResizablePanel>
 
-        <ResizableHandle />
+        <ResizableHandle className="bg-border/30 hover:bg-border transition-colors h-1" />
 
         <ResizablePanel
           defaultSize={30}
           minSize={10}
-          maxSize={100}
+          maxSize={80}
           className={`${bottombarOpen ? "hidden" : ""}`}
         >
-          <div className="flex h-full w-full p-1 min-w-[250px]">
+          <div className="flex h-full w-full bg-card border-t border-border/40 overflow-hidden">
             <TabsBottom />
           </div>
         </ResizablePanel>
       </ResizablePanelGroup>
-    </>
+    </div>
   );
 }

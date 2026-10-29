@@ -1,13 +1,16 @@
 'use client';
 
 import { memo, useCallback } from 'react';
-import { Handle, Position, useReactFlow } from '@xyflow/react';
+import { Position, useReactFlow } from '@xyflow/react';
 import { LayoutPanelLeft } from 'lucide-react';
 import {
   BaseNode,
   BaseNodeContent,
   BaseNodeHeader,
   BaseNodeHeaderTitle,
+  BaseNodeIcon,
+  NodeHeaderActions,
+  NodeHandle,
 } from "@/components/dashboard/flow/Node/baseNode";
 import { NodeMenu } from "../node-menu";
 import { IconTrash } from "@tabler/icons-react";
@@ -47,81 +50,84 @@ export const SheetMergeNode = memo(({ id, data }: { id: string; data: any }) => 
   }, [id, setNodes, config]);
 
   return (
-    <>
-      <div className="flex justify-between items-center px-2 pt-1">
-        <NodeMenu />
-        <IconTrash className="size-4 cursor-pointer text-red-400 hover:text-red-600" onClick={handleDelete} />
-      </div>
-
-      <BaseNode className="min-w-[320px]">
-        <BaseNodeHeader className="border-b flex items-center gap-2 px-3 py-1.5 bg-sky-700 text-white">
-          <LayoutPanelLeft className="size-4" />
+    <BaseNode variant="combine" className="min-w-[320px]">
+      <BaseNodeHeader variant="combine">
+        <div className="flex items-center gap-2 min-w-0">
+          <BaseNodeIcon variant="combine">
+            <LayoutPanelLeft className="size-3.5" />
+          </BaseNodeIcon>
           <BaseNodeHeaderTitle>Sheet Merge</BaseNodeHeaderTitle>
-        </BaseNodeHeader>
+        </div>
+        <NodeHeaderActions>
+          <NodeMenu />
+          <IconTrash
+            className="size-3.5 cursor-pointer text-muted-foreground hover:text-destructive transition-colors"
+            onClick={handleDelete}
+          />
+        </NodeHeaderActions>
+      </BaseNodeHeader>
 
-        <BaseNodeContent className="p-4 space-y-3">
-          <p className="text-[10px] text-muted-foreground bg-sky-50 dark:bg-sky-950 p-2 rounded">
-            Merge two datasets side-by-side, prefixing columns with subject/category names.
-            Like building a multi-subject attendance sheet.
-          </p>
+      <BaseNodeContent className="p-3.5 space-y-3">
+        <p className="text-[11px] text-muted-foreground bg-muted/40 p-2 rounded-lg border border-border/40">
+          Merge datasets side-by-side with subject/category prefixes.
+        </p>
 
-          <div className="space-y-1">
-            <Label className="text-xs">Match Key Column</Label>
-            <Select value={config.keyColumn} onValueChange={v => updateConfig({ keyColumn: v })} disabled={allColumns.length === 0}>
-              <SelectTrigger className="h-8">
-                <SelectValue placeholder={allColumns.length === 0 ? "Connect inputs" : "Select key (e.g. Enrollment)"} />
-              </SelectTrigger>
-              <SelectContent>
-                {allColumns.map(col => (
-                  <SelectItem key={col} value={col}>{col}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground">Match Key Column</Label>
+          <Select value={config.keyColumn} onValueChange={v => updateConfig({ keyColumn: v })} disabled={allColumns.length === 0}>
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue placeholder={allColumns.length === 0 ? "Connect inputs" : "Select key (e.g. Enrollment)"} />
+            </SelectTrigger>
+            <SelectContent>
+              {allColumns.map(col => (
+                <SelectItem key={col} value={col}>{col}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground">Left Prefix (e.g. "CO24553:")</Label>
+          <Input
+            value={config.leftPrefix ?? ''}
+            onChange={e => updateConfig({ leftPrefix: e.target.value })}
+            placeholder="e.g. Discrete_"
+            className="h-8 text-xs nodrag"
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground">Right Prefix (e.g. "CO24804:")</Label>
+          <Input
+            value={config.rightPrefix ?? ''}
+            onChange={e => updateConfig({ rightPrefix: e.target.value })}
+            placeholder="e.g. MobileApp_"
+            className="h-8 text-xs nodrag"
+          />
+        </div>
+
+        {leftColumns.length > 0 && (
+          <div className="text-[10px] text-fuchsia-600 dark:text-fuchsia-400 border-t border-border/40 pt-1 font-mono">
+            <span className="font-semibold">Left:</span> {leftColumns.join(', ')}
           </div>
-
-          <div className="space-y-1">
-            <Label className="text-xs">Left Prefix (e.g. "CO24553:")</Label>
-            <Input
-              value={config.leftPrefix ?? ''}
-              onChange={e => updateConfig({ leftPrefix: e.target.value })}
-              placeholder="e.g. Discrete_"
-              className="h-8"
-            />
+        )}
+        {rightColumns.length > 0 && (
+          <div className="text-[10px] text-pink-600 dark:text-pink-400 font-mono">
+            <span className="font-semibold">Right:</span> {rightColumns.join(', ')}
           </div>
+        )}
 
-          <div className="space-y-1">
-            <Label className="text-xs">Right Prefix (e.g. "CO24804:")</Label>
-            <Input
-              value={config.rightPrefix ?? ''}
-              onChange={e => updateConfig({ rightPrefix: e.target.value })}
-              placeholder="e.g. MobileApp_"
-              className="h-8"
-            />
+        {data.rowCount !== undefined && (
+          <div className="text-[11px] text-fuchsia-600 dark:text-fuchsia-400 font-medium text-center pt-2 border-t border-border/40">
+            {data.rowCount} rows merged
           </div>
+        )}
+      </BaseNodeContent>
 
-          {leftColumns.length > 0 && (
-            <div className="text-[10px] text-sky-600 border-t pt-1">
-              <span className="font-semibold">Left:</span> {leftColumns.join(', ')}
-            </div>
-          )}
-          {rightColumns.length > 0 && (
-            <div className="text-[10px] text-sky-500">
-              <span className="font-semibold">Right:</span> {rightColumns.join(', ')}
-            </div>
-          )}
-
-          {data.rowCount !== undefined && (
-            <div className="text-xs text-sky-600 font-medium text-center pt-2 border-t">
-              {data.rowCount} rows merged
-            </div>
-          )}
-        </BaseNodeContent>
-
-        <Handle type="target" position={Position.Left} id="left" className="w-3 h-3 bg-sky-600" style={{ top: '35%' }} />
-        <Handle type="target" position={Position.Left} id="right" className="w-3 h-3 bg-sky-400" style={{ top: '65%' }} />
-        <Handle type="source" position={Position.Right} id="out" className="w-3 h-3 bg-sky-600" />
-      </BaseNode>
-    </>
+      <NodeHandle variant="combine" type="target" position={Position.Left} id="left" style={{ top: '35%' }} />
+      <NodeHandle variant="combine" type="target" position={Position.Left} id="right" style={{ top: '65%' }} />
+      <NodeHandle variant="combine" type="source" position={Position.Right} id="out" />
+    </BaseNode>
   );
 });
 

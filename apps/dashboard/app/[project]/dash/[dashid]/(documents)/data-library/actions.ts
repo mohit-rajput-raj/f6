@@ -9,48 +9,47 @@ function isValidUuid(id?: string): boolean {
 }
 
 export async function getDataLibraryFiles(dashid?: string, userId?: string) {
-  const userIds = new Set<string>();
+  const validWorkflowId =
+    dashid && isValidUuid(dashid.trim()) ? dashid.trim() : null;
 
-  if (userId && userId.trim() !== "") {
-    userIds.add(userId.trim());
-  }
-
-  const validWorkflowId = dashid && isValidUuid(dashid.trim()) ? dashid.trim() : null;
-
+  // When dashid (project workflow ID) is provided, strictly scope files to this project.
+  // Files from other projects will never leak here, and all members of this project can view them.
   if (validWorkflowId) {
     try {
-      const { data: shares } = await supabase
-        .from("desk_share")
-        .select("invitedUserId")
-        .eq("projectWorkflowId", validWorkflowId);
+      const { data, error } = await supabase
+        .from("data_library_file")
+        .select(
+          "id, name, description, fileType, data, metadata, createdAt, updatedAt, workflowId, userId"
+        )
+        .eq("workflowId", validWorkflowId)
+        .order("updatedAt", { ascending: false });
 
-      (shares || []).forEach((s: any) => {
-        if (s.invitedUserId) userIds.add(s.invitedUserId);
-      });
+      if (error) {
+        console.error("Error fetching project data library files:", error);
+        return [];
+      }
+      return data || [];
     } catch (e) {
-      console.warn("Could not fetch desk shares for data library:", e);
+      console.error("Failed to query project data library files:", e);
+      return [];
     }
   }
 
-  let query = supabase
-    .from("data_library_file")
-    .select("id, name, description, fileType, data, metadata, createdAt, updatedAt, workflowId")
-    .order("updatedAt", { ascending: false });
+  // Fallback for standalone/global files without a project: only personal unattached files
+  if (userId && userId.trim() !== "") {
+    const { data } = await supabase
+      .from("data_library_file")
+      .select(
+        "id, name, description, fileType, data, metadata, createdAt, updatedAt, workflowId, userId"
+      )
+      .eq("userId", userId.trim())
+      .is("workflowId", null)
+      .order("updatedAt", { ascending: false });
 
-  const conditions: string[] = [];
-  if (validWorkflowId) {
-    conditions.push(`workflowId.eq.${validWorkflowId}`);
+    return data || [];
   }
-  if (userIds.size > 0) {
-    conditions.push(`userId.in.(${Array.from(userIds).join(",")})`);
-  }
 
-  if (conditions.length === 0) return [];
-
-  query = query.or(conditions.join(","));
-
-  const { data } = await query;
-  return data || [];
+  return [];
 }
 
 export async function getDataLibraryFile(id: string, userId?: string) {

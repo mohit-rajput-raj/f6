@@ -1,11 +1,20 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Handle, Position, useReactFlow, useEdges, useNodes } from "@xyflow/react";
+import { Position, useReactFlow, useEdges, useNodes } from "@xyflow/react";
 import { Sparkles, CheckCircle2, AlertCircle, Loader2, Table2, Key, Save, Check, Eye } from "lucide-react";
 import { Button } from "@/components/ui/components";
 import { Input } from "@repo/ui/components/ui/input";
 import { Badge } from "@repo/ui/components/ui/badge";
+import {
+  BaseNode,
+  BaseNodeContent,
+  BaseNodeHeader,
+  BaseNodeHeaderTitle,
+  BaseNodeIcon,
+  NodeHeaderActions,
+  NodeHandle,
+} from "@/components/dashboard/flow/Node/baseNode";
 import { useMasterSheetStore } from "@/stores/master-sheet-store";
 import { useDeskStore } from "@/stores/desk-store";
 import { useSession } from "@/lib/auth-client";
@@ -18,7 +27,7 @@ import { NodeMenu } from "../node-menu";
 import { IconTrash } from "@tabler/icons-react";
 import { useDeleteNode } from "../settings/triggers";
 
-export function DynamicMasterSheetNode({ id, data }: any) {
+export function DynamicMasterSheetNode({ id, data, selected }: any) {
   const params = useParams();
   const dashid = (params?.dashid as string) || "";
   const { setNodes } = useReactFlow();
@@ -562,100 +571,131 @@ export function DynamicMasterSheetNode({ id, data }: any) {
   }, [effectiveCustomPrompt]);
 
   return (
-    <div className="w-84 rounded-xl border border-indigo-500/40 bg-card shadow-xl text-foreground transition-all">
-      {/* NodeMenu + Delete */}
-      <div className="flex justify-between items-center px-3 pt-2">
-        <NodeMenu />
-        <IconTrash className="size-4 cursor-pointer text-red-400 hover:text-red-600" onClick={handleDelete} />
-      </div>
+    <BaseNode variant="ai" selected={selected} className="w-84">
+      {/* Labeled Input Handles */}
+      <NodeHandle
+        variant="input"
+        type="target"
+        position={Position.Left}
+        id="data-input"
+        style={{ top: "16%" }}
+      />
+      <NodeHandle
+        variant="input"
+        type="target"
+        position={Position.Left}
+        id="sheet-name"
+        style={{ top: "38%" }}
+      />
+      <NodeHandle
+        variant="ai"
+        type="target"
+        position={Position.Left}
+        id="target-path"
+        style={{ top: "60%" }}
+      />
+      <NodeHandle
+        variant="ai"
+        type="target"
+        position={Position.Left}
+        id="custom-prompt"
+        style={{ top: "82%" }}
+      />
 
-      {/* Input Handles — 4 labeled ports */}
-      <Handle type="target" position={Position.Left} id="data-input" style={{ top: "15%" }} />
-      <Handle type="target" position={Position.Left} id="sheet-name" style={{ top: "39%" }} />
-      <Handle type="target" position={Position.Left} id="target-path" style={{ top: "63%" }} />
-      <Handle type="target" position={Position.Left} id="custom-prompt" style={{ top: "87%" }} />
-
-      {/* Handle Labels */}
-      <div className="absolute left-[-4px] text-[7px] text-blue-400 font-semibold" style={{ top: '12%', transform: 'translateX(-100%)' }}>
+      {/* Subtle Handle Labels */}
+      <div className="absolute left-[-4px] text-[8px] text-indigo-500 font-mono uppercase tracking-wider select-none pointer-events-none" style={{ top: '13%', transform: 'translateX(-100%)' }}>
         CSV Data
       </div>
-      <div className="absolute left-[-4px] text-[7px] text-amber-400 font-semibold" style={{ top: '36%', transform: 'translateX(-100%)' }}>
+      <div className="absolute left-[-4px] text-[8px] text-sky-500 font-mono uppercase tracking-wider select-none pointer-events-none" style={{ top: '35%', transform: 'translateX(-100%)' }}>
         Sheet Name
       </div>
-      <div className="absolute left-[-4px] text-[7px] text-emerald-400 font-semibold" style={{ top: '60%', transform: 'translateX(-100%)' }}>
+      <div className="absolute left-[-4px] text-[8px] text-indigo-500 font-mono uppercase tracking-wider select-none pointer-events-none" style={{ top: '57%', transform: 'translateX(-100%)' }}>
         Target Path
       </div>
-      <div className="absolute left-[-4px] text-[7px] text-purple-400 font-semibold" style={{ top: '84%', transform: 'translateX(-100%)' }}>
+      <div className="absolute left-[-4px] text-[8px] text-indigo-500 font-mono uppercase tracking-wider select-none pointer-events-none" style={{ top: '79%', transform: 'translateX(-100%)' }}>
         Prompt
       </div>
 
       {/* Output Handle */}
-      <Handle type="source" position={Position.Right} id="updates" style={{ top: "50%" }} />
-      <div className="absolute right-[-4px] text-[7px] text-indigo-400 font-semibold" style={{ top: '47%', transform: 'translateX(100%)' }}>
+      <NodeHandle
+        variant="ai"
+        type="source"
+        position={Position.Right}
+        id="updates"
+        style={{ top: "50%" }}
+      />
+      <div className="absolute right-[-4px] text-[8px] text-indigo-500 font-mono uppercase tracking-wider select-none pointer-events-none" style={{ top: '47%', transform: 'translateX(100%)' }}>
         Updates
       </div>
 
-      <div className="p-4 pt-1">
-      {/* Header */}
-      <div className="flex items-center justify-between border-b border-border pb-2.5 mb-3">
-        <div className="flex items-center gap-2">
-          <div className="p-1.5 bg-indigo-500/10 text-indigo-400 rounded-lg">
-            <Sparkles className="size-4" />
-          </div>
-          <div>
-            <h3 className="text-xs font-bold tracking-tight">Dynamic MasterSheet Node</h3>
-            <p className="text-[10px] text-muted-foreground">AI Align · Multi-Sheet</p>
-          </div>
+      {/* Integrated Header */}
+      <BaseNodeHeader variant="ai">
+        <BaseNodeIcon variant="ai">
+          <Sparkles className="size-4" />
+        </BaseNodeIcon>
+        <div className="min-w-0">
+          <BaseNodeHeaderTitle>Dynamic MasterSheet</BaseNodeHeaderTitle>
+          <p className="text-[10px] text-muted-foreground truncate">AI Align · Multi-Sheet</p>
         </div>
-        {computedUpdates.length > 0 && (
-          <Badge variant="secondary" className="text-[10px] bg-green-500/10 text-green-400 border-green-500/20">
-            {computedUpdates.length} ready
-          </Badge>
-        )}
-      </div>
+        <NodeHeaderActions>
+          {computedUpdates.length > 0 && (
+            <Badge variant="outline" className="text-[10px] font-mono px-1.5 py-0 border-indigo-500/30 text-indigo-600 dark:text-indigo-400">
+              {computedUpdates.length} ready
+            </Badge>
+          )}
+          <NodeMenu />
+          <IconTrash
+            className="size-4 cursor-pointer text-muted-foreground hover:text-destructive transition-colors"
+            onClick={handleDelete}
+          />
+        </NodeHeaderActions>
+      </BaseNodeHeader>
 
-      <div className="space-y-3 text-xs">
+      <BaseNodeContent className="p-3.5 space-y-3 text-xs">
         {/* User API Key Entry */}
         <div>
           <div className="flex items-center justify-between mb-1">
             <label className="text-[10px] font-medium text-muted-foreground flex items-center gap-1">
-              <Key className="size-3 text-indigo-400" /> Your Gemini / AI API Key
+              <Key className="size-3 text-muted-foreground" /> Gemini / AI API Key
             </label>
             <button
               onClick={handleSaveApiKey}
               disabled={isSavingKey || !apiKey}
-              className="text-[10px] text-indigo-400 hover:text-indigo-300 font-medium flex items-center gap-0.5"
+              className="text-[10px] text-muted-foreground hover:text-foreground font-medium flex items-center gap-0.5 transition-colors cursor-pointer"
               title="Save key to user account"
             >
-              {keySavedSuccess ? <Check className="size-3 text-green-400" /> : <Save className="size-3" />}
-              <span>{keySavedSuccess ? "Saved" : "Save to Account"}</span>
+              {keySavedSuccess ? <Check className="size-3 text-foreground" /> : <Save className="size-3" />}
+              <span>{keySavedSuccess ? "Saved" : "Save Key"}</span>
             </button>
           </div>
-          <div className="w-full flex justify-between">
-            <Input
-            type={typePass?"password":"text"}
-            value={apiKey}
-            onChange={(e) => {
-              setApiKey(e.target.value);
-              updateNodeData("apiKey", e.target.value);
-            }}
-            placeholder="Paste your API key here..."
-            className="h-8 text-xs font-mono"
-          />
-          <Eye className="p-1" onClick={()=>setTypePass(!typePass)}/>
+          <div className="w-full flex items-center gap-1 border border-border/50 rounded-lg bg-background px-2 focus-within:ring-1 focus-within:ring-foreground/30">
+            <input
+              type={typePass ? "password" : "text"}
+              value={apiKey}
+              onChange={(e) => {
+                setApiKey(e.target.value);
+                updateNodeData("apiKey", e.target.value);
+              }}
+              placeholder="Paste your API key here..."
+              className="w-full h-8 text-xs font-mono bg-transparent outline-none text-foreground nodrag"
+            />
+            <Eye
+              className="size-3.5 text-muted-foreground hover:text-foreground cursor-pointer shrink-0 transition-colors"
+              onClick={() => setTypePass(!typePass)}
+            />
           </div>
         </div>
 
-        {/* Target Sheet Tab Name — accepts DeskTextInput via sheet-name handle */}
+        {/* Target Sheet Tab Name */}
         <div>
           <label className="text-[10px] font-medium text-muted-foreground flex items-center justify-between mb-1">
             <span className="flex items-center gap-1">
-              <Table2 className="size-3 text-amber-400" /> Sheet Tab Name
+              <Table2 className="size-3 text-muted-foreground" /> Sheet Tab Name
             </span>
             {data?.incomingSheetName ? (
-              <span className="text-[9px] text-amber-400 font-mono">← connected</span>
+              <span className="text-[9px] text-muted-foreground font-mono">← connected</span>
             ) : availableSheets.length > 0 ? (
-              <span className="text-[9px] text-indigo-400 font-mono">
+              <span className="text-[9px] text-muted-foreground font-mono">
                 {availableSheets.length} detected
               </span>
             ) : null}
@@ -669,7 +709,7 @@ export function DynamicMasterSheetNode({ id, data }: any) {
             }}
             list={`sheet-suggestions-${id}`}
             placeholder="e.g. Sheet1"
-            className="h-8 text-xs font-mono"
+            className="h-8 text-xs font-mono border-border/50 rounded-lg bg-background text-foreground"
           />
           {!data?.incomingSheetName && availableSheets.length > 0 && (
             <datalist id={`sheet-suggestions-${id}`}>
@@ -685,7 +725,7 @@ export function DynamicMasterSheetNode({ id, data }: any) {
           <label className="text-[10px] font-medium text-muted-foreground flex items-center justify-between mb-1">
             <span>Target Column / Path</span>
             {data?.incomingTargetPath && (
-              <span className="text-[9px] text-indigo-400 font-mono">connected handle</span>
+              <span className="text-[9px] text-muted-foreground font-mono">connected</span>
             )}
           </label>
           <Input
@@ -695,7 +735,7 @@ export function DynamicMasterSheetNode({ id, data }: any) {
               updateNodeData("targetPath", e.target.value);
             }}
             placeholder="e.g. C024554/th or C024554/lab"
-            className="h-8 text-xs font-mono"
+            className="h-8 text-xs font-mono border-border/50 rounded-lg bg-background text-foreground"
           />
         </div>
 
@@ -704,7 +744,7 @@ export function DynamicMasterSheetNode({ id, data }: any) {
           <label className="text-[10px] font-medium text-muted-foreground flex items-center justify-between mb-1">
             <span>Custom Prompt (LangChain LLM)</span>
             {data?.incomingCustomPrompt && (
-              <span className="text-[9px] text-purple-400 font-mono">← connected</span>
+              <span className="text-[9px] text-muted-foreground font-mono">← connected</span>
             )}
           </label>
           <textarea
@@ -715,14 +755,14 @@ export function DynamicMasterSheetNode({ id, data }: any) {
               updateNodeData("customPrompt", e.target.value);
             }}
             rows={2}
-            placeholder="e.g. Calculate present count, compute percentage, update columns..."
-            className="w-full p-2 text-[11px] rounded-md border border-input bg-background resize-none focus:outline-none focus:ring-1 focus:ring-ring"
+            placeholder="e.g. Match Enrollment ID, calculate attendance, and update target column..."
+            className="w-full p-2 text-[11px] rounded-lg border border-border/50 bg-background text-foreground resize-none focus:outline-none focus:ring-1 focus:ring-foreground/30 nodrag"
           />
         </div>
 
         {/* Error Display */}
         {alignMutation.isError && (
-          <div className="p-2 rounded bg-destructive/10 text-destructive text-[10px] flex items-center gap-1.5">
+          <div className="p-2 rounded-lg bg-destructive/10 text-destructive text-[10px] flex items-center gap-1.5 border border-destructive/20">
             <AlertCircle className="size-3 shrink-0" />
             <span className="line-clamp-2">
               {(alignMutation.error as any)?.response?.data?.detail ||
@@ -737,7 +777,7 @@ export function DynamicMasterSheetNode({ id, data }: any) {
         <Button
           onClick={handleAlign}
           disabled={alignMutation.isPending}
-          className="w-full h-8 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold gap-1.5 shadow-sm"
+          className="w-full h-8 bg-foreground text-background hover:bg-foreground/90 text-xs font-medium gap-1.5 shadow-2xs rounded-lg cursor-pointer"
         >
           {alignMutation.isPending ? (
             <>
@@ -758,7 +798,7 @@ export function DynamicMasterSheetNode({ id, data }: any) {
             onClick={handleMergeToMasterSheet}
             disabled={isMerging}
             variant="outline"
-            className="w-full h-8 border-green-500/50 text-green-400 hover:bg-green-500/10 text-xs font-semibold gap-1.5"
+            className="w-full h-8 border-border/50 bg-muted/40 hover:bg-muted text-foreground text-xs font-medium gap-1.5 rounded-lg cursor-pointer"
           >
             {isMerging ? (
               <>
@@ -767,7 +807,7 @@ export function DynamicMasterSheetNode({ id, data }: any) {
               </>
             ) : mergeSuccess ? (
               <>
-                <CheckCircle2 className="size-3.5 text-green-400" />
+                <CheckCircle2 className="size-3.5" />
                 <span>Merged into {selectedSheet}!</span>
               </>
             ) : (
@@ -778,8 +818,7 @@ export function DynamicMasterSheetNode({ id, data }: any) {
             )}
           </Button>
         )}
-      </div>
-      </div>
-    </div>
+      </BaseNodeContent>
+    </BaseNode>
   );
 }

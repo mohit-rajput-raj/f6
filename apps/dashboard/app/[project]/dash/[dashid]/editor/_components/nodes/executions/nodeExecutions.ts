@@ -791,24 +791,6 @@ export const executeWorkflow = async (
           break;
         }
 
-        case "ActionButtonNode": {
-          // Read triggered state from desk store
-          try {
-            const { useDeskStore } = await import("@/stores/desk-store");
-            const deskBlockId = nodeData?.deskBlockId;
-            const actionId = nodeData?.actionId;
-            let triggered = false;
-            if (deskBlockId && actionId) {
-              const block = useDeskStore.getState().blocks.find(b => b.id === deskBlockId);
-              triggered = block?.actionButtons?.find(a => a.id === actionId)?.triggered ?? false;
-            }
-            outputValue = triggered;
-          } catch (e) {
-            outputValue = false;
-          }
-          break;
-        }
-
         case "DeskSheetNode": {
           // Read sheet data from desk store (block-scoped)
           try {
@@ -1143,36 +1125,6 @@ export const executeWorkflow = async (
           break;
         }
 
-        case "AISchemaAlignNode": {
-          const masterGridEdge = incomingEdges.find((e: any) => e.targetHandle === "master-grid");
-          const csvFileEdge = incomingEdges.find((e: any) => e.targetHandle === "csv-file");
-
-          const masterGridData = masterGridEdge
-            ? (runtimeData.get(`${masterGridEdge.source}__${masterGridEdge.sourceHandle}`) ?? runtimeData.get(masterGridEdge.source))
-            : null;
-          const csvFileData = csvFileEdge
-            ? (runtimeData.get(`${csvFileEdge.source}__${csvFileEdge.sourceHandle}`) ?? runtimeData.get(csvFileEdge.source))
-            : null;
-
-          setNodes((nds) =>
-            nds.map((n) =>
-              n.id === currentId
-                ? {
-                    ...n,
-                    data: {
-                      ...n.data,
-                      masterGrid: masterGridData,
-                      csvContent: csvFileData,
-                      fileData: csvFileData,
-                    },
-                  }
-                : n
-            )
-          );
-          outputValue = nodeData?.result || { updates: [], alignment: null };
-          break;
-        }
-
         case "DynamicMasterSheetNode": {
           const dataInputEdge = incomingEdges.find((e: any) => e.targetHandle === "data-input");
           const sheetNameEdge = incomingEdges.find((e: any) => e.targetHandle === "sheet-name");
@@ -1502,25 +1454,6 @@ export const executeWorkflow = async (
                   : node
               )
             );
-          }
-          break;
-        }
-
-        case "TrueFalseNode": {
-          // Read checkbox state from desk store
-          try {
-            const { useDeskStore } = await import("@/stores/desk-store");
-            const deskBlockId = nodeData?.deskBlockId;
-            const checkboxId = nodeData?.checkboxId || currentId;
-            if (deskBlockId) {
-              const block = useDeskStore.getState().blocks.find(b => b.id === deskBlockId);
-              const field = block?.checkboxFields.find(f => f.id === checkboxId);
-              outputValue = field?.checked ?? false;
-            } else {
-              outputValue = false;
-            }
-          } catch {
-            outputValue = false;
           }
           break;
         }

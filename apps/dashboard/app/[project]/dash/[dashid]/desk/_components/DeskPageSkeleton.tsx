@@ -1,394 +1,141 @@
-// "use client";
-
-// import React from "react";
-// import { Skeleton } from "@repo/ui/components/ui/skeleton";
-
-// // ─── Top Bar Skeleton ─────────────────────────────────────────
-// function TopBarSkeleton() {
-//   return (
-//     <div className="flex items-center justify-between px-4 py-3 border-b bg-card shrink-0">
-//       <div className="flex items-center gap-3">
-//         {/* Icon */}
-//         <Skeleton className="w-9 h-9 rounded-xl" />
-//         {/* Title + subtitle */}
-//         <div className="space-y-1.5">
-//           <Skeleton className="h-4 w-16" />
-//           <Skeleton className="h-2.5 w-48" />
-//         </div>
-//       </div>
-//     </div>
-//   );
-// }
-
-// // ─── Tab Bar Skeleton ─────────────────────────────────────────
-// function TabBarSkeleton() {
-//   return (
-//     <div className="flex items-center justify-between px-3 py-1.5 bg-muted/40 border-b border-border">
-//       <div className="flex items-center gap-1">
-//         {[72, 56, 64].map((w, i) => (
-//           <Skeleton
-//             key={i}
-//             className="h-7 rounded-md"
-//             style={{ width: `${w}px` }}
-//           />
-//         ))}
-//       </div>
-//       <Skeleton className="h-7 w-20 rounded-md" />
-//     </div>
-//   );
-// }
-
-// // ─── Input Panel Skeleton (Left side) ─────────────────────────
-// function InputPanelSkeleton() {
-//   return (
-//     <div className="h-full overflow-hidden">
-//       {/* Text Inputs Section */}
-//       <div className="p-3 border-b">
-//         <div className="flex items-center gap-1.5 mb-2">
-//           <Skeleton className="h-3.5 w-3.5 rounded" />
-//           <Skeleton className="h-3 w-20" />
-//           <Skeleton className="h-4 w-5 rounded-full" />
-//         </div>
-//         <div className="space-y-1.5">
-//           {[1, 2].map((i) => (
-//             <div
-//               key={i}
-//               className="rounded-lg border p-2 bg-background space-y-1.5"
-//             >
-//               <Skeleton className="h-2.5 w-16" />
-//               <Skeleton className="h-7 w-full rounded-md" />
-//             </div>
-//           ))}
-//         </div>
-//       </div>
-
-//       {/* Sheets Section */}
-//       <div className="p-3 border-b">
-//         <div className="flex items-center gap-1.5 mb-2">
-//           <Skeleton className="h-3.5 w-3.5 rounded" />
-//           <Skeleton className="h-3 w-14" />
-//           <Skeleton className="h-4 w-5 rounded-full" />
-//         </div>
-//         <div className="space-y-1.5">
-//           {[1, 2].map((i) => (
-//             <div key={i} className="rounded-lg border p-2 bg-muted space-y-1.5">
-//               <Skeleton className="h-3 w-24" />
-//               <div className="flex items-center justify-between">
-//                 <Skeleton className="h-2.5 w-28" />
-//               </div>
-//               {/* Column tags */}
-//               <div className="flex flex-wrap gap-0.5">
-//                 {Array.from({ length: 4 }).map((_, j) => (
-//                   <Skeleton
-//                     key={j}
-//                     className="h-4 rounded border border-border"
-//                     style={{ width: `${30 + Math.random() * 30}px` }}
-//                   />
-//                 ))}
-//               </div>
-//             </div>
-//           ))}
-//         </div>
-//       </div>
-
-//       {/* Checkbox Fields Section */}
-//       <div className="p-3">
-//         <div className="flex items-center gap-1.5 mb-2">
-//           <Skeleton className="h-3.5 w-3.5 rounded" />
-//           <Skeleton className="h-3 w-16" />
-//           <Skeleton className="h-4 w-5 rounded-full" />
-//         </div>
-//         <div className="space-y-1">
-//           {[1, 2].map((i) => (
-//             <div
-//               key={i}
-//               className="flex items-center gap-2 px-2 py-1.5 rounded-lg border bg-background"
-//             >
-//               <Skeleton className="h-3.5 w-3.5 rounded-sm" />
-//               <Skeleton className="h-3 w-20" />
-//             </div>
-//           ))}
-//         </div>
-//       </div>
-//     </div>
-//   );
-// }
-
-// // ─── Spreadsheet Preview Skeleton (Right side) ────────────────
-// function SpreadsheetPreviewSkeleton() {
-//   const cols = 7;
-//   const rows = 10;
-
-//   return (
-//     <div className="h-full flex flex-col">
-//       {/* Preview tabs header */}
-//       <div className="flex items-center gap-2 px-3 py-2 border-b border-border shrink-0 bg-muted/30">
-//         <Skeleton className="h-3.5 w-3.5 rounded" />
-//         <Skeleton className="h-3 w-14" />
-
-//         <div className="flex items-center gap-1.5 ml-2">
-//           {/* Output Preview tab */}
-//           <Skeleton className="h-6 w-28 rounded-md" />
-//           {/* Sheet tabs */}
-//           <Skeleton className="h-6 w-20 rounded-md" />
-//           <Skeleton className="h-6 w-20 rounded-md" />
-//           {/* Errors tab */}
-//           <Skeleton className="h-6 w-16 rounded-md" />
-//           {/* Pushed Files tab */}
-//           <Skeleton className="h-6 w-24 rounded-md" />
-//         </div>
-
-//         <Skeleton className="h-4 w-20 rounded-full ml-auto" />
-//       </div>
-
-//       {/* Spreadsheet grid skeleton */}
-//       <div className="flex-1 min-h-0 overflow-hidden p-0.5">
-//         <div className="h-full border border-border rounded-md overflow-hidden bg-background">
-//           {/* Column headers */}
-//           <div className="flex border-b border-border bg-muted/50">
-//             {/* Row number header */}
-//             <div className="w-10 h-7 border-r border-border shrink-0 flex items-center justify-center">
-//               <Skeleton className="h-2.5 w-4" />
-//             </div>
-//             {Array.from({ length: cols }).map((_, i) => (
-//               <div
-//                 key={i}
-//                 className="h-7 border-r border-border flex-1 min-w-[80px] flex items-center justify-center"
-//               >
-//                 <Skeleton className="h-2.5 w-6" />
-//               </div>
-//             ))}
-//           </div>
-
-//           {/* Data rows */}
-//           {Array.from({ length: rows }).map((_, rowIdx) => (
-//             <div
-//               key={rowIdx}
-//               className="flex border-b border-border/50 last:border-b-0"
-//               style={{
-//                 animationDelay: `${rowIdx * 50}ms`,
-//               }}
-//             >
-//               {/* Row number */}
-//               <div className="w-10 h-6 border-r border-border shrink-0 flex items-center justify-center bg-muted/30">
-//                 <Skeleton className="h-2 w-3" />
-//               </div>
-//               {Array.from({ length: cols }).map((_, colIdx) => (
-//                 <div
-//                   key={colIdx}
-//                   className="h-6 border-r border-border/30 flex-1 min-w-[80px] flex items-center px-2"
-//                 >
-//                   <Skeleton
-//                     className="h-2.5"
-//                     style={{
-//                       width: `${35 + Math.sin(rowIdx * 3 + colIdx * 7) * 25 + 20}%`,
-//                       animationDelay: `${(rowIdx * cols + colIdx) * 30}ms`,
-//                     }}
-//                   />
-//                 </div>
-//               ))}
-//             </div>
-//           ))}
-//         </div>
-//       </div>
-//     </div>
-//   );
-// }
-
-// // ─── Single BigBlock Skeleton ─────────────────────────────────
-// function BigBlockSkeleton({ index }: { index: number }) {
-//   return (
-//     <div
-//       className="rounded-xl border border-border bg-card overflow-hidden"
-//       style={{ animationDelay: `${index * 120}ms` }}
-//     >
-//       {/* BigBlock Header */}
-//       <div className="flex items-center justify-between px-4 py-2 bg-muted/50 border-b border-border">
-//         <div className="flex items-center gap-2">
-//           {/* Block number badge */}
-//           <Skeleton className="w-6 h-6 rounded-full" />
-//           <Skeleton className="h-3.5 w-24" />
-//         </div>
-//         <div className="flex items-center gap-1.5">
-//           {/* Execute button group */}
-//           <div className="flex items-center rounded-lg border border-border overflow-hidden">
-//             <Skeleton className="h-8 w-20" />
-//             <div className="w-px h-5 bg-border" />
-//             <Skeleton className="h-8 w-20" />
-//           </div>
-//           {/* Settings button */}
-//           <Skeleton className="h-7 w-7 rounded-md" />
-//         </div>
-//       </div>
-
-//       {/* Tab Bar */}
-//       <TabBarSkeleton />
-
-//       {/* Split content panel */}
-//       <div className="flex min-h-[280px]">
-//         {/* Left Panel - Inputs (35%) */}
-//         <div className="w-[35%] border-r border-border">
-//           <InputPanelSkeleton />
-//         </div>
-
-//         {/* Resize Handle Skeleton */}
-//         <div className="w-[3px] bg-border/50 cursor-col-resize flex items-center justify-center shrink-0">
-//           <div className="w-1 h-8 rounded-full bg-muted-foreground/20" />
-//         </div>
-
-//         {/* Right Panel - Spreadsheet (65%) */}
-//         <div className="flex-1 min-w-0">
-//           <SpreadsheetPreviewSkeleton />
-//         </div>
-//       </div>
-//     </div>
-//   );
-// }
-
-// // ─── Arrow Connector Skeleton ─────────────────────────────────
-// function ArrowConnectorSkeleton() {
-//   return (
-//     <div className="flex justify-center py-1">
-//       <div className="flex flex-col items-center">
-//         <Skeleton className="h-5 w-5 rounded" />
-//         <Skeleton className="h-2 w-14 mt-0.5" />
-//       </div>
-//     </div>
-//   );
-// }
-
-// // ─── Master Sheet Panel Skeleton ──────────────────────────────
-// function MasterSheetPanelSkeleton() {
-//   return (
-//     <div className="rounded-xl border border-border bg-card overflow-hidden">
-//       {/* Header */}
-//       <div className="flex items-center justify-between px-4 py-3 border-b bg-muted/50">
-//         <div className="flex items-center gap-2">
-//           <Skeleton className="h-4 w-4 rounded" />
-//           <Skeleton className="h-3.5 w-28" />
-//           <Skeleton className="h-4 w-14 rounded-full" />
-//         </div>
-//         <div className="flex items-center gap-1.5">
-//           <Skeleton className="h-7 w-7 rounded-md" />
-//           <Skeleton className="h-7 w-7 rounded-md" />
-//           <Skeleton className="h-7 w-7 rounded-md" />
-//         </div>
-//       </div>
-
-//       {/* Spreadsheet grid - shorter version */}
-//       <div className="border-t border-border bg-background">
-//         <div className="flex border-b border-border bg-muted/50">
-//           <div className="w-10 h-7 border-r border-border shrink-0" />
-//           {Array.from({ length: 6 }).map((_, i) => (
-//             <div
-//               key={i}
-//               className="h-7 border-r border-border flex-1 min-w-[90px] flex items-center justify-center"
-//             >
-//               <Skeleton className="h-2.5 w-8" />
-//             </div>
-//           ))}
-//         </div>
-//         {Array.from({ length: 5 }).map((_, rowIdx) => (
-//           <div
-//             key={rowIdx}
-//             className="flex border-b border-border/50 last:border-b-0"
-//           >
-//             <div className="w-10 h-6 border-r border-border shrink-0 flex items-center justify-center bg-muted/30">
-//               <Skeleton className="h-2 w-3" />
-//             </div>
-//             {Array.from({ length: 6 }).map((_, colIdx) => (
-//               <div
-//                 key={colIdx}
-//                 className="h-6 border-r border-border/30 flex-1 min-w-[90px] flex items-center px-2"
-//               >
-//                 <Skeleton
-//                   className="h-2.5"
-//                   style={{
-//                     width: `${30 + Math.sin(rowIdx * 5 + colIdx * 3) * 25 + 20}%`,
-//                   }}
-//                 />
-//               </div>
-//             ))}
-//           </div>
-//         ))}
-//       </div>
-//     </div>
-//   );
-// }
-
-// // ─── MAIN EXPORT: Full Desk Page Skeleton ─────────────────────
-// export function DeskPageSkeleton() {
-//   return (
-//     <div className="h-full w-full flex flex-col bg-background animate-in fade-in duration-300">
-//       {/* Top Bar */}
-//       <TopBarSkeleton />
-
-//       {/* Blocks Pipeline */}
-//       <div className="flex-1 min-h-full max-h-full overflow-y-auto p-4 space-y-3">
-//         {/* BigBlock 1 */}
-//         <BigBlockSkeleton index={0} />
-
-//         {/* Arrow Connector */}
-//         <ArrowConnectorSkeleton />
-
-//         {/* BigBlock 2 */}
-//         <BigBlockSkeleton index={1} />
-
-//         {/* Master Sheet Panel */}
-//         <div className="pt-2">
-//           <MasterSheetPanelSkeleton />
-//         </div>
-//       </div>
-//     </div>
-//   );
-// }
-
 "use client";
 
 import React from "react";
 import { Skeleton } from "@repo/ui/components/ui/skeleton";
+import {
+  Crown,
+  Mail,
+  ShieldCheck,
+  Clock,
+  ArrowLeftRight,
+  Pencil,
+  ArrowDown,
+  Workflow,
+  Plus,
+  Table2,
+  History,
+  FileSpreadsheet,
+  Settings,
+  Play,
+  KeyRound,
+} from "lucide-react";
 
-function TopBarSkeleton() {
+/** Top Desk Owner Profile Header Skeleton */
+function DeskOwnerHeaderSkeleton() {
   return (
-    <div className="flex items-center gap-3 px-4 py-3 border-b">
-      <Skeleton className="w-8 h-8 rounded-lg" />
-      <div className="space-y-1">
-        <Skeleton className="h-4 w-20" />
-        <Skeleton className="h-2.5 w-40" />
+    <div className="relative overflow-hidden rounded-2xl border border-border bg-card/80 backdrop-blur-md p-4 sm:p-5 shadow-xs transition-all">
+      {/* Subtle background glow */}
+      <div className="absolute -top-16 -right-16 size-48 rounded-full bg-primary/5 blur-3xl pointer-events-none" />
+
+      <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-4">
+        {/* Left: Avatar + Details */}
+        <div className="flex items-start sm:items-center gap-3.5 sm:gap-5 min-w-0">
+          {/* Avatar with gold crown badge */}
+          <div className="relative shrink-0">
+            <div className="size-14 sm:size-16 rounded-2xl bg-muted/90 ring-2 ring-border/60 animate-pulse overflow-hidden flex items-center justify-center">
+              <Skeleton className="size-full rounded-2xl" />
+            </div>
+            {/* Crown badge */}
+            <div className="absolute -bottom-1 -right-1 size-6 sm:size-7 rounded-lg bg-amber-500/20 border-2 border-card flex items-center justify-center shadow-xs">
+              <Crown className="size-3.5 sm:size-4 text-amber-500 fill-amber-500/50" />
+            </div>
+          </div>
+
+          {/* Details */}
+          <div className="flex flex-col min-w-0 space-y-1.5">
+            {/* Row 1: Name + Active badge */}
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <Skeleton className="h-5 sm:h-6 w-36 sm:w-48 rounded-lg" />
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                <span className="size-1.5 rounded-full bg-emerald-500 animate-ping" />
+                <span>Active</span>
+              </div>
+            </div>
+
+            {/* Row 2: Role + Desk Tag */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <Skeleton className="h-3.5 sm:h-4 w-28 sm:w-36 rounded" />
+              <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-muted/80 border border-border/70">
+                <Skeleton className="h-3 w-20 rounded" />
+              </div>
+            </div>
+
+            {/* Row 3: Meta items */}
+            <div className="flex items-center gap-3 sm:gap-5 flex-wrap text-xs text-muted-foreground pt-0.5">
+              <div className="flex items-center gap-1.5">
+                <Mail className="size-3.5 text-muted-foreground/70 shrink-0" />
+                <Skeleton className="h-3 w-32 rounded" />
+              </div>
+              <div className="flex items-center gap-1.5">
+                <ShieldCheck className="size-3.5 text-sky-500 shrink-0" />
+                <span className="text-[11px] font-medium text-foreground/80">2FA Enforced</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Clock className="size-3.5 text-muted-foreground/70 shrink-0" />
+                <Skeleton className="h-3 w-24 rounded" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Right: Action Buttons Skeleton */}
+        <div className="flex items-center gap-2.5 shrink-0 self-end md:self-center">
+          <div className="flex items-center gap-2 px-3.5 py-2 rounded-xl border border-border bg-background/60 shadow-xs">
+            <ArrowLeftRight className="size-3.5 text-muted-foreground" />
+            <Skeleton className="h-3.5 w-24 rounded" />
+          </div>
+          <div className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-primary/15 border border-primary/20 shadow-xs">
+            <Pencil className="size-3.5 text-primary" />
+            <Skeleton className="h-3.5 w-16 rounded bg-primary/25" />
+          </div>
+        </div>
       </div>
     </div>
   );
 }
 
-function InputPanelSkeleton() {
-  return (
-    <div className="p-3 space-y-3">
-      <Skeleton className="h-4 w-24" />
+/** Realistic Spreadsheet Grid Skeleton */
+function SpreadsheetSkeletonGrid({ cols = 6, rows = 6 }: { cols?: number; rows?: number }) {
+  const colLetters = ["A", "B", "C", "D", "E", "F", "G", "H"];
+  const cellWidths = ["w-3/4", "w-1/2", "w-2/3", "w-4/5", "w-3/5", "w-1/2"];
 
-      {[1, 2, 3].map((i) => (
-        <div key={i} className="space-y-1.5">
-          <Skeleton className="h-2.5 w-16" />
-          <Skeleton className="h-8 w-full rounded-md" />
+  return (
+    <div className="h-full border border-border/80 rounded-lg overflow-hidden bg-background/60 flex flex-col">
+      {/* Column Headers */}
+      <div className="flex border-b border-border bg-muted/60 shrink-0">
+        <div className="w-10 h-7 border-r border-border/80 flex items-center justify-center shrink-0">
+          <span className="text-[10px] text-muted-foreground/40 font-mono">#</span>
         </div>
-      ))}
-    </div>
-  );
-}
+        {Array.from({ length: cols }).map((_, i) => (
+          <div
+            key={i}
+            className="flex-1 min-w-[75px] h-7 border-r border-border/80 last:border-r-0 flex items-center justify-center px-2"
+          >
+            <span className="text-[11px] font-semibold text-muted-foreground/70 font-mono">
+              {colLetters[i] || "Col"}
+            </span>
+          </div>
+        ))}
+      </div>
 
-function SpreadsheetPreviewSkeleton() {
-  return (
-    <div className="h-full p-2">
-      <Skeleton className="h-6 w-32 mb-2 rounded-md" />
+      {/* Rows */}
+      <div className="flex-1 min-h-0 flex flex-col divide-y divide-border/50">
+        {Array.from({ length: rows }).map((_, rIdx) => (
+          <div key={rIdx} className="flex h-7 items-stretch">
+            {/* Row Number */}
+            <div className="w-10 border-r border-border/80 bg-muted/30 flex items-center justify-center shrink-0">
+              <span className="text-[10px] font-mono text-muted-foreground/60">{rIdx + 1}</span>
+            </div>
 
-      <div className="border rounded-md overflow-hidden">
-        {Array.from({ length: 6 }).map((_, row) => (
-          <div key={row} className="flex border-b last:border-0">
-            {Array.from({ length: 5 }).map((_, col) => (
+            {/* Data Cells with Realistic Bar Shimmer */}
+            {Array.from({ length: cols }).map((_, cIdx) => (
               <div
-                key={col}
-                className="flex-1 h-7 px-2 flex items-center border-r last:border-0"
+                key={cIdx}
+                className="flex-1 min-w-[75px] border-r border-border/40 last:border-r-0 flex items-center px-2.5"
               >
-                <Skeleton className="h-2.5 w-12" />
+                <Skeleton
+                  className={`h-2.5 rounded ${cellWidths[(rIdx + cIdx) % cellWidths.length]}`}
+                />
               </div>
             ))}
           </div>
@@ -398,71 +145,205 @@ function SpreadsheetPreviewSkeleton() {
   );
 }
 
-function BigBlockSkeleton() {
+/** BigBlock Pipeline Skeleton with Split View & Segmented Tabs */
+function BigBlockSkeleton({ index }: { index: number }) {
   return (
-    <div className="rounded-xl border overflow-hidden">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b">
-        <div className="flex items-center gap-2">
-          <Skeleton className="w-6 h-6 rounded-full" />
-          <Skeleton className="h-4 w-28" />
+    <div className="rounded-2xl border border-border bg-card/70 backdrop-blur-sm shadow-xs overflow-hidden transition-all">
+      {/* BigBlock Top Header */}
+      <div className="flex items-center justify-between px-4 py-3 bg-muted/30 border-b border-border">
+        <div className="flex items-center gap-2.5">
+          <div className="size-6 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center text-[10px] font-bold text-primary shadow-2xs">
+            {index + 1}
+          </div>
+          <Skeleton className="h-4 w-32 rounded-md" />
         </div>
 
-        <Skeleton className="h-7 w-20 rounded-md" />
+        {/* Action Controls */}
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 px-3 py-1 rounded-lg border border-border bg-background/80 shadow-2xs">
+            <Play className="size-3 text-emerald-500 fill-emerald-500/30" />
+            <Skeleton className="h-3 w-12 rounded" />
+          </div>
+          <div className="size-7 rounded-lg border border-border bg-background/80 flex items-center justify-center">
+            <Settings className="size-3.5 text-muted-foreground/60" />
+          </div>
+        </div>
       </div>
 
-      {/* Content */}
-      <div className="flex min-h-[260px]">
-        <div className="w-[35%] border-r">
-          <InputPanelSkeleton />
+      {/* Segmented Tab Bar (Matches the new bordered pill tabs) */}
+      <div className="flex items-center justify-between px-3 py-1.5 bg-muted/40 border-b border-border gap-2">
+        <div className="flex items-center gap-1.5 overflow-x-auto py-0.5">
+          {/* Active Tab Pill Skeleton */}
+          <div className="inline-flex items-center rounded-lg border border-border bg-secondary shadow-xs overflow-hidden">
+            <div className="flex items-center gap-1.5 px-3 py-1.5">
+              <Skeleton className="h-3 w-14 rounded" />
+            </div>
+            <div className="h-4 w-px bg-border shrink-0" />
+            <div className="flex items-center gap-1 px-2.5 py-1.5">
+              <Workflow className="size-2.5 text-primary" />
+              <Skeleton className="h-2.5 w-8 rounded" />
+            </div>
+          </div>
+
+          {/* Inactive Tab Pill Skeleton */}
+          <div className="inline-flex items-center rounded-lg border border-border/70 bg-background/80 shadow-2xs overflow-hidden">
+            <div className="flex items-center gap-1.5 px-3 py-1.5">
+              <Skeleton className="h-3 w-12 rounded" />
+            </div>
+            <div className="h-4 w-px bg-border/60 shrink-0" />
+            <div className="flex items-center gap-1 px-2.5 py-1.5">
+              <Workflow className="size-2.5 text-muted-foreground/60" />
+              <Skeleton className="h-2.5 w-8 rounded" />
+            </div>
+          </div>
         </div>
 
-        <div className="flex-1">
-          <SpreadsheetPreviewSkeleton />
+        {/* Right Tab Controls */}
+        <div className="flex items-center gap-1.5 shrink-0 ml-2">
+          <div className="flex items-center gap-1.5 h-7 px-2.5 rounded-md border border-border bg-background shadow-2xs">
+            <Workflow className="size-3 text-primary" />
+            <Skeleton className="h-3 w-16 rounded" />
+          </div>
+          <div className="flex items-center gap-1 h-7 px-2 rounded-md bg-muted/60">
+            <Plus className="size-3 text-muted-foreground" />
+            <Skeleton className="h-3 w-10 rounded" />
+          </div>
+        </div>
+      </div>
+
+      {/* Split View: Left Inputs Panel + Right Spreadsheet Preview */}
+      <div className="flex flex-col md:flex-row min-h-[290px]">
+        {/* Left Inputs Panel (35%) */}
+        <div className="w-full md:w-[35%] border-b md:border-b-0 md:border-r border-border p-3.5 space-y-3.5 bg-card/40">
+          {/* Text Inputs Header */}
+          <div className="space-y-2">
+            <div className="flex items-center gap-1.5">
+              <Skeleton className="size-3.5 rounded" />
+              <Skeleton className="h-3 w-20 rounded" />
+            </div>
+            <div className="space-y-2">
+              <div className="p-2.5 rounded-xl border border-border/80 bg-background/70 space-y-1.5 shadow-2xs">
+                <Skeleton className="h-2.5 w-16 rounded" />
+                <Skeleton className="h-8 w-full rounded-lg" />
+              </div>
+              <div className="p-2.5 rounded-xl border border-border/80 bg-background/70 space-y-1.5 shadow-2xs">
+                <Skeleton className="h-2.5 w-20 rounded" />
+                <Skeleton className="h-8 w-full rounded-lg" />
+              </div>
+            </div>
+          </div>
+
+          {/* Sheets Section */}
+          <div className="space-y-2 pt-1 border-t border-border/50">
+            <div className="flex items-center gap-1.5">
+              <Skeleton className="size-3.5 rounded" />
+              <Skeleton className="h-3 w-16 rounded" />
+            </div>
+            <div className="p-2.5 rounded-xl border border-border/80 bg-muted/30 space-y-2 shadow-2xs">
+              <div className="flex items-center justify-between">
+                <Skeleton className="h-3 w-20 rounded" />
+                <Skeleton className="h-2.5 w-14 rounded" />
+              </div>
+              <div className="flex gap-1">
+                {[28, 36, 42, 30].map((w, i) => (
+                  <Skeleton key={i} className="h-4 rounded-md border border-border/60" style={{ width: `${w}px` }} />
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Right Spreadsheet Preview (65%) */}
+        <div className="flex-1 p-2.5 flex flex-col bg-background/30 min-w-0">
+          {/* Preview Tabs Header */}
+          <div className="flex items-center justify-between mb-2 px-1">
+            <div className="flex items-center gap-1.5">
+              <div className="h-6 px-3 rounded-md bg-secondary border border-border flex items-center shadow-2xs">
+                <Skeleton className="h-2.5 w-20 rounded" />
+              </div>
+              <div className="h-6 px-2.5 rounded-md bg-muted/40 flex items-center">
+                <Skeleton className="h-2.5 w-14 rounded" />
+              </div>
+              <div className="h-6 px-2 rounded-md bg-muted/30 flex items-center">
+                <Skeleton className="h-2.5 w-12 rounded" />
+              </div>
+            </div>
+            <Skeleton className="h-4 w-16 rounded-full" />
+          </div>
+
+          {/* Real Spreadsheet Grid */}
+          <div className="flex-1 min-h-[220px]">
+            <SpreadsheetSkeletonGrid cols={6} rows={6} />
+          </div>
         </div>
       </div>
     </div>
   );
 }
 
+/** Animated Flow Connector between BigBlocks */
 function ArrowConnectorSkeleton() {
   return (
     <div className="flex justify-center py-2">
-      <Skeleton className="h-6 w-6 rounded" />
+      <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-border/70 bg-card/60 shadow-2xs">
+        <ArrowDown className="size-3.5 text-primary animate-bounce" />
+        <span className="text-[10px] font-medium text-muted-foreground">data flows</span>
+      </div>
     </div>
   );
 }
 
-function MasterSheetPanelSkeleton() {
+/** Master Sheet Section Skeleton */
+function MasterSheetSectionSkeleton() {
   return (
-    <div className="rounded-xl border overflow-hidden">
-      <div className="flex items-center justify-between px-4 py-3 border-b">
-        <div className="flex items-center gap-2">
-          <Skeleton className="h-4 w-4 rounded" />
-          <Skeleton className="h-4 w-28" />
+    <div className="space-y-3 pt-2">
+      {/* Tabs navigation */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-1.5 bg-muted/50 p-1 rounded-xl border border-border">
+          <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-lg bg-background border border-border/80 shadow-2xs">
+            <Table2 className="size-3.5 text-primary" />
+            <Skeleton className="h-3 w-20 rounded" />
+          </div>
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-muted-foreground">
+            <History className="size-3.5 text-muted-foreground/60" />
+            <Skeleton className="h-3 w-28 rounded" />
+          </div>
         </div>
-
-        <Skeleton className="h-7 w-20 rounded-md" />
+        <Skeleton className="h-5 w-24 rounded-md" />
       </div>
 
-      <SpreadsheetPreviewSkeleton />
+      {/* Spreadsheet Card */}
+      <div className="rounded-2xl border border-border bg-card/70 backdrop-blur-sm p-3.5 shadow-xs">
+        <div className="h-[240px]">
+          <SpreadsheetSkeletonGrid cols={7} rows={7} />
+        </div>
+      </div>
     </div>
   );
 }
 
+/** Main Export: Complete Aesthetic Desk Page Skeleton */
 export function DeskPageSkeleton() {
   return (
-    <div className="h-full w-full flex flex-col bg-background">
-      <TopBarSkeleton />
+    <div className="h-full w-full flex flex-col bg-background animate-in fade-in duration-300">
+      {/* Desk Owner Header */}
+      <div className="px-4 pt-3 pb-1 shrink-0">
+        <DeskOwnerHeaderSkeleton />
+      </div>
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-3">
-        <BigBlockSkeleton />
+      {/* Pipeline Container */}
+      <div className="flex-1 min-h-full max-h-full overflow-y-auto p-4 space-y-3">
+        {/* BigBlock 1 */}
+        <BigBlockSkeleton index={0} />
 
+        {/* Animated Connector */}
         <ArrowConnectorSkeleton />
 
-        <BigBlockSkeleton />
+        {/* BigBlock 2 */}
+        <BigBlockSkeleton index={1} />
 
-        <MasterSheetPanelSkeleton />
+        {/* Master Sheet Section */}
+        <MasterSheetSectionSkeleton />
       </div>
     </div>
   );

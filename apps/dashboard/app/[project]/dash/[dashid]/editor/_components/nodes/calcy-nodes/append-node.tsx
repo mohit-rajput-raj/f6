@@ -1,13 +1,16 @@
 'use client';
 
 import { memo, useCallback } from 'react';
-import { Handle, Position, useReactFlow } from '@xyflow/react';
+import { Position, useReactFlow } from '@xyflow/react';
 import { ArrowDownUp } from 'lucide-react';
 import {
   BaseNode,
   BaseNodeContent,
   BaseNodeHeader,
   BaseNodeHeaderTitle,
+  BaseNodeIcon,
+  NodeHeaderActions,
+  NodeHandle,
 } from "@/components/dashboard/flow/Node/baseNode";
 import { NodeMenu } from "../node-menu";
 import { IconTrash } from "@tabler/icons-react";
@@ -34,57 +37,61 @@ export const AppendNode = memo(({ id, data }: { id: string; data: any }) => {
   }, [id, setNodes, config]);
 
   return (
-    <>
-      <div className="flex justify-between items-center px-2 pt-1">
-        <NodeMenu />
-        <IconTrash className="size-4 cursor-pointer text-red-400 hover:text-red-600" onClick={handleDelete} />
-      </div>
-
-      <BaseNode className="min-w-[280px]">
-        <BaseNodeHeader className="border-b flex items-center gap-2 px-3 py-1.5 bg-violet-700 text-white">
-          <ArrowDownUp className="size-4" />
+    <BaseNode variant="combine" className="min-w-[280px]">
+      <BaseNodeHeader variant="combine">
+        <div className="flex items-center gap-2 min-w-0">
+          <BaseNodeIcon variant="combine">
+            <ArrowDownUp className="size-3.5" />
+          </BaseNodeIcon>
           <BaseNodeHeaderTitle>Append (Stack)</BaseNodeHeaderTitle>
-        </BaseNodeHeader>
+        </div>
+        <NodeHeaderActions>
+          <NodeMenu />
+          <IconTrash
+            className="size-3.5 cursor-pointer text-muted-foreground hover:text-destructive transition-colors"
+            onClick={handleDelete}
+          />
+        </NodeHeaderActions>
+      </BaseNodeHeader>
 
-        <BaseNodeContent className="p-4 space-y-3">
-          <p className="text-[10px] text-muted-foreground bg-violet-50 dark:bg-violet-950 p-2 rounded">
-            Stack two datasets vertically (like SQL UNION). Combine data from different sections or time periods with the same columns.
-          </p>
+      <BaseNodeContent className="p-3.5 space-y-3">
+        <p className="text-[11px] text-muted-foreground bg-muted/40 p-2 rounded-lg border border-border/40">
+          Stack two datasets vertically (SQL UNION). Combine data from different periods or sections.
+        </p>
 
-          <div className="space-y-1">
-            <Label className="text-xs">Column Mode</Label>
-            <div className="flex gap-2">
-              <button
-                onClick={() => updateConfig({ mode: 'all' })}
-                className={`text-xs px-3 py-1 rounded-full border transition ${
-                  config.mode === 'all' ? 'bg-violet-600 text-white' : 'bg-background hover:bg-muted'
-                }`}
-              >
-                All columns (fill nulls)
-              </button>
-              <button
-                onClick={() => updateConfig({ mode: 'match' })}
-                className={`text-xs px-3 py-1 rounded-full border transition ${
-                  config.mode === 'match' ? 'bg-violet-600 text-white' : 'bg-background hover:bg-muted'
-                }`}
-              >
-                Matching columns only
-              </button>
-            </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground">Column mode</Label>
+          <div className="flex gap-1.5 p-0.5 rounded-lg bg-muted/50 border border-border/40">
+            <button
+              onClick={() => updateConfig({ mode: 'all' })}
+              className={`flex-1 text-xs py-1 rounded-md font-medium transition cursor-pointer nodrag ${
+                config.mode === 'all' ? 'bg-background text-foreground shadow-2xs' : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              All columns
+            </button>
+            <button
+              onClick={() => updateConfig({ mode: 'match' })}
+              className={`flex-1 text-xs py-1 rounded-md font-medium transition cursor-pointer nodrag ${
+                config.mode === 'match' ? 'bg-background text-foreground shadow-2xs' : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              Matching only
+            </button>
           </div>
+        </div>
 
-          {data.rowCount !== undefined && (
-            <div className="text-xs text-violet-600 font-medium text-center pt-2 border-t">
-              {data.rowCount} rows stacked
-            </div>
-          )}
-        </BaseNodeContent>
+        {data.rowCount !== undefined && (
+          <div className="text-[11px] text-fuchsia-600 dark:text-fuchsia-400 font-medium text-center pt-2 border-t border-border/40">
+            {data.rowCount} rows stacked
+          </div>
+        )}
+      </BaseNodeContent>
 
-        <Handle type="target" position={Position.Left} id="left" className="w-3 h-3 bg-violet-600" style={{ top: '35%' }} />
-        <Handle type="target" position={Position.Left} id="right" className="w-3 h-3 bg-violet-400" style={{ top: '65%' }} />
-        <Handle type="source" position={Position.Right} id="out" className="w-3 h-3 bg-violet-600" />
-      </BaseNode>
-    </>
+      <NodeHandle variant="combine" type="target" position={Position.Left} id="left" style={{ top: '35%' }} />
+      <NodeHandle variant="combine" type="target" position={Position.Left} id="right" style={{ top: '65%' }} />
+      <NodeHandle variant="combine" type="source" position={Position.Right} id="out" />
+    </BaseNode>
   );
 });
 

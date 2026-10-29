@@ -1,30 +1,45 @@
-import { Handle, Position } from "@xyflow/react";
+import { Position } from "@xyflow/react";
 import { memo } from "react";
+import { FileText } from "lucide-react";
 import { NodeData } from "../input-nodes/test-nodes";
+import {
+  BaseNode,
+  BaseNodeContent,
+  BaseNodeHeader,
+  BaseNodeHeaderTitle,
+  BaseNodeIcon,
+  NodeHandle,
+} from "@/components/dashboard/flow/Node/baseNode";
 
-export const OutputNode2 = memo(({ data }: { data: NodeData }) => {
+export const OutputNode2 = memo(({ data, selected }: { data: NodeData; selected?: boolean }) => {
   return (
-    <div className="bg-white border border-gray-300 rounded-xl shadow-sm w-[320px] overflow-hidden">
-      <div className="bg-emerald-600 text-white px-4 py-2 flex items-center gap-2 font-medium">
-        <span>📤</span>
-        Output Display
-      </div>
+    <BaseNode variant="output" selected={selected} className="w-[320px]">
+      <BaseNodeHeader variant="output">
+        <BaseNodeIcon variant="output">
+          <FileText className="size-4" />
+        </BaseNodeIcon>
+        <BaseNodeHeaderTitle>Output Display</BaseNodeHeaderTitle>
+      </BaseNodeHeader>
 
-      <div className="p-6 min-h-[140px]  flex items-center justify-center">
+      <BaseNodeContent className="p-4 min-h-[120px] flex items-center justify-center">
         {data.result ? (
-          <div className="text-center overflow-y-scroll">
-            <div className="text-xs uppercase tracking-widest text-emerald-600 mb-1">RESULT</div>
-            <div className="font-mono max-h-[140px] overflow-y-auto text-lg bg-gray-50 p-4 rounded border border-emerald-200 break-all">
-              {data.result}
+          <div className="w-full text-center">
+            <div className="text-[10px] uppercase tracking-widest text-emerald-600 dark:text-emerald-400 font-semibold mb-1">
+              RESULT
+            </div>
+            <div className="font-mono max-h-[140px] overflow-y-auto text-xs bg-muted/50 p-3 rounded-md border border-border/60 break-all text-foreground">
+              {typeof data.result === 'object' ? JSON.stringify(data.result, null, 2) : String(data.result)}
             </div>
           </div>
         ) : (
-          <div className="text-gray-400 italic">Run the workflow to see output here...</div>
+          <div className="text-xs text-muted-foreground italic text-center">
+            Run the workflow to see output here...
+          </div>
         )}
-      </div>
+      </BaseNodeContent>
 
-      <Handle type="target" position={Position.Left} id="in" className="w-3 h-3 bg-emerald-600" />
-    </div>
+      <NodeHandle variant="output" type="target" position={Position.Left} id="in" />
+    </BaseNode>
   );
 });
-OutputNode2.displayName = 'OutputNode2';
+OutputNode2.displayName = 'OutputNode2';

@@ -1,7 +1,7 @@
 "use client";
 
 import { memo, useState, useRef, useEffect } from "react";
-import { Handle, Position, useNodeId } from "@xyflow/react";
+import { Position } from "@xyflow/react";
 import { Image as ImageIcon, Upload, X } from "lucide-react";
 import { Button } from "@repo/ui/components/ui/button";
 
@@ -10,34 +10,40 @@ import {
   BaseNodeContent,
   BaseNodeHeader,
   BaseNodeHeaderTitle,
+  BaseNodeIcon,
+  NodeHeaderActions,
+  NodeHandle,
 } from "@/components/dashboard/flow/Node/baseNode";
 import { NodeMenu } from "../node-menu";
 import { IconTrash } from "@tabler/icons-react";
 import { useDeleteNode } from "../settings/triggers";
 
-export const InputImage = memo(() => {
+export const InputImage = memo(({ selected }: { selected?: boolean }) => {
   const [file, setFile] = useState<File | null>(null);
   const handleDelete = useDeleteNode();
 
   return (
-    <>
-      <div className="flex justify-between items-center ">
-        <NodeMenu />
-        <IconTrash className="size-4 cursor-pointer p-0 text-red-300" onClick={handleDelete} />
-      </div>
-      <BaseNode>
-        <BaseNodeHeader className="border-b flex items-center gap-2">
+    <BaseNode variant="input" selected={selected} className="min-w-[260px]">
+      <BaseNodeHeader variant="input">
+        <BaseNodeIcon variant="input">
           <ImageIcon className="size-4" />
-          <BaseNodeHeaderTitle>Input Image</BaseNodeHeaderTitle>
-        </BaseNodeHeader>
+        </BaseNodeIcon>
+        <BaseNodeHeaderTitle>Input Image</BaseNodeHeaderTitle>
+        <NodeHeaderActions>
+          <NodeMenu />
+          <IconTrash
+            className="size-4 cursor-pointer text-muted-foreground hover:text-destructive transition-colors"
+            onClick={handleDelete}
+          />
+        </NodeHeaderActions>
+      </BaseNodeHeader>
 
-        <BaseNodeContent>
-          <ImageInput file={file} onChange={setFile} />
-        </BaseNodeContent>
-      </BaseNode>
+      <BaseNodeContent className="p-3.5">
+        <ImageInput file={file} onChange={setFile} />
+      </BaseNodeContent>
 
-      <Handle type="source" position={Position.Right} />
-    </>
+      <NodeHandle variant="input" type="source" position={Position.Right} id="out" />
+    </BaseNode>
   );
 });
 

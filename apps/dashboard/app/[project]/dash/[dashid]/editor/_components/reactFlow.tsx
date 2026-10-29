@@ -13,8 +13,6 @@ import {
   Connection,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { BaseNodeFullDemo } from "./nodes/base-node";
-import { ActionBarNodeDemo } from "./nodes/BaseNode-action-bar";
 import { ContextMenuDemo } from "./ContextMenu";
 import { useUIStore } from "@/stores/ui.store";
 import { useEditorWorkFlow } from "@/context/WorkFlowContextProvider";
@@ -74,14 +72,11 @@ import { DeskTextInputNode } from "./nodes/input-nodes/desk-text-input-node";
 import { DeskSheetNode } from "./nodes/input-nodes/desk-sheet-node";
 import { TabInputNode } from "./nodes/input-nodes/tab-input-node";
 import { OutputPreviewNode } from "./nodes/output-nodes/output-preview-node";
-import { TrueFalseNode } from "./nodes/input-nodes/true-false-node";
 import { BlockOutputSenderNode } from "./nodes/output-nodes/block-output-sender-node";
 import { MasterSheetPreviewNode } from "./nodes/output-nodes/mastersheet-preview-node";
 import { MasterSheetLibraryNode } from "./nodes/input-nodes/mastersheet-library-node";
 import { DynamicBlockConcatNode } from "./nodes/calcy-nodes/dynamic-block-concat-node";
 import { BlockExtractorNode } from "./nodes/calcy-nodes/block-extractor-node";
-import { ActionButtonNode } from "./nodes/input-nodes/action-button-node";
-import { AISchemaAlignNode } from "./nodes/calcy-nodes/ai-schema-align-node";
 import { DynamicMasterSheetNode } from "./nodes/calcy-nodes/dynamic-mastersheet-node";
 import { UpdatedMergedPreviewNode } from "./nodes/output-nodes/updated-merged-preview-node";
 import { AnalyticsStackNode } from "./nodes/output-nodes/analytics-stack-node";
@@ -110,7 +105,11 @@ export function resolveColumnsFromNode(node: any): string[] | null {
   const { data } = node;
 
   // 1. Result columns (from executed node or GetFileNode)
-  if (data.result && Array.isArray(data.result.columns) && data.result.columns.length > 0) {
+  if (
+    data.result &&
+    Array.isArray(data.result.columns) &&
+    data.result.columns.length > 0
+  ) {
     return data.result.columns;
   }
 
@@ -130,7 +129,11 @@ export function resolveColumnsFromNode(node: any): string[] | null {
     if (typeof data.text === "string") {
       try {
         const parsed = JSON.parse(data.text);
-        if (parsed && Array.isArray(parsed.columns) && parsed.columns.length > 0) {
+        if (
+          parsed &&
+          Array.isArray(parsed.columns) &&
+          parsed.columns.length > 0
+        ) {
           return parsed.columns;
         }
       } catch {}
@@ -144,7 +147,9 @@ export function resolveColumnsFromNode(node: any): string[] | null {
 
   // 5. Multi-input nodes with combined left/right columns
   if (Array.isArray(data.leftColumns) || Array.isArray(data.rightColumns)) {
-    const combined = [...new Set([...(data.leftColumns || []), ...(data.rightColumns || [])])];
+    const combined = [
+      ...new Set([...(data.leftColumns || []), ...(data.rightColumns || [])]),
+    ];
     if (combined.length > 0) return combined;
   }
 
@@ -154,7 +159,6 @@ export function resolveColumnsFromNode(node: any): string[] | null {
 const Flow = ({ handleRuns }: { handleRuns?: () => void } = {}) => {
   const nodeTypess = useMemo(
     () => ({
-    
       InputFileNode: InputFileNode,
       InputImage: InputImage,
       InputText: InputText,
@@ -162,7 +166,6 @@ const Flow = ({ handleRuns }: { handleRuns?: () => void } = {}) => {
       SpreadsheetInputNode: SpreadsheetInputNode,
       DataLibraryInputNode: DataLibraryInputNode,
 
-    
       FilterNode: FilterNode,
       // CamelCaseNode: CamelCaseNode,
       LowercaseNode: LowercaseNode,
@@ -171,10 +174,8 @@ const Flow = ({ handleRuns }: { handleRuns?: () => void } = {}) => {
       SelectColumnsNode: SelectColumnsNode,
       DropColumnNode: DropColumnNode,
 
- 
       IfElseNode: IfElseNode,
       SwitchCaseNode: SwitchCaseNode,
-
 
       MathColumnNode: MathColumnNode,
       MathRowNode: MathRowNode,
@@ -182,7 +183,6 @@ const Flow = ({ handleRuns }: { handleRuns?: () => void } = {}) => {
       AggregateNode: AggregateNode,
       CountNode: CountNode,
 
- 
       MergeNode: MergeNode,
       UpdateMergeNode: UpdateMergeNode,
       SheetMergeNode: SheetMergeNode,
@@ -190,15 +190,11 @@ const Flow = ({ handleRuns }: { handleRuns?: () => void } = {}) => {
       ColumnMapNode: ColumnMapNode,
       UnionMergeNode: UnionMergeNode,
 
- 
       OutputNode2: OutputNode2,
       FileOutputNode: FileOutputNode,
       baseOutput: OutputNode,
 
-     
       FilterCsvNode: EditorCanvasCardSingle,
-      baseNodebar: ActionBarNodeDemo,
-      baseNodeFull: BaseNodeFullDemo,
 
       // Published workflow node
       SubflowNode: SubflowNode,
@@ -223,16 +219,13 @@ const Flow = ({ handleRuns }: { handleRuns?: () => void } = {}) => {
       DeskSheetNode: DeskSheetNode,
       TabInputNode: TabInputNode,
       OutputPreviewNode: OutputPreviewNode,
-      TrueFalseNode: TrueFalseNode,
       BlockOutputSenderNode: BlockOutputSenderNode,
       MasterSheetPreviewNode: MasterSheetPreviewNode,
       MasterSheetLibraryNode: MasterSheetLibraryNode,
       DynamicBlockConcatNode: DynamicBlockConcatNode,
       BlockExtractorNode: BlockExtractorNode,
-      ActionButtonNode: ActionButtonNode,
 
       // AI & MasterSheet updates
-      AISchemaAlignNode: AISchemaAlignNode,
       DynamicMasterSheetNode: DynamicMasterSheetNode,
       UpdatedMergedPreviewNode: UpdatedMergedPreviewNode,
       AnalyticsStackNode: AnalyticsStackNode,
@@ -244,12 +237,20 @@ const Flow = ({ handleRuns }: { handleRuns?: () => void } = {}) => {
       // Email output node
       EmailSenderNode: EmailSenderNode,
     }),
-    []
+    [],
   );
 
   const { minimapOpen, setSelectedNodeId } = useUIStore();
-  const { edges, nodes, setEdges, setNodes, pushHistory, deskBlockId, isReadOnly, workflowId } =
-    useEditorWorkFlow();
+  const {
+    edges,
+    nodes,
+    setEdges,
+    setNodes,
+    pushHistory,
+    deskBlockId,
+    isReadOnly,
+    workflowId,
+  } = useEditorWorkFlow();
   const [reactFlowInstance, setReactFlowInstance] =
     useState<ReactFlowInstance>();
   const pathname = usePathname();
@@ -257,8 +258,8 @@ const Flow = ({ handleRuns }: { handleRuns?: () => void } = {}) => {
   const cachedViewport = useWorkflowEditorStore(
     useCallback(
       (s) => (workflowId ? s.workflows[workflowId]?.viewport : undefined),
-      [workflowId]
-    )
+      [workflowId],
+    ),
   );
   const setStoreViewport = useWorkflowEditorStore((s) => s.setViewport);
 
@@ -268,13 +269,18 @@ const Flow = ({ handleRuns }: { handleRuns?: () => void } = {}) => {
         setStoreViewport(workflowId, viewport);
       }
     },
-    [workflowId, setStoreViewport]
+    [workflowId, setStoreViewport],
   );
 
   // Auto-fit view when nodes become available if no prior viewport exists
   const prevCountRef = React.useRef(nodes.length);
   useEffect(() => {
-    if (prevCountRef.current === 0 && nodes.length > 0 && reactFlowInstance && !cachedViewport) {
+    if (
+      prevCountRef.current === 0 &&
+      nodes.length > 0 &&
+      reactFlowInstance &&
+      !cachedViewport
+    ) {
       setTimeout(() => {
         reactFlowInstance.fitView({ padding: 0.2 });
       }, 50);
@@ -282,17 +288,22 @@ const Flow = ({ handleRuns }: { handleRuns?: () => void } = {}) => {
     prevCountRef.current = nodes.length;
   }, [nodes.length, reactFlowInstance, cachedViewport]);
 
-  const onDragOver = useCallback((event: any) => {
-    if (isReadOnly) return;
-    event.preventDefault();
-    event.dataTransfer.dropEffect = "move";
-  }, [isReadOnly]);
+  const onDragOver = useCallback(
+    (event: any) => {
+      if (isReadOnly) return;
+      event.preventDefault();
+      event.dataTransfer.dropEffect = "move";
+    },
+    [isReadOnly],
+  );
 
   const onNodesChange = useCallback(
     (changes: any) => {
       if (isReadOnly) {
         // Allow only selection changes for viewers, block position/remove/add
-        const allowed = changes.filter((c: any) => c.type === "select" || c.type === "dimensions");
+        const allowed = changes.filter(
+          (c: any) => c.type === "select" || c.type === "dimensions",
+        );
         if (allowed.length > 0) {
           setNodes((oldNodes) => applyNodeChanges(allowed, oldNodes));
         }
@@ -300,7 +311,7 @@ const Flow = ({ handleRuns }: { handleRuns?: () => void } = {}) => {
       }
       setNodes((oldNodes) => applyNodeChanges(changes, oldNodes));
     },
-    [setNodes, isReadOnly]
+    [setNodes, isReadOnly],
   );
 
   const onConnect = useCallback(
@@ -331,7 +342,9 @@ const Flow = ({ handleRuns }: { handleRuns?: () => void } = {}) => {
 
           if (
             targetHandle === "left" ||
-            (isMultiInput && (!targetHandle || targetHandle === "in") && (!n.data?.leftColumns || n.data.leftColumns.length === 0))
+            (isMultiInput &&
+              (!targetHandle || targetHandle === "in") &&
+              (!n.data?.leftColumns || n.data.leftColumns.length === 0))
           ) {
             return {
               ...n,
@@ -342,7 +355,10 @@ const Flow = ({ handleRuns }: { handleRuns?: () => void } = {}) => {
             };
           } else if (
             targetHandle === "right" ||
-            (isMultiInput && targetHandle !== "left" && n.data?.leftColumns?.length > 0 && (!n.data?.rightColumns || n.data.rightColumns.length === 0))
+            (isMultiInput &&
+              targetHandle !== "left" &&
+              n.data?.leftColumns?.length > 0 &&
+              (!n.data?.rightColumns || n.data.rightColumns.length === 0))
           ) {
             return {
               ...n,
@@ -363,7 +379,7 @@ const Flow = ({ handleRuns }: { handleRuns?: () => void } = {}) => {
         });
       });
     },
-    [setEdges, setNodes, pushHistory, isReadOnly]
+    [setEdges, setNodes, pushHistory, isReadOnly],
   );
 
   const onEdgesChange = useCallback(
@@ -385,7 +401,9 @@ const Flow = ({ handleRuns }: { handleRuns?: () => void } = {}) => {
 
         setNodes((oldNodes) =>
           oldNodes.map((node) => {
-            const affectedEdges = removedEdgesList.filter((e) => e.target === node.id);
+            const affectedEdges = removedEdgesList.filter(
+              (e) => e.target === node.id,
+            );
             if (affectedEdges.length === 0) return node;
 
             let updatedData = { ...node.data };
@@ -394,7 +412,7 @@ const Flow = ({ handleRuns }: { handleRuns?: () => void } = {}) => {
             for (const edge of affectedEdges) {
               if (edge.targetHandle === "left") {
                 const stillHasLeft = remainingEdges.some(
-                  (e) => e.target === node.id && e.targetHandle === "left"
+                  (e) => e.target === node.id && e.targetHandle === "left",
                 );
                 if (!stillHasLeft && updatedData.leftColumns?.length > 0) {
                   updatedData.leftColumns = [];
@@ -402,14 +420,16 @@ const Flow = ({ handleRuns }: { handleRuns?: () => void } = {}) => {
                 }
               } else if (edge.targetHandle === "right") {
                 const stillHasRight = remainingEdges.some(
-                  (e) => e.target === node.id && e.targetHandle === "right"
+                  (e) => e.target === node.id && e.targetHandle === "right",
                 );
                 if (!stillHasRight && updatedData.rightColumns?.length > 0) {
                   updatedData.rightColumns = [];
                   modified = true;
                 }
               } else {
-                const stillHasIncoming = remainingEdges.some((e) => e.target === node.id);
+                const stillHasIncoming = remainingEdges.some(
+                  (e) => e.target === node.id,
+                );
                 if (!stillHasIncoming && updatedData.inputColumns?.length > 0) {
                   if (!node.data?.text?.columns && !node.data?.columns) {
                     updatedData.inputColumns = [];
@@ -420,13 +440,13 @@ const Flow = ({ handleRuns }: { handleRuns?: () => void } = {}) => {
             }
 
             return modified ? { ...node, data: updatedData } : node;
-          })
+          }),
         );
       }
 
       setEdges((oldEdges) => applyEdgeChanges(changes, oldEdges));
     },
-    [setEdges, setNodes, edges, isReadOnly]
+    [setEdges, setNodes, edges, isReadOnly],
   );
 
   // Reactive column sync: if an edge exists and source node's data/columns become available
@@ -495,8 +515,12 @@ const Flow = ({ handleRuns }: { handleRuns?: () => void } = {}) => {
           data: {
             ...targetNode.data,
             ...(newLeftCols !== undefined ? { leftColumns: newLeftCols } : {}),
-            ...(newRightCols !== undefined ? { rightColumns: newRightCols } : {}),
-            ...(newInputCols !== undefined ? { inputColumns: newInputCols } : {}),
+            ...(newRightCols !== undefined
+              ? { rightColumns: newRightCols }
+              : {}),
+            ...(newInputCols !== undefined
+              ? { inputColumns: newInputCols }
+              : {}),
           },
         };
       }
@@ -514,7 +538,7 @@ const Flow = ({ handleRuns }: { handleRuns?: () => void } = {}) => {
       event.preventDefault();
 
       const type: EditorCanvasCardType["type"] = event.dataTransfer.getData(
-        "application/reactflow"
+        "application/reactflow",
       );
 
       if (typeof type === "undefined" || !type) {
@@ -532,7 +556,14 @@ const Flow = ({ handleRuns }: { handleRuns?: () => void } = {}) => {
       let extraData: any = {};
 
       // Auto-inject deskBlockId for desk-type nodes
-      const deskNodeTypes = ["DeskTextInputNode", "DeskSheetNode", "TabInputNode", "OutputPreviewNode", "TrueFalseNode", "BlockOutputSenderNode", "MasterSheetPreviewNode"];
+      const deskNodeTypes = [
+        "DeskTextInputNode",
+        "DeskSheetNode",
+        "TabInputNode",
+        "OutputPreviewNode",
+        "BlockOutputSenderNode",
+        "MasterSheetPreviewNode",
+      ];
       if (deskBlockId && deskNodeTypes.includes(type)) {
         extraData.deskBlockId = deskBlockId;
       }
@@ -543,8 +574,7 @@ const Flow = ({ handleRuns }: { handleRuns?: () => void } = {}) => {
         position,
         data: {
           title: extraData.publishedName || type,
-          description:
-            EditorCanvasDefaultCardTypes[type]?.description ?? "",
+          description: EditorCanvasDefaultCardTypes[type]?.description ?? "",
           completed: false,
           current: false,
           metadata: {},
@@ -555,7 +585,7 @@ const Flow = ({ handleRuns }: { handleRuns?: () => void } = {}) => {
       //@ts-ignore
       setNodes((nds) => nds.concat(newNode));
     },
-    [reactFlowInstance, pushHistory, deskBlockId, isReadOnly]
+    [reactFlowInstance, pushHistory, deskBlockId, isReadOnly],
   );
 
   const onNodeDragStop = useCallback(() => {
@@ -563,12 +593,15 @@ const Flow = ({ handleRuns }: { handleRuns?: () => void } = {}) => {
     pushHistory();
   }, [pushHistory, isReadOnly]);
 
-  const onNodeClick = useCallback((_event: any, node: any) => {
-    setSelectedNodeId(node.id);
-  }, [setSelectedNodeId]);
+  const onNodeClick = useCallback(
+    (_event: any, node: any) => {
+      setSelectedNodeId(node.id);
+    },
+    [setSelectedNodeId],
+  );
 
   return (
-    <div className="w-full h-[100%]">
+    <div className="w-full h-full bg-background/30 relative">
       <ContextMenuDemo>
         <ReactFlow
           edges={edges}
@@ -592,9 +625,16 @@ const Flow = ({ handleRuns }: { handleRuns?: () => void } = {}) => {
           edgesReconnectable={!isReadOnly}
           deleteKeyCode={isReadOnly ? null : "Delete"}
         >
-          <Background />
-          <Controls className="dark:text-zinc-800" />
-          {minimapOpen && <MiniMap />}
+          <Background
+            gap={18}
+            size={1}
+            color="var(--border)"
+            className="opacity-60"
+          />
+          <Controls className="bg-card text-card-foreground border border-border/40 shadow-xs rounded-xl overflow-hidden fill-foreground" />
+          {minimapOpen && (
+            <MiniMap className="bg-card/90 border border-border/40 rounded-xl overflow-hidden shadow-xs" />
+          )}
         </ReactFlow>
       </ContextMenuDemo>
     </div>

@@ -1,13 +1,16 @@
 'use client';
 
 import { memo, useCallback } from 'react';
-import { Handle, Position, useReactFlow } from '@xyflow/react';
+import { Position, useReactFlow } from '@xyflow/react';
 import { ArrowLeftFromLine } from 'lucide-react';
 import {
   BaseNode,
   BaseNodeContent,
   BaseNodeHeader,
   BaseNodeHeaderTitle,
+  BaseNodeIcon,
+  NodeHeaderActions,
+  NodeHandle,
 } from "@/components/dashboard/flow/Node/baseNode";
 import { NodeMenu } from "../node-menu";
 import { IconTrash } from "@tabler/icons-react";
@@ -30,15 +33,7 @@ export interface WorkflowOutputConfig {
   description?: string;
 }
 
-interface WorkflowOutputData {
-  title?: string;
-  config?: WorkflowOutputConfig;
-  result?: any;
-  rowCount?: number;
-  error?: string;
-}
-
-export const WorkflowOutputNode = memo(({ id, data }: { id: string; data: WorkflowOutputData }) => {
+export const WorkflowOutputNode = memo(({ id, data }: { id: string; data: any }) => {
   const { setNodes } = useReactFlow();
   const handleDelete = useDeleteNode();
 
@@ -54,88 +49,86 @@ export const WorkflowOutputNode = memo(({ id, data }: { id: string; data: Workfl
   }, [id, setNodes, config]);
 
   return (
-    <>
-      <div className="flex justify-between items-center px-2 pt-1">
-        <NodeMenu />
-        <IconTrash className="size-4 cursor-pointer text-red-400 hover:text-red-600" onClick={handleDelete} />
-      </div>
-
-      <BaseNode className="min-w-[280px]">
-        <BaseNodeHeader className="border-b flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-amber-600 to-orange-600 text-white rounded-t-md">
-          <ArrowLeftFromLine className="size-4" />
-          <BaseNodeHeaderTitle className="text-white">
+    <BaseNode variant="output" className="min-w-[280px]">
+      <BaseNodeHeader variant="output">
+        <div className="flex items-center gap-2 min-w-0">
+          <BaseNodeIcon variant="output">
+            <ArrowLeftFromLine className="size-3.5" />
+          </BaseNodeIcon>
+          <BaseNodeHeaderTitle>
             {config.label || 'Workflow Output'}
           </BaseNodeHeaderTitle>
-          <Badge variant="outline" className="text-[10px] border-white/30 text-white/80 ml-auto">
-            📤 Output
+          <Badge variant="outline" className="text-[10px] font-mono border-emerald-500/30 text-emerald-700 dark:text-emerald-300">
+            Output
           </Badge>
-        </BaseNodeHeader>
+        </div>
+        <NodeHeaderActions>
+          <NodeMenu />
+          <IconTrash
+            className="size-3.5 cursor-pointer text-muted-foreground hover:text-destructive transition-colors"
+            onClick={handleDelete}
+          />
+        </NodeHeaderActions>
+      </BaseNodeHeader>
 
-        <BaseNodeContent className="p-3 space-y-3">
-          {/* Label */}
-          <div className="space-y-1">
-            <Label className="text-xs">Label</Label>
-            <Input
-              value={config.label ?? ''}
-              onChange={e => updateConfig({ label: e.target.value })}
-              placeholder="e.g. Processed Attendance"
-              className="h-8 text-sm nodrag"
-            />
+      <BaseNodeContent className="p-3.5 space-y-3">
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground">Label</Label>
+          <Input
+            value={config.label ?? ''}
+            onChange={e => updateConfig({ label: e.target.value })}
+            placeholder="e.g. Processed Attendance"
+            className="h-8 text-xs nodrag"
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground">Data Type</Label>
+          <Select
+            value={config.dataType ?? 'dataset'}
+            onValueChange={v => updateConfig({ dataType: v as WorkflowOutputConfig['dataType'] })}
+          >
+            <SelectTrigger className="h-8 text-xs nodrag">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="dataset">Dataset (columns + rows)</SelectItem>
+              <SelectItem value="text">Text</SelectItem>
+              <SelectItem value="any">Any</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground">Description (optional)</Label>
+          <Textarea
+            value={config.description ?? ''}
+            onChange={e => updateConfig({ description: e.target.value })}
+            placeholder="Help text for what this output produces..."
+            className="h-16 text-xs resize-none nodrag"
+          />
+        </div>
+
+        {data.error && (
+          <div className="text-xs text-destructive bg-destructive/10 border border-destructive/20 p-2 rounded-lg">
+            ⚠ {data.error}
           </div>
+        )}
 
-          {/* Data Type */}
-          <div className="space-y-1">
-            <Label className="text-xs">Data Type</Label>
-            <Select
-              value={config.dataType ?? 'dataset'}
-              onValueChange={v => updateConfig({ dataType: v as WorkflowOutputConfig['dataType'] })}
-            >
-              <SelectTrigger className="h-8 text-sm nodrag">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="dataset">Dataset (columns + rows)</SelectItem>
-                <SelectItem value="text">Text</SelectItem>
-                <SelectItem value="any">Any</SelectItem>
-              </SelectContent>
-            </Select>
+        {data.rowCount !== undefined && (
+          <div className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium text-center pt-2 border-t border-border/40">
+            {data.rowCount} rows output
           </div>
+        )}
+      </BaseNodeContent>
 
-          {/* Description */}
-          <div className="space-y-1">
-            <Label className="text-xs">Description</Label>
-            <Textarea
-              value={config.description ?? ''}
-              onChange={e => updateConfig({ description: e.target.value })}
-              placeholder="What kind of data does this output produce?"
-              className="text-sm min-h-[50px] nodrag"
-              rows={2}
-            />
-          </div>
-
-          {/* Status */}
-          {data.error && (
-            <div className="text-xs text-red-500 bg-red-50 dark:bg-red-950 p-2 rounded">
-              ⚠ {data.error}
-            </div>
-          )}
-
-          {data.rowCount !== undefined && (
-            <div className="text-xs text-amber-600 font-medium text-center pt-2 border-t">
-              {data.rowCount} rows output
-            </div>
-          )}
-        </BaseNodeContent>
-
-        {/* Only TARGET handle — data flows IN from the internal workflow */}
-        <Handle
-          type="target"
-          position={Position.Left}
-          id={`wf-output-${id}`}
-          className="w-3 h-3 bg-amber-500"
-        />
-      </BaseNode>
-    </>
+      <NodeHandle
+        variant="output"
+        type="target"
+        position={Position.Left}
+        id={`wf-output-${id}`}
+      />
+    </BaseNode>
   );
 });
 

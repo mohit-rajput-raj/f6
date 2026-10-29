@@ -1,10 +1,16 @@
 'use client';
 
 import { memo, useCallback, useEffect } from 'react';
-import { Handle, Position, useReactFlow } from '@xyflow/react';
+import { Position, useReactFlow } from '@xyflow/react';
 import { TextCursorInput } from 'lucide-react';
 import {
-  BaseNode, BaseNodeContent, BaseNodeHeader, BaseNodeHeaderTitle,
+  BaseNode,
+  BaseNodeContent,
+  BaseNodeHeader,
+  BaseNodeHeaderTitle,
+  BaseNodeIcon,
+  NodeHeaderActions,
+  NodeHandle,
 } from "@/components/dashboard/flow/Node/baseNode";
 import { NodeMenu } from "../node-menu";
 import { IconTrash } from "@tabler/icons-react";
@@ -20,7 +26,7 @@ import { useEditorWorkFlow } from '@/context/WorkFlowContextProvider';
  * data.placeholder  = editable placeholder text (becomes the node label)
  * data.text         = current value (synced from desk store)
  */
-export const DeskTextInputNode = memo(({ id, data }: { id: string; data: any }) => {
+export const DeskTextInputNode = memo(({ id, data, selected }: { id: string; data: any; selected?: boolean }) => {
   const { setNodes } = useReactFlow();
   const defaultHandleDelete = useDeleteNode();
   const { deskBlockId: contextBlockId } = useEditorWorkFlow();
@@ -71,58 +77,68 @@ export const DeskTextInputNode = memo(({ id, data }: { id: string; data: any }) 
   }, [id, setNodes, deskBlockId, deskInputId]);
 
   return (
-    <>
-      <div className="flex justify-between items-center px-2 pt-1">
-        <NodeMenu />
-        <IconTrash className="size-4 cursor-pointer text-red-400 hover:text-red-600" onClick={handleDelete} />
-      </div>
-
-      <BaseNode className="w-[240px]">
-        <BaseNodeHeader className="border-b flex items-center gap-2 px-3 py-1.5 bg-teal-600 text-white">
+    <BaseNode variant="input" selected={selected} className="w-[250px]">
+      <BaseNodeHeader variant="input">
+        <BaseNodeIcon variant="input">
           <TextCursorInput className="size-4" />
-          <BaseNodeHeaderTitle className="text-white text-sm">
-            {placeholder}
-          </BaseNodeHeaderTitle>
-        </BaseNodeHeader>
+        </BaseNodeIcon>
+        <BaseNodeHeaderTitle>{placeholder}</BaseNodeHeaderTitle>
+        <NodeHeaderActions>
+          <NodeMenu />
+          <IconTrash
+            className="size-4 cursor-pointer text-muted-foreground hover:text-destructive transition-colors"
+            onClick={handleDelete}
+          />
+        </NodeHeaderActions>
+      </BaseNodeHeader>
 
-        <BaseNodeContent className="p-3 space-y-2">
-          {/* Editable placeholder label */}
-          <div className="space-y-1">
-            <label className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">
-              Label / Placeholder
-            </label>
-            <input
-              value={placeholder}
-              onChange={(e) => updatePlaceholder(e.target.value)}
-              className="w-full h-7 px-2 text-xs border rounded bg-background focus:outline-none focus:ring-1 focus:ring-teal-500 nodrag"
-              placeholder="e.g. Student Name"
-            />
-          </div>
+      <BaseNodeContent className="p-3.5 space-y-2.5">
+        {/* Editable placeholder label */}
+        <div className="space-y-1">
+          <label className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">
+            Label / Placeholder
+          </label>
+          <input
+            value={placeholder}
+            onChange={(e) => updatePlaceholder(e.target.value)}
+            className="w-full h-7 px-2 text-xs border border-border/60 rounded-md bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-sky-500 nodrag"
+            placeholder="e.g. Student Name"
+          />
+        </div>
 
-          {/* Current value display */}
-          <div className="text-xs bg-teal-50 dark:bg-teal-950 border border-teal-200 dark:border-teal-800 rounded px-2 py-1.5 min-h-[28px]">
-            {currentValue ? (
-              <span className="text-teal-700 dark:text-teal-300">→ "{currentValue}"</span>
-            ) : (
-              <span className="text-muted-foreground italic">Waiting for desk input...</span>
-            )}
-          </div>
-
-          {!deskBlockId && (
-            <p className="text-[9px] text-amber-500 text-center">
-              ⚠ No block ID set. Open this editor from a desk block.
-            </p>
+        {/* Current value display */}
+        <div className="text-xs bg-muted/40 border border-border/50 rounded-md px-2.5 py-1.5 min-h-[30px] flex items-center">
+          {currentValue ? (
+            <span className="text-foreground font-mono text-[11px] truncate">
+              → &ldquo;{currentValue}&rdquo;
+            </span>
+          ) : (
+            <span className="text-muted-foreground italic text-[11px]">
+              Waiting for desk input...
+            </span>
           )}
+        </div>
 
-          <p className="text-[9px] text-muted-foreground text-center">
-            📝 Value set from Desk panel
+        {!deskBlockId && (
+          <p className="text-[9px] text-muted-foreground/80 text-center">
+            ⚠ No block ID set. Open this editor from a desk block.
           </p>
-        </BaseNodeContent>
+        )}
 
-        <Handle type="source" position={Position.Right} id="out" className="w-3 h-3 bg-teal-600" />
-      </BaseNode>
-    </>
+        <p className="text-[10px] text-sky-600 dark:text-sky-400 text-center font-medium">
+          Value linked from Desk panel
+        </p>
+      </BaseNodeContent>
+
+      <NodeHandle
+        variant="input"
+        type="source"
+        position={Position.Right}
+        id="out"
+      />
+    </BaseNode>
   );
 });
 
 DeskTextInputNode.displayName = 'DeskTextInputNode';
+

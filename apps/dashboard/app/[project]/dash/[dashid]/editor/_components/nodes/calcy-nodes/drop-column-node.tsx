@@ -1,13 +1,16 @@
 'use client';
 
 import { memo, useCallback } from 'react';
-import { Handle, Position, useReactFlow } from '@xyflow/react';
+import { Position, useReactFlow } from '@xyflow/react';
 import { X } from 'lucide-react';
 import {
   BaseNode,
   BaseNodeContent,
   BaseNodeHeader,
   BaseNodeHeaderTitle,
+  BaseNodeIcon,
+  NodeHeaderActions,
+  NodeHandle,
 } from "@/components/dashboard/flow/Node/baseNode";
 import { NodeMenu } from "../node-menu";
 import { IconTrash } from "@tabler/icons-react";
@@ -18,10 +21,6 @@ interface DropColumnConfig {
   columnsToDrop?: string[];
 }
 
-/**
- * DropColumnNode — removes specific columns from a dataset.
- * Input: a,b,c,d → drop 'a' → Output: b,c,d
- */
 export const DropColumnNode = memo(({ id, data }: { id: string; data: any }) => {
   const { setNodes } = useReactFlow();
   const handleDelete = useDeleteNode();
@@ -50,83 +49,93 @@ export const DropColumnNode = memo(({ id, data }: { id: string; data: any }) => 
   const remainingColumns = availableColumns.filter(c => !columnsToDrop.includes(c));
 
   return (
-    <>
-      <div className="flex justify-between items-center px-2 pt-1">
-        <NodeMenu />
-        <IconTrash className="size-4 cursor-pointer text-red-400 hover:text-red-600" onClick={handleDelete} />
-      </div>
-
-      <BaseNode className="min-w-[280px]">
-        <BaseNodeHeader className="border-b flex items-center gap-2 px-3 py-1.5 bg-rose-700 text-white">
-          <X className="size-4" />
+    <BaseNode variant="transform" className="min-w-[280px]">
+      <BaseNodeHeader variant="transform">
+        <div className="flex items-center gap-2 min-w-0">
+          <BaseNodeIcon variant="transform">
+            <X className="size-3.5" />
+          </BaseNodeIcon>
           <BaseNodeHeaderTitle>Drop Columns</BaseNodeHeaderTitle>
-        </BaseNodeHeader>
+        </div>
+        <NodeHeaderActions>
+          <NodeMenu />
+          <IconTrash
+            className="size-3.5 cursor-pointer text-muted-foreground hover:text-destructive transition-colors"
+            onClick={handleDelete}
+          />
+        </NodeHeaderActions>
+      </BaseNodeHeader>
 
-        <BaseNodeContent className="p-4 space-y-3">
-          <div className="space-y-1">
-            <Label className="text-xs">Click columns to drop (red = will be removed)</Label>
-
+      <BaseNodeContent className="p-3.5 space-y-3">
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between">
+            <Label className="text-xs text-muted-foreground">Click columns to drop</Label>
             {availableColumns.length > 0 && (
-              <div className="flex gap-1 mb-1">
+              <div className="flex gap-1.5 nodrag">
                 <button
                   onClick={() => updateConfig({ columnsToDrop: [...availableColumns] })}
-                  className="text-[10px] px-2 py-0.5 rounded border bg-rose-100 dark:bg-rose-900 hover:bg-rose-200 dark:hover:bg-rose-800 transition"
+                  className="text-[10px] text-destructive hover:underline cursor-pointer"
                 >
                   Drop All
                 </button>
+                <span className="text-[10px] text-muted-foreground">·</span>
                 <button
                   onClick={() => updateConfig({ columnsToDrop: [] })}
-                  className="text-[10px] px-2 py-0.5 rounded border hover:bg-muted transition"
+                  className="text-[10px] text-muted-foreground hover:text-foreground cursor-pointer"
                 >
-                  Keep All
+                  Reset
                 </button>
               </div>
             )}
-
-            <div className="flex flex-wrap gap-1 max-h-[150px] overflow-y-auto border rounded p-2">
-              {availableColumns.length === 0 && (
-                <span className="text-xs text-muted-foreground">Connect input first</span>
-              )}
-              {availableColumns.map(col => (
-                <button
-                  key={col}
-                  onClick={() => toggleColumn(col)}
-                  className={`text-xs px-2 py-0.5 rounded-full border transition ${
-                    columnsToDrop.includes(col)
-                      ? 'bg-rose-600 text-white border-rose-600 line-through'
-                      : 'bg-background hover:bg-muted'
-                  }`}
-                >
-                  {col}
-                </button>
-              ))}
-            </div>
           </div>
 
-          {columnsToDrop.length > 0 && (
-            <div className="text-[10px] text-muted-foreground border-t pt-2 space-y-0.5">
-              <div>
-                <span className="text-rose-500 font-medium">Dropping:</span>{' '}
-                {columnsToDrop.join(', ')}
-              </div>
-              <div>
-                <span className="text-emerald-500 font-medium">Keeping:</span>{' '}
-                {remainingColumns.length > 0 ? remainingColumns.join(', ') : 'none'}
-              </div>
-            </div>
-          )}
+          <div className="flex flex-wrap gap-1 max-h-[140px] overflow-y-auto border border-border/40 rounded-lg p-2 bg-muted/20">
+            {availableColumns.length === 0 ? (
+              <span className="text-xs text-muted-foreground italic">Connect input first</span>
+            ) : (
+              availableColumns.map(col => {
+                const isDropped = columnsToDrop.includes(col);
+                return (
+                  <button
+                    key={col}
+                    onClick={() => toggleColumn(col)}
+                    className={`text-xs px-2 py-0.5 rounded-md border transition cursor-pointer nodrag ${
+                      isDropped
+                        ? 'bg-destructive/15 text-destructive border-destructive/30 line-through font-medium'
+                        : 'bg-background/80 text-muted-foreground border-border/40 hover:bg-muted'
+                    }`}
+                  >
+                    {col}
+                  </button>
+                );
+              })
+            )}
+          </div>
+        </div>
 
-          {data.rowCount !== undefined && (
-            <div className="text-xs text-rose-600 font-medium text-center pt-2 border-t">
-              {data.rowCount} rows • {remainingColumns.length} columns remaining
+        {columnsToDrop.length > 0 && (
+          <div className="text-[10px] text-muted-foreground border-t border-border/40 pt-2 space-y-0.5">
+            <div>
+              <span className="text-destructive font-medium">Dropping:</span>{' '}
+              {columnsToDrop.join(', ')}
             </div>
-          )}
-        </BaseNodeContent>
+            <div>
+              <span className="text-emerald-600 dark:text-emerald-400 font-medium">Keeping:</span>{' '}
+              {remainingColumns.length > 0 ? remainingColumns.join(', ') : 'none'}
+            </div>
+          </div>
+        )}
 
-        <Handle type="target" position={Position.Left} id="in" className="w-3 h-3 bg-rose-600" />
-        <Handle type="source" position={Position.Right} id="out" className="w-3 h-3 bg-rose-600" />
-      </BaseNode>
-    </>
+        {data.rowCount !== undefined && (
+          <div className="text-[11px] text-muted-foreground font-medium text-center pt-2 border-t border-border/40">
+            {data.rowCount} rows • {remainingColumns.length} columns remaining
+          </div>
+        )}
+      </BaseNodeContent>
+
+      <NodeHandle variant="transform" type="target" position={Position.Left} id="in" />
+      <NodeHandle variant="transform" type="source" position={Position.Right} id="out" />
+    </BaseNode>
   );
 });
 

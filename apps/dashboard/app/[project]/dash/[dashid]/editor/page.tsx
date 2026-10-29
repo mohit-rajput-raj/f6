@@ -50,7 +50,7 @@ const Page = async ({ params }: Props) => {
   }
 
   return (
-    <div className="w-full h-screen p-1 flex flex-col gap-1">
+    <div className="w-full h-screen p-2 flex flex-col gap-2 bg-background text-foreground">
       <ErrorBoundary fallback={<p>Something went wrong</p>}>
         <Suspense fallback={<p>Loading workflow...</p>}>
           <WorkFlowEditor

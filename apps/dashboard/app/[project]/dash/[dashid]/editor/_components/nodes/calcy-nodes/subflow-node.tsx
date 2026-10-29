@@ -8,6 +8,9 @@ import {
   BaseNodeContent,
   BaseNodeHeader,
   BaseNodeHeaderTitle,
+  BaseNodeIcon,
+  NodeHeaderActions,
+  NodeHandle,
 } from "@/components/dashboard/flow/Node/baseNode";
 import { NodeMenu } from "../node-menu";
 import { IconTrash } from "@tabler/icons-react";
@@ -86,24 +89,23 @@ export const SubflowNode = memo(({ id, data }: { id: string; data: SubflowData }
   }, [id, setNodes, config]);
 
   return (
-    <>
-      <div className="flex justify-between items-center px-2 pt-1">
-        <NodeMenu />
-        <IconTrash className="size-4 cursor-pointer text-red-400 hover:text-red-600" onClick={handleDelete} />
-      </div>
-
-      <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-        <SheetTrigger asChild>
-          <BaseNode className="min-w-[220px] max-w-[280px] cursor-pointer hover:shadow-lg transition-shadow">
-            {/* Gradient header */}
-            <BaseNodeHeader className="border-b flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-t-md">
-              <span className="text-lg">{data.publishedIcon || '⚡'}</span>
-              <BaseNodeHeaderTitle className="text-white text-sm">
-                {data.publishedName || data.title || 'Subflow'}
-              </BaseNodeHeaderTitle>
-              <Badge variant="outline" className="text-[10px] border-white/30 text-white/80 ml-auto">
-                Workflow
-              </Badge>
+    <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+      <SheetTrigger asChild>
+          <BaseNode variant="transform" className="min-w-[240px] max-w-[290px] cursor-pointer hover:shadow-lg transition-shadow">
+            <BaseNodeHeader variant="transform">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="text-base shrink-0">{data.publishedIcon || '⚡'}</span>
+                <BaseNodeHeaderTitle className="text-xs truncate">
+                  {data.publishedName || data.title || 'Subflow'}
+                </BaseNodeHeaderTitle>
+              </div>
+              <NodeHeaderActions>
+                <NodeMenu />
+                <IconTrash
+                  className="size-3.5 cursor-pointer text-muted-foreground hover:text-destructive transition-colors"
+                  onClick={handleDelete}
+                />
+              </NodeHeaderActions>
             </BaseNodeHeader>
 
             <BaseNodeContent className="p-3 space-y-2">
@@ -151,14 +153,13 @@ export const SubflowNode = memo(({ id, data }: { id: string; data: SubflowData }
               <p className="text-[9px] text-muted-foreground text-center">Click to inspect</p>
             </BaseNodeContent>
 
-            {/* Dynamic INPUT handles — one per inputSchema item */}
             {inputSchema.map((inp, i) => (
               <Handle
                 key={`in-${inp.nodeId}`}
                 type="target"
                 position={Position.Left}
                 id={`subflow-in-${inp.nodeId}`}
-                className="w-3 h-3 bg-emerald-500"
+                className="!w-3 !h-3 rounded-full !border-2 !border-background shadow-xs hover:!scale-130 transition-transform cursor-crosshair z-10 !bg-sky-500"
                 style={{
                   top: `${30 + ((i + 1) / (inputSchema.length + 1)) * 70}%`,
                 }}
@@ -172,7 +173,7 @@ export const SubflowNode = memo(({ id, data }: { id: string; data: SubflowData }
                 type="source"
                 position={Position.Right}
                 id={`subflow-out-${out.nodeId}`}
-                className="w-3 h-3 bg-amber-500"
+                className="!w-3 !h-3 rounded-full !border-2 !border-background shadow-xs hover:!scale-130 transition-transform cursor-crosshair z-10 !bg-emerald-500"
                 style={{
                   top: `${30 + ((i + 1) / (outputSchema.length + 1)) * 70}%`,
                 }}
@@ -280,8 +281,7 @@ export const SubflowNode = memo(({ id, data }: { id: string; data: SubflowData }
             </TabsContent>
           </Tabs>
         </SheetContent>
-      </Sheet>
-    </>
+    </Sheet>
   );
 });
 

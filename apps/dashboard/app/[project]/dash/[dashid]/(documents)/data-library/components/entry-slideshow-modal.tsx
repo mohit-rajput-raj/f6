@@ -591,57 +591,15 @@ export const EntrySlideshowModal: React.FC<EntrySlideshowModalProps> = ({
   const progressPct =
     totalRows > 0 ? Math.round((currentIndex / totalRows) * 100) : 0;
 
-  // Clean, professional theme-adaptive styling for Light Mode and Dark Mode
+  // Clean, neutral Watermelon UI styling for Light & Dark mode (no neon green or pink)
   const getValueStyles = (val: string) => {
-    const upper = val.trim().toUpperCase();
-    if (
-      upper === "P" ||
-      upper === "PRESENT" ||
-      upper === "TRUE" ||
-      upper === "YES" ||
-      upper === "PASS"
-    ) {
-      return {
-        badge:
-          "bg-emerald-100 text-emerald-800 border-emerald-300/60 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800/60",
-        bar: "bg-emerald-500 dark:bg-emerald-400",
-        btn: "bg-emerald-50/70 hover:bg-emerald-100/90 text-emerald-900 border-emerald-200/90 hover:border-emerald-300 dark:bg-emerald-950/25 dark:hover:bg-emerald-950/45 dark:text-emerald-300 dark:border-emerald-800/60 shadow-xs hover:shadow-sm",
-        btnLetter: "text-emerald-700 dark:text-emerald-300",
-        btnHint: "text-emerald-600/75 dark:text-emerald-400/75",
-      };
-    }
-    if (
-      upper === "A" ||
-      upper === "ABSENT" ||
-      upper === "FALSE" ||
-      upper === "NO" ||
-      upper === "FAIL"
-    ) {
-      return {
-        badge:
-          "bg-rose-100 text-rose-800 border-rose-300/60 dark:bg-rose-950/50 dark:text-rose-300 dark:border-rose-800/60",
-        bar: "bg-rose-500 dark:bg-rose-400",
-        btn: "bg-rose-50/70 hover:bg-rose-100/90 text-rose-900 border-rose-200/90 hover:border-rose-300 dark:bg-rose-950/25 dark:hover:bg-rose-950/45 dark:text-rose-300 dark:border-rose-800/60 shadow-xs hover:shadow-sm",
-        btnLetter: "text-rose-700 dark:text-rose-300",
-        btnHint: "text-rose-600/75 dark:text-rose-400/75",
-      };
-    }
-    if (upper === "MAYBE" || upper === "PENDING") {
-      return {
-        badge:
-          "bg-amber-100 text-amber-800 border-amber-300/60 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-800/60",
-        bar: "bg-amber-500 dark:bg-amber-400",
-        btn: "bg-amber-50/70 hover:bg-amber-100/90 text-amber-900 border-amber-200/90 hover:border-amber-300 dark:bg-amber-950/25 dark:hover:bg-amber-950/45 dark:text-amber-300 dark:border-amber-800/60 shadow-xs hover:shadow-sm",
-        btnLetter: "text-amber-700 dark:text-amber-300",
-        btnHint: "text-amber-600/75 dark:text-amber-400/75",
-      };
-    }
     return {
-      badge: "bg-primary/10 text-primary border-primary/20",
-      bar: "bg-primary",
-      btn: "bg-muted/50 hover:bg-muted text-foreground border-border/80 hover:border-border shadow-xs",
-      btnLetter: "text-foreground",
-      btnHint: "text-muted-foreground",
+      badge:
+        "bg-muted text-foreground border-border/80 font-medium",
+      bar: "bg-foreground/80 dark:bg-foreground/70",
+      btn: "bg-card hover:bg-muted/70 text-foreground border-border/80 hover:border-foreground/30 shadow-xs",
+      btnLetter: "text-foreground font-bold",
+      btnHint: "text-muted-foreground font-mono",
     };
   };
 
@@ -673,7 +631,7 @@ export const EntrySlideshowModal: React.FC<EntrySlideshowModalProps> = ({
           </div>
 
           <div className="flex items-center gap-1.5 shrink-0">
-            <div className="hidden xs:flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">
+            <div className="hidden xs:flex items-center gap-1 px-2 py-0.5 rounded-full bg-muted border border-border/80 text-[10px] text-muted-foreground font-medium">
               <HardDrive className="size-2.5" />
               <span>Auto-saved</span>
             </div>
@@ -696,7 +654,7 @@ export const EntrySlideshowModal: React.FC<EntrySlideshowModalProps> = ({
         {/* Progress Bar */}
         <div className="w-full bg-muted/60 h-1 relative overflow-hidden shrink-0">
           <motion.div
-            className="h-full bg-primary"
+            className="h-full bg-foreground/80 dark:bg-foreground/70"
             initial={{ width: `${progressPct}%` }}
             animate={{ width: `${progressPct}%` }}
             transition={{ duration: 0.2 }}
@@ -740,19 +698,19 @@ export const EntrySlideshowModal: React.FC<EntrySlideshowModalProps> = ({
         <div className="p-3 sm:p-4 flex-1 flex flex-col justify-center min-h-0 relative overflow-hidden">
           {justCompleted || isSaving ? (
             <div className="flex flex-col items-center justify-center py-6 text-center space-y-2.5 animate-in fade-in zoom-in-95 duration-300">
-              <div className="size-12 rounded-2xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 flex items-center justify-center animate-bounce">
-                <CheckCircle2 className="size-6" />
+              <div className="size-12 rounded-2xl bg-muted text-foreground border border-border flex items-center justify-center animate-bounce">
+                <CheckCircle2 className="size-6 text-foreground" />
               </div>
               <div className="space-y-0.5">
                 <h4 className="text-base font-bold text-foreground">
                   All {totalRows} Entries Completed!
                 </h4>
                 <p className="text-xs text-muted-foreground flex items-center justify-center gap-1">
-                  <Database className="size-3 text-primary animate-pulse" />
+                  <Database className="size-3 text-muted-foreground animate-pulse" />
                   Saving to database and clearing local cache...
                 </p>
               </div>
-              <Loader2 className="size-4 text-primary animate-spin mt-1" />
+              <Loader2 className="size-4 text-muted-foreground animate-spin mt-1" />
             </div>
           ) : (
             <AnimatePresence mode="wait">
@@ -777,8 +735,8 @@ export const EntrySlideshowModal: React.FC<EntrySlideshowModalProps> = ({
                   {/* Clean Identity Display (Key ID + Name + Row badge) */}
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-baseline gap-2 min-w-0 flex-wrap">
-                      <span className="text-[10px] font-semibold text-primary uppercase tracking-wider flex items-center gap-1 shrink-0">
-                        <KeyRound className="size-2.5" />
+                      <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1 shrink-0">
+                        <KeyRound className="size-2.5 text-foreground" />
                         {keyColumnName}:
                       </span>
                       <h2
@@ -805,8 +763,8 @@ export const EntrySlideshowModal: React.FC<EntrySlideshowModalProps> = ({
                   {/* Compact Live Session & Options Summary Row */}
                   <div className="pt-1 border-t border-border/60 flex items-center justify-between gap-2 flex-wrap">
                     <div className="flex items-center gap-1.5 flex-wrap min-w-0 text-[11px]">
-                      <span className="flex items-center gap-1 font-semibold text-emerald-600 dark:text-emerald-400">
-                        <TrendingUp className="size-3 shrink-0" />
+                      <span className="flex items-center gap-1 font-semibold text-foreground">
+                        <TrendingUp className="size-3 shrink-0 text-muted-foreground" />
                         <span>
                           {liveSessionCounts.answered}/{totalRows} done
                         </span>
@@ -1135,48 +1093,64 @@ export const EntrySlideshowModal: React.FC<EntrySlideshowModalProps> = ({
 
                   {/* 2. Boolean (True / False) View */}
                   {inputType === "boolean" && (
-                    <div className="grid grid-cols-2 gap-2.5">
+                    <div className="grid grid-cols-2 gap-3">
                       <button
                         type="button"
                         onClick={() => handleAnswer("True")}
-                        className={`p-3 rounded-xl border-2 transition-all cursor-pointer flex flex-col items-center justify-center gap-0.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-500/40 active:scale-[0.98] ${
+                        className={`group p-4 rounded-xl border transition-all cursor-pointer flex flex-col items-center justify-center gap-1.5 active:scale-[0.98] ${
                           answers[currentIndex] === "True"
-                            ? "ring-2 ring-emerald-500 font-bold"
-                            : ""
+                            ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 border-zinc-900 dark:border-zinc-100 shadow-sm font-semibold"
+                            : "bg-card hover:bg-muted/60 text-foreground border-border/80 hover:border-foreground/30 shadow-2xs"
                         }`}
                       >
-                        <CheckCircle2 className="size-5 text-emerald-600 dark:text-emerald-400" />
-                        <span className="text-base sm:text-lg font-bold tracking-tight">
-                          True / Yes
-                        </span>
-                        <span className="text-[9px] font-mono text-emerald-600/80">
-                          [1] or [T]
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <CheckCircle2 className="size-4.5" />
+                          <span className="text-base font-bold tracking-tight">
+                            True / Yes
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1 text-[10px] font-mono opacity-70">
+                          <kbd className="px-1.5 py-0.5 rounded bg-muted/80 border border-border text-[9px] uppercase">
+                            T
+                          </kbd>
+                          <span>or</span>
+                          <kbd className="px-1.5 py-0.5 rounded bg-muted/80 border border-border text-[9px]">
+                            1
+                          </kbd>
+                        </div>
                       </button>
 
                       <button
                         type="button"
                         onClick={() => handleAnswer("False")}
-                        className={`p-3 rounded-xl border-2 transition-all cursor-pointer flex flex-col items-center justify-center gap-0.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-700 dark:text-rose-300 border-rose-500/40 active:scale-[0.98] ${
+                        className={`group p-4 rounded-xl border transition-all cursor-pointer flex flex-col items-center justify-center gap-1.5 active:scale-[0.98] ${
                           answers[currentIndex] === "False"
-                            ? "ring-2 ring-rose-500 font-bold"
-                            : ""
+                            ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 border-zinc-900 dark:border-zinc-100 shadow-sm font-semibold"
+                            : "bg-card hover:bg-muted/60 text-foreground border-border/80 hover:border-foreground/30 shadow-2xs"
                         }`}
                       >
-                        <X className="size-5 text-rose-600 dark:text-rose-400" />
-                        <span className="text-base sm:text-lg font-bold tracking-tight">
-                          False / No
-                        </span>
-                        <span className="text-[9px] font-mono text-rose-600/80">
-                          [2] or [F]
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <X className="size-4.5" />
+                          <span className="text-base font-bold tracking-tight">
+                            False / No
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1 text-[10px] font-mono opacity-70">
+                          <kbd className="px-1.5 py-0.5 rounded bg-muted/80 border border-border text-[9px] uppercase">
+                            F
+                          </kbd>
+                          <span>or</span>
+                          <kbd className="px-1.5 py-0.5 rounded bg-muted/80 border border-border text-[9px]">
+                            2
+                          </kbd>
+                        </div>
                       </button>
                     </div>
                   )}
 
                   {/* 3. Rating Control View (1 - 5 Stars) */}
                   {inputType === "rating" && (
-                    <div className="p-2 sm:p-2.5 rounded-xl border border-border bg-muted/30">
+                    <div className="p-3 rounded-xl border border-border/80 bg-card/60 shadow-xs">
                       <div className="flex items-center justify-center gap-2 py-1">
                         {[1, 2, 3, 4, 5].map((star) => {
                           const strStar = String(star);
@@ -1186,20 +1160,20 @@ export const EntrySlideshowModal: React.FC<EntrySlideshowModalProps> = ({
                               key={star}
                               type="button"
                               onClick={() => handleAnswer(strStar)}
-                              className={`flex flex-col items-center justify-center p-2 sm:p-2.5 rounded-xl border transition-all cursor-pointer ${
+                              className={`flex flex-col items-center justify-center p-2.5 sm:p-3 rounded-xl border transition-all cursor-pointer ${
                                 isSelected
-                                  ? "bg-amber-500/20 border-amber-500 text-amber-500 ring-2 ring-amber-500/40 font-bold"
-                                  : "bg-background border-border text-muted-foreground hover:text-amber-500 hover:border-amber-400 hover:bg-amber-500/5"
+                                  ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 border-zinc-900 dark:border-zinc-100 shadow-sm font-bold"
+                                  : "bg-background border-border text-muted-foreground hover:text-foreground hover:border-foreground/30 hover:bg-muted/50"
                               }`}
                             >
                               <Star
                                 className={`size-5 sm:size-6 ${
                                   isSelected
-                                    ? "fill-amber-500 text-amber-500"
+                                    ? "fill-current text-amber-400"
                                     : "fill-none"
                                 }`}
                               />
-                              <span className="text-[11px] font-bold mt-0.5">
+                              <span className="text-[11px] font-bold mt-1">
                                 {star}★
                               </span>
                               <span className="text-[8px] font-mono opacity-70">
@@ -1214,51 +1188,115 @@ export const EntrySlideshowModal: React.FC<EntrySlideshowModalProps> = ({
 
                   {/* 4. Interactive Slider & Progress Bar View */}
                   {inputType === "slider" && (
-                    <div className="space-y-2 p-2.5 rounded-xl border border-border bg-muted/30">
+                    <div className="space-y-3.5 p-4 rounded-xl border border-border/80 bg-card/60 shadow-xs">
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-semibold text-muted-foreground">
-                          Percentage / Progress
-                        </span>
-                        <span className="text-xl font-extrabold font-mono text-primary">
-                          {textValue || "50"}%
-                        </span>
+                        <div>
+                          <span className="text-xs font-semibold text-foreground">
+                            Percentage / Slider Value
+                          </span>
+                          <p className="text-[11px] text-muted-foreground">
+                            Drag slider or tap preset shortcuts
+                          </p>
+                        </div>
+                        <div className="flex items-baseline gap-1 bg-muted/80 px-3.5 py-1 rounded-lg border border-border/70 shadow-2xs">
+                          <span className="text-2xl font-mono font-bold tracking-tight text-foreground">
+                            {textValue || "50"}
+                          </span>
+                          <span className="text-xs text-muted-foreground font-mono font-semibold">
+                            %
+                          </span>
+                        </div>
                       </div>
 
-                      <input
-                        type="range"
-                        min="0"
-                        max="100"
-                        value={parseFloat(textValue || "50") || 50}
-                        onChange={(e) => setTextValue(e.target.value)}
-                        className="w-full accent-primary h-2 bg-muted rounded-lg cursor-pointer"
-                      />
+                      {/* Custom Range Track */}
+                      <div className="space-y-2 py-1">
+                        <div className="relative flex items-center">
+                          <input
+                            type="range"
+                            min="0"
+                            max="100"
+                            step="1"
+                            value={parseFloat(textValue || "50") || 50}
+                            onChange={(e) => setTextValue(e.target.value)}
+                            className="w-full h-2 rounded-lg appearance-none cursor-pointer bg-muted accent-zinc-900 dark:accent-zinc-100"
+                          />
+                        </div>
+                        <div className="flex justify-between text-[10px] text-muted-foreground font-mono px-0.5">
+                          <span>0%</span>
+                          <span>25%</span>
+                          <span>50%</span>
+                          <span>75%</span>
+                          <span>100%</span>
+                        </div>
+                      </div>
 
-                      {/* Quick Presets */}
-                      <div className="flex items-center justify-between gap-1">
-                        {[0, 25, 50, 75, 100].map((preset) => (
+                      {/* Presets and Stepper Adjusters */}
+                      <div className="flex items-center justify-between gap-2 pt-2 border-t border-border/60 flex-wrap">
+                        {/* Quick Presets */}
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {[0, 25, 50, 75, 100].map((preset) => {
+                            const isMatch =
+                              (textValue || "50") === String(preset);
+                            return (
+                              <button
+                                key={preset}
+                                type="button"
+                                onClick={() => {
+                                  setTextValue(String(preset));
+                                }}
+                                className={`px-2.5 py-1 rounded-md text-xs font-mono font-medium transition cursor-pointer border ${
+                                  isMatch
+                                    ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 border-zinc-900 dark:border-zinc-100 font-semibold shadow-2xs"
+                                    : "bg-background hover:bg-muted text-muted-foreground hover:text-foreground border-border/70"
+                                }`}
+                              >
+                                {preset}%
+                              </button>
+                            );
+                          })}
+                        </div>
+
+                        {/* Step Adjusters */}
+                        <div className="flex items-center gap-1">
                           <button
-                            key={preset}
                             type="button"
                             onClick={() => {
-                              setTextValue(String(preset));
-                              handleAnswer(String(preset));
+                              const curr = Math.max(
+                                0,
+                                (parseFloat(textValue || "50") || 50) - 5,
+                              );
+                              setTextValue(String(curr));
                             }}
-                            className="px-2 py-0.5 rounded text-[10px] font-semibold border border-border bg-background hover:bg-muted font-mono cursor-pointer transition"
+                            className="px-2 py-1 rounded-md text-xs font-mono border border-border bg-background hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer"
+                            title="Decrement 5%"
                           >
-                            {preset}%
+                            -5%
                           </button>
-                        ))}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const curr = Math.min(
+                                100,
+                                (parseFloat(textValue || "50") || 50) + 5,
+                              );
+                              setTextValue(String(curr));
+                            }}
+                            className="px-2 py-1 rounded-md text-xs font-mono border border-border bg-background hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer"
+                            title="Increment 5%"
+                          >
+                            +5%
+                          </button>
+                        </div>
                       </div>
 
-                      <div className="pt-0.5 flex justify-end">
+                      <div className="pt-2 flex justify-end border-t border-border/40">
                         <Button
                           type="button"
-                          size="sm"
                           onClick={() => handleAnswer(textValue || "50")}
-                          className="h-7.5 px-3 bg-primary text-primary-foreground font-semibold text-xs cursor-pointer gap-1"
+                          className="h-8 px-4 bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200 font-semibold text-xs cursor-pointer gap-1.5 shadow-xs"
                         >
                           <span>Confirm & Next</span>
-                          <ArrowRight className="size-3" />
+                          <ArrowRight className="size-3.5" />
                         </Button>
                       </div>
                     </div>
@@ -1266,7 +1304,7 @@ export const EntrySlideshowModal: React.FC<EntrySlideshowModalProps> = ({
 
                   {/* 5. Color Picker View */}
                   {inputType === "color" && (
-                    <div className="space-y-2 p-2.5 rounded-xl border border-border bg-muted/30">
+                    <div className="space-y-2.5 p-3.5 rounded-xl border border-border/80 bg-card/60 shadow-xs">
                       <div className="flex items-center justify-between text-xs">
                         <span className="font-semibold text-muted-foreground">
                           Select Swatch:
@@ -1298,7 +1336,7 @@ export const EntrySlideshowModal: React.FC<EntrySlideshowModalProps> = ({
                             style={{ backgroundColor: hex }}
                             className={`size-7 rounded-lg border transition-transform cursor-pointer hover:scale-110 ${
                               textValue === hex
-                                ? "border-foreground scale-110 shadow-sm ring-2 ring-primary"
+                                ? "border-foreground scale-110 shadow-sm ring-2 ring-foreground/20"
                                 : "border-white/40"
                             }`}
                             title={hex}
@@ -1316,12 +1354,12 @@ export const EntrySlideshowModal: React.FC<EntrySlideshowModalProps> = ({
                         </label>
                       </div>
 
-                      <div className="pt-0.5 flex justify-end">
+                      <div className="pt-1 flex justify-end">
                         <Button
                           type="button"
                           size="sm"
                           onClick={() => handleAnswer(textValue || "#3b82f6")}
-                          className="h-7.5 px-3 bg-primary text-primary-foreground font-semibold text-xs cursor-pointer gap-1"
+                          className="h-7.5 px-3 bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 font-semibold text-xs cursor-pointer gap-1"
                         >
                           <span>Confirm & Next</span>
                           <ArrowRight className="size-3" />
@@ -1332,7 +1370,7 @@ export const EntrySlideshowModal: React.FC<EntrySlideshowModalProps> = ({
 
                   {/* 6. Options Input View */}
                   {inputType === "options" && (
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
                       {optionsList.map((option, idx) => {
                         const isCurrentSelection =
                           answers[currentIndex] === option;
@@ -1340,29 +1378,32 @@ export const EntrySlideshowModal: React.FC<EntrySlideshowModalProps> = ({
                           .trim()
                           .charAt(0)
                           .toUpperCase();
-                        const styles = getValueStyles(option);
 
                         return (
                           <button
                             key={idx}
                             type="button"
                             onClick={() => handleAnswer(option)}
-                            className={`p-2.5 sm:p-3 rounded-xl border-2 transition-all cursor-pointer flex flex-col items-center justify-center gap-0.5 active:scale-[0.98] ${styles.btn} ${
+                            className={`group relative p-3 sm:p-4 rounded-xl border transition-all cursor-pointer flex flex-col items-center justify-center gap-1 active:scale-[0.98] ${
                               isCurrentSelection
-                                ? "ring-2 ring-primary ring-offset-2 ring-offset-card font-bold shadow-xs"
-                                : ""
+                                ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 border-zinc-900 dark:border-zinc-100 shadow-md font-semibold"
+                                : "bg-card hover:bg-muted/70 text-foreground border-border/80 hover:border-foreground/30 shadow-xs"
                             }`}
                           >
-                            <span
-                              className={`text-xl sm:text-2xl font-bold tracking-tight ${styles.btnLetter}`}
-                            >
+                            <span className="text-2xl sm:text-3xl font-extrabold tracking-tight">
                               {option}
                             </span>
-                            <span
-                              className={`text-[9px] font-mono ${styles.btnHint}`}
-                            >
-                              [{shortcutKey}] or [{idx + 1}]
-                            </span>
+                            <div className="flex items-center gap-1 text-[10px] font-mono opacity-70">
+                              <kbd className="px-1.5 py-0.5 rounded bg-muted/80 border border-border text-[9px] uppercase font-mono">
+                                {shortcutKey}
+                              </kbd>
+                              <span className="text-muted-foreground text-[9px]">
+                                or
+                              </span>
+                              <kbd className="px-1.5 py-0.5 rounded bg-muted/80 border border-border text-[9px] font-mono">
+                                {idx + 1}
+                              </kbd>
+                            </div>
                           </button>
                         );
                       })}

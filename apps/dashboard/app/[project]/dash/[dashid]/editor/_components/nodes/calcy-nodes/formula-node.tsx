@@ -1,13 +1,16 @@
 'use client';
 
 import { memo, useCallback } from 'react';
-import { Handle, Position, useReactFlow } from '@xyflow/react';
+import { Position, useReactFlow } from '@xyflow/react';
 import { FileCode } from 'lucide-react';
 import {
   BaseNode,
   BaseNodeContent,
   BaseNodeHeader,
   BaseNodeHeaderTitle,
+  BaseNodeIcon,
+  NodeHeaderActions,
+  NodeHandle,
 } from "@/components/dashboard/flow/Node/baseNode";
 import { NodeMenu } from "../node-menu";
 import { IconTrash } from "@tabler/icons-react";
@@ -37,65 +40,69 @@ export const FormulaNode = memo(({ id, data }: { id: string; data: any }) => {
   }, [id, setNodes, config]);
 
   return (
-    <>
-      <div className="flex justify-between items-center px-2 pt-1">
-        <NodeMenu />
-        <IconTrash className="size-4 cursor-pointer text-red-400 hover:text-red-600" onClick={handleDelete} />
-      </div>
-
-      <BaseNode className="min-w-[340px]">
-        <BaseNodeHeader className="border-b flex items-center gap-2 px-3 py-1.5 bg-rose-700 text-white">
-          <FileCode className="size-4" />
+    <BaseNode variant="math" className="min-w-[340px]">
+      <BaseNodeHeader variant="math">
+        <div className="flex items-center gap-2 min-w-0">
+          <BaseNodeIcon variant="math">
+            <FileCode className="size-3.5" />
+          </BaseNodeIcon>
           <BaseNodeHeaderTitle>Formula</BaseNodeHeaderTitle>
-        </BaseNodeHeader>
+        </div>
+        <NodeHeaderActions>
+          <NodeMenu />
+          <IconTrash
+            className="size-3.5 cursor-pointer text-muted-foreground hover:text-destructive transition-colors"
+            onClick={handleDelete}
+          />
+        </NodeHeaderActions>
+      </BaseNodeHeader>
 
-        <BaseNodeContent className="p-4 space-y-3">
-          {columns.length > 0 && (
-            <div className="text-xs text-muted-foreground">
-              Available: {columns.join(', ')}
-            </div>
-          )}
-
-          <div className="space-y-1">
-            <Label className="text-xs">Formula</Label>
-            <Input
-              value={config.formula ?? ''}
-              onChange={e => updateConfig({ formula: e.target.value })}
-              placeholder="e.g. col_A * 2 + col_B"
-              className="h-8 font-mono text-xs"
-            />
-            <p className="text-[10px] text-muted-foreground">
-              Use column names. Operators: + − * / ( )
-            </p>
+      <BaseNodeContent className="p-3.5 space-y-3">
+        {columns.length > 0 && (
+          <div className="text-[11px] text-muted-foreground bg-muted/40 p-2 rounded-lg border border-border/40 font-mono truncate">
+            Columns: {columns.join(', ')}
           </div>
+        )}
 
-          <div className="space-y-1">
-            <Label className="text-xs">Result column name</Label>
-            <Input
-              value={config.resultColumn ?? ''}
-              onChange={e => updateConfig({ resultColumn: e.target.value })}
-              placeholder="e.g. calculated"
-              className="h-8"
-            />
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground">Formula</Label>
+          <Input
+            value={config.formula ?? ''}
+            onChange={e => updateConfig({ formula: e.target.value })}
+            placeholder="e.g. col_A * 2 + col_B"
+            className="h-8 font-mono text-xs nodrag"
+          />
+          <p className="text-[10px] text-muted-foreground">
+            Use column names. Operators: + − * / ( )
+          </p>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground">Result column name</Label>
+          <Input
+            value={config.resultColumn ?? ''}
+            onChange={e => updateConfig({ resultColumn: e.target.value })}
+            placeholder="e.g. calculated"
+            className="h-8 text-xs nodrag"
+          />
+        </div>
+
+        {data.rowCount !== undefined && (
+          <div className="text-[11px] text-blue-600 dark:text-blue-400 font-medium text-center pt-2 border-t border-border/40">
+            {data.rowCount} rows
           </div>
+        )}
 
-          {data.rowCount !== undefined && (
-            <div className="text-xs text-rose-600 font-medium text-center pt-2 border-t">
-              {data.rowCount} rows
-            </div>
-          )}
+        {data.error && (
+          <div className="text-xs text-destructive bg-destructive/10 border border-destructive/20 p-2 rounded-lg">
+            {data.error}
+          </div>
+        )}
+      </BaseNodeContent>
 
-          {data.error && (
-            <div className="text-xs text-red-500 bg-red-50 p-2 rounded">
-              {data.error}
-            </div>
-          )}
-        </BaseNodeContent>
-
-        <Handle type="target" position={Position.Left} id="in" className="w-3 h-3 bg-rose-600" />
-        <Handle type="source" position={Position.Right} id="out" className="w-3 h-3 bg-rose-600" />
-      </BaseNode>
-    </>
+      <NodeHandle variant="math" type="target" position={Position.Left} id="in" />
+      <NodeHandle variant="math" type="source" position={Position.Right} id="out" />
+    </BaseNode>
   );
 });
 

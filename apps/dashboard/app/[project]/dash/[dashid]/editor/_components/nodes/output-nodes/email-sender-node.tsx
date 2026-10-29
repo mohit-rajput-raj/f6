@@ -32,6 +32,9 @@ import {
   BaseNodeContent,
   BaseNodeHeader,
   BaseNodeHeaderTitle,
+  BaseNodeIcon,
+  NodeHeaderActions,
+  NodeHandle,
 } from "@/components/dashboard/flow/Node/baseNode";
 import { NodeMenu } from "../node-menu";
 import { IconTrash } from "@tabler/icons-react";
@@ -64,7 +67,7 @@ interface Dataset {
 }
 
 export const EmailSenderNode = memo(
-  ({ id, data }: { id: string; data: any }) => {
+  ({ id, data, selected }: { id: string; data: any; selected?: boolean }) => {
     const { setNodes, getEdges } = useReactFlow();
     const { nodes } = useEditorWorkFlow();
     const handleDelete = useDeleteNode();
@@ -555,58 +558,39 @@ export const EmailSenderNode = memo(
     const executionSummary = data.lastExecutionSummary || null;
 
     return (
-      <>
-        <div className="flex justify-between items-center px-2 pt-1">
-          <NodeMenu />
-          <IconTrash
-            className="size-4 cursor-pointer text-red-400 hover:text-red-600 transition-colors"
-            onClick={handleDelete}
-          />
-        </div>
-
-        <BaseNode className="min-w-[340px] max-w-[420px] shadow-xl border-violet-500/30">
-          {/* Node Header */}
-          <BaseNodeHeader className="border-b flex items-center justify-between px-3 py-2 bg-gradient-to-r from-purple-700 via-indigo-700 to-violet-800 text-white rounded-t-md">
-            <div className="flex items-center gap-2">
-              <div className="p-1 rounded bg-white/10">
-                <Image
-                  src="/icons/googleMail.png"
-                  alt="Icon description"
-                  width={34}
-                  height={34}
-                />
-              </div>
-              <div>
-                <BaseNodeHeaderTitle className="text-white text-xs font-semibold leading-tight">
-                  Email Dispatcher
-                </BaseNodeHeaderTitle>
-                <div className="text-[10px] text-purple-200/80">
-                  Output Table Generator
-                </div>
-              </div>
+      <BaseNode variant="output" selected={selected} className="min-w-[340px] max-w-[420px]">
+        {/* Node Header */}
+        <BaseNodeHeader variant="output">
+          <BaseNodeIcon variant="output">
+            <Mail className="size-4" />
+          </BaseNodeIcon>
+          <div className="min-w-0">
+            <BaseNodeHeaderTitle>Email Dispatcher</BaseNodeHeaderTitle>
+            <div className="text-[10px] text-muted-foreground truncate">
+              Output Table Generator
             </div>
+          </div>
 
-            <div className="flex items-center gap-1.5">
-              {executionSummary && (
-                <Badge
-                  variant="outline"
-                  className={`text-[9px] px-1.5 py-0 border-white/20 text-white font-mono ${
-                    executionSummary.failed > 0
-                      ? "bg-amber-500/20 text-amber-200"
-                      : "bg-emerald-500/20 text-emerald-200"
-                  }`}
-                >
-                  {executionSummary.sent}/{executionSummary.total} Sent
-                </Badge>
-              )}
+          <NodeHeaderActions>
+            {executionSummary && (
               <Badge
                 variant="outline"
-                className="text-[9px] border-white/30 text-white/90 px-1.5 py-0"
+                className={`text-[9px] px-1.5 py-0 font-mono ${
+                  executionSummary.failed > 0
+                    ? "border-amber-500/40 text-amber-600 dark:text-amber-400"
+                    : "border-emerald-500/40 text-emerald-600 dark:text-emerald-400"
+                }`}
               >
-                Output
+                {executionSummary.sent}/{executionSummary.total} Sent
               </Badge>
-            </div>
-          </BaseNodeHeader>
+            )}
+            <NodeMenu />
+            <IconTrash
+              className="size-4 cursor-pointer text-muted-foreground hover:text-destructive transition-colors"
+              onClick={handleDelete}
+            />
+          </NodeHeaderActions>
+        </BaseNodeHeader>
 
           <BaseNodeContent className="p-3 space-y-3 text-xs">
             {/* Incoming Dataset Status */}
@@ -1138,31 +1122,32 @@ export const EmailSenderNode = memo(
           </BaseNodeContent>
 
           {/* Input handles */}
-          <Handle
+          <NodeHandle
+            variant="output"
             type="target"
             position={Position.Left}
             id="in"
-            className="w-3 h-3 bg-purple-600 top-[35%]"
+            style={{ top: "35%" }}
             title="Input Dataset (Table)"
           />
-          <Handle
+          <NodeHandle
+            variant="input"
             type="target"
             position={Position.Left}
             id="key"
-            className="w-3 h-3 bg-indigo-500 top-[65%]"
+            style={{ top: "65%" }}
             title="Key Input (Desk Input or Key Column Name)"
           />
 
           {/* Output handle: Status Table */}
-          <Handle
+          <NodeHandle
+            variant="output"
             type="source"
             position={Position.Right}
             id="out"
-            className="w-3 h-3 bg-emerald-500"
             title="Generated Status Table (Key, Email, Status, Details, SentAt)"
           />
         </BaseNode>
-      </>
     );
   },
 );

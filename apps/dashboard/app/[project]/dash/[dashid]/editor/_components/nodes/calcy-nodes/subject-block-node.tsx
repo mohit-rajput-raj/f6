@@ -1,16 +1,20 @@
 'use client';
 
 import { memo, useCallback } from 'react';
-import { Handle, Position, useReactFlow } from '@xyflow/react';
+import { Position, useReactFlow } from '@xyflow/react';
 import { TableProperties } from 'lucide-react';
 import {
-  BaseNode, BaseNodeContent, BaseNodeHeader, BaseNodeHeaderTitle,
+  BaseNode,
+  BaseNodeContent,
+  BaseNodeHeader,
+  BaseNodeHeaderTitle,
+  BaseNodeIcon,
+  NodeHeaderActions,
+  NodeHandle,
 } from "@/components/dashboard/flow/Node/baseNode";
 import { NodeMenu } from "../node-menu";
 import { IconTrash } from "@tabler/icons-react";
 import { useDeleteNode } from "../settings/triggers";
-import { Input } from "@repo/ui/components/ui/input";
-import { Label } from "@repo/ui/components/ui/label";
 import { Badge } from "@repo/ui/components/ui/badge";
 
 interface SubjectBlockConfig {
@@ -43,114 +47,85 @@ export const SubjectBlockNode = memo(({ id, data }: { id: string; data: any }) =
   }, [id, setNodes, config]);
 
   return (
-    <>
-      <div className="flex justify-between items-center px-2 pt-1">
-        <NodeMenu />
-        <IconTrash className="size-4 cursor-pointer text-red-400 hover:text-red-600" onClick={handleDelete} />
-      </div>
-
-      <BaseNode className="min-w-[340px]">
-        <BaseNodeHeader className="border-b flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-teal-600 to-cyan-600 text-white rounded-t-md">
-          <TableProperties className="size-4" />
-          <BaseNodeHeaderTitle className="text-white">Subject Block</BaseNodeHeaderTitle>
-          <Badge variant="outline" className="text-[10px] border-white/30 text-white/80 ml-auto">
+    <BaseNode variant="combine" className="min-w-[340px]">
+      <BaseNodeHeader variant="combine">
+        <div className="flex items-center gap-2 min-w-0">
+          <BaseNodeIcon variant="combine">
+            <TableProperties className="size-3.5" />
+          </BaseNodeIcon>
+          <BaseNodeHeaderTitle>Subject Block</BaseNodeHeaderTitle>
+          <Badge variant="outline" className="text-[10px] font-mono border-fuchsia-500/30 text-fuchsia-700 dark:text-fuchsia-300">
             {prefix || '???'}
           </Badge>
-        </BaseNodeHeader>
+        </div>
+        <NodeHeaderActions>
+          <NodeMenu />
+          <IconTrash
+            className="size-3.5 cursor-pointer text-muted-foreground hover:text-destructive transition-colors"
+            onClick={handleDelete}
+          />
+        </NodeHeaderActions>
+      </BaseNodeHeader>
 
-        <BaseNodeContent className="p-3 space-y-3">
-          {/* Status indicators */}
-          <div className="space-y-1.5">
-            {[
-              { label: 'Subject Code', val: subjectCode, color: 'teal' },
-              { label: 'Section Type', val: sectionType, color: 'cyan' },
-              { label: 'Key Column', val: keyColumn, color: 'blue' },
-              { label: 'Data', val: availableColumns.length > 0 ? `${availableColumns.length} cols` : '', color: 'emerald' },
-            ].map(({ label, val, color }) => (
-              <div key={label} className="flex items-center gap-2">
-                <div className={`w-2 h-2 rounded-full ${val ? `bg-${color}-500` : 'bg-zinc-300 dark:bg-zinc-600'}`} />
-                <span className="text-[10px] text-muted-foreground">
-                  {label}: <span className="font-semibold text-foreground">{val || 'Connect →'}</span>
-                </span>
-              </div>
-            ))}
+      <BaseNodeContent className="p-3.5 space-y-3">
+        <div className="space-y-1.5 bg-muted/30 border border-border/40 p-2.5 rounded-xl">
+          {[
+            { label: 'Subject Code', val: subjectCode, dot: 'bg-teal-500' },
+            { label: 'Section Type', val: sectionType, dot: 'bg-cyan-500' },
+            { label: 'Key Column', val: keyColumn, dot: 'bg-blue-500' },
+            { label: 'Data', val: availableColumns.length > 0 ? `${availableColumns.length} cols` : '', dot: 'bg-emerald-500' },
+          ].map(({ label, val, dot }) => (
+            <div key={label} className="flex items-center gap-2">
+              <div className={`w-2 h-2 rounded-full ${val ? dot : 'bg-muted-foreground/40'}`} />
+              <span className="text-[11px] text-muted-foreground">
+                {label}: <span className="font-semibold text-foreground">{val || 'Connect →'}</span>
+              </span>
+            </div>
+          ))}
+        </div>
+
+        {prefix && mappedCols.length > 0 && (
+          <div className="space-y-1">
+            <span className="text-[10px] font-medium text-muted-foreground">Column Prefix Preview</span>
+            <div className="border border-border/40 rounded-lg max-h-[100px] overflow-y-auto text-[10px] bg-muted/20">
+              <table className="w-full text-left">
+                <tbody>
+                  {keyColumn && (
+                    <tr className="border-b border-border/40 font-mono text-muted-foreground">
+                      <td className="px-2 py-0.5">{keyColumn}</td>
+                      <td className="px-2 py-0.5">→</td>
+                      <td className="px-2 py-0.5 font-semibold text-foreground">{keyColumn} (key)</td>
+                    </tr>
+                  )}
+                  {mappedCols.map((m, i) => (
+                    <tr key={i} className="border-t border-border/40 font-mono">
+                      <td className="px-2 py-0.5 text-muted-foreground">{m.source}</td>
+                      <td className="px-2 py-0.5 text-muted-foreground">→</td>
+                      <td className="px-2 py-0.5 text-fuchsia-600 dark:text-fuchsia-400 font-medium truncate max-w-[140px]">{m.target}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
+        )}
 
-          {/* Manual fallbacks */}
-          {!data.resolvedSubjectCode && (
-            <div className="space-y-1">
-              <Label className="text-xs">Subject Code (manual)</Label>
-              <Input value={config.subjectCode ?? ''} onChange={e => updateConfig({ subjectCode: e.target.value })}
-                placeholder="e.g. CO24553" className="h-7 text-xs nodrag" />
-            </div>
-          )}
-          {!data.resolvedSectionType && (
-            <div className="space-y-1">
-              <Label className="text-xs">Section Type (manual)</Label>
-              <Input value={config.sectionType ?? ''} onChange={e => updateConfig({ sectionType: e.target.value })}
-                placeholder="e.g. Th, Tut, Lab" className="h-7 text-xs nodrag" />
-            </div>
-          )}
-          {!data.resolvedKeyColumn && (
-            <div className="space-y-1">
-              <Label className="text-xs">Key Column (manual)</Label>
-              <Input value={config.keyColumnName ?? ''} onChange={e => updateConfig({ keyColumnName: e.target.value })}
-                placeholder="e.g. Enrollment" className="h-7 text-xs nodrag" />
-            </div>
-          )}
+        {data.rowCount !== undefined && (
+          <div className="text-[11px] text-fuchsia-600 dark:text-fuchsia-400 font-medium text-center pt-1 border-t border-border/40">
+            {data.rowCount} rows • {prefix || 'no prefix'}
+          </div>
+        )}
+        {data.error && (
+          <div className="text-xs text-destructive bg-destructive/10 border border-destructive/20 p-2 rounded-lg">⚠ {data.error}</div>
+        )}
+      </BaseNodeContent>
 
-          {/* Column Mapping Preview */}
-          {mappedCols.length > 0 && (
-            <div className="space-y-1">
-              <Label className="text-xs">Column Mapping</Label>
-              <div className="max-h-[80px] overflow-auto border rounded text-[10px]">
-                <table className="w-full">
-                  <thead><tr className="bg-muted">
-                    <th className="px-1.5 py-0.5 text-left font-medium">Source</th>
-                    <th className="px-1.5 py-0.5">→</th>
-                    <th className="px-1.5 py-0.5 text-left font-medium">Target</th>
-                  </tr></thead>
-                  <tbody>
-                    {keyColumn && (
-                      <tr className="border-t bg-blue-50 dark:bg-blue-950">
-                        <td className="px-1.5 py-0.5 font-medium">{keyColumn}</td>
-                        <td className="px-1.5 py-0.5">🔑</td>
-                        <td className="px-1.5 py-0.5 font-medium">{keyColumn}</td>
-                      </tr>
-                    )}
-                    {mappedCols.map((m, i) => (
-                      <tr key={i} className="border-t">
-                        <td className="px-1.5 py-0.5">{m.source}</td>
-                        <td className="px-1.5 py-0.5">→</td>
-                        <td className="px-1.5 py-0.5 text-teal-600 font-medium truncate max-w-[140px]">{m.target}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {data.rowCount !== undefined && (
-            <div className="text-xs text-teal-600 font-medium text-center pt-2 border-t">
-              {data.rowCount} rows • {prefix || 'no prefix'}
-            </div>
-          )}
-          {data.error && (
-            <div className="text-xs text-red-500 bg-red-50 dark:bg-red-950 p-2 rounded">⚠ {data.error}</div>
-          )}
-        </BaseNodeContent>
-
-        {/* 4 input handles */}
-        <Handle type="target" position={Position.Left} id="subject-code" className="w-3 h-3 bg-teal-500" style={{ top: '20%' }} />
-        <Handle type="target" position={Position.Left} id="section-type" className="w-3 h-3 bg-cyan-500" style={{ top: '36%' }} />
-        <Handle type="target" position={Position.Left} id="key-col-name" className="w-3 h-3 bg-blue-500" style={{ top: '52%' }} />
-        <Handle type="target" position={Position.Left} id="data" className="w-3 h-3 bg-emerald-500" style={{ top: '72%' }} />
-
-        {/* Output handle */}
-        <Handle type="source" position={Position.Right} id="out" className="w-3 h-3 bg-teal-600" />
-      </BaseNode>
-    </>
+      <NodeHandle variant="combine" type="target" position={Position.Left} id="subject-code" style={{ top: '20%' }} />
+      <NodeHandle variant="combine" type="target" position={Position.Left} id="section-type" style={{ top: '36%' }} />
+      <NodeHandle variant="combine" type="target" position={Position.Left} id="key-col-name" style={{ top: '52%' }} />
+      <NodeHandle variant="combine" type="target" position={Position.Left} id="data" style={{ top: '72%' }} />
+      <NodeHandle variant="combine" type="source" position={Position.Right} id="out" />
+    </BaseNode>
   );
 });
 

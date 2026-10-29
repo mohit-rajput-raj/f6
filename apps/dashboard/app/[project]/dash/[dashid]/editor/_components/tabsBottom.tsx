@@ -96,9 +96,9 @@ export function TabsBottom() {
   };
 
   return (
-    <div className="flex w-full h-full flex-col bg-card border rounded-lg overflow-hidden shadow-inner text-foreground">
+    <div className="flex w-full h-full flex-col bg-card text-card-foreground overflow-hidden">
       {/* Top Header Bar */}
-      <div className="flex items-center justify-between px-3 py-1.5 bg-muted/40 border-b shrink-0 gap-2">
+      <div className="flex items-center justify-between px-3 py-1.5 bg-muted/30 border-b border-border/40 shrink-0 gap-2">
         <div className="flex items-center gap-2 overflow-hidden">
           <div className="p-1 rounded bg-indigo-500/10 text-indigo-400">
             <FileJson className="size-3.5" />
@@ -247,7 +247,7 @@ export function TabsBottom() {
               value="data-json"
               className="flex-1 m-0 p-2 overflow-auto font-mono text-xs"
             >
-              <div className="rounded-md border border-border/60 bg-zinc-950 p-2.5 text-zinc-200">
+              <div className="rounded-xl border border-border/40 bg-muted/40 p-2.5 text-foreground">
                 <pre className="text-[11px] leading-relaxed whitespace-pre-wrap word-break-all">
                   {JSON.stringify(selectedNode.data, null, 2)}
                 </pre>
@@ -327,7 +327,7 @@ export function TabsBottom() {
                         {effectiveWorkflowError.message}
                       </div>
                       {effectiveWorkflowError.details && (
-                        <div className="mt-1.5 rounded border border-border/60 bg-zinc-950 p-2 text-zinc-300 font-mono text-[10px] max-h-32 overflow-auto">
+                        <div className="mt-1.5 rounded-lg border border-border/40 bg-muted/40 p-2 text-foreground font-mono text-[10px] max-h-32 overflow-auto">
                           <pre className="whitespace-pre-wrap word-break-all">
                             {typeof effectiveWorkflowError.details === "string"
                               ? effectiveWorkflowError.details
@@ -429,7 +429,7 @@ export function TabsBottom() {
               value="full-node"
               className="flex-1 m-0 p-2 overflow-auto font-mono text-xs"
             >
-              <div className="rounded-md border border-border/60 bg-zinc-950 p-2.5 text-zinc-200">
+              <div className="rounded-xl border border-border/40 bg-muted/40 p-2.5 text-foreground">
                 <pre className="text-[11px] leading-relaxed whitespace-pre-wrap word-break-all">
                   {JSON.stringify(selectedNode, null, 2)}
                 </pre>
@@ -505,7 +505,7 @@ export function TabsBottom() {
                     Copy
                   </Button>
                 </div>
-                <div className="rounded-md border border-border/80 bg-zinc-950 p-2.5 text-zinc-300 font-mono text-[10px] max-h-48 overflow-auto">
+                <div className="rounded-xl border border-border/40 bg-muted/40 p-2.5 text-foreground font-mono text-[10px] max-h-48 overflow-auto">
                   <pre className="whitespace-pre-wrap word-break-all">
                     {typeof effectiveWorkflowError.details === "string"
                       ? effectiveWorkflowError.details

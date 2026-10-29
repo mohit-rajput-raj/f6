@@ -8,6 +8,9 @@ import {
   BaseNodeContent,
   BaseNodeHeader,
   BaseNodeHeaderTitle,
+  BaseNodeIcon,
+  NodeHeaderActions,
+  NodeHandle,
 } from "@/components/dashboard/flow/Node/baseNode";
 import { NodeMenu } from "../node-menu";
 import { IconTrash } from "@tabler/icons-react";
@@ -102,91 +105,95 @@ export const DataLibraryInputNode = memo(({ id, data }: { id: string; data: any 
   }, [id, setNodes, userId]);
 
   return (
-    <>
-      <div className="flex justify-between items-center px-2 pt-1">
-        <NodeMenu />
-        <IconTrash className="size-4 cursor-pointer text-red-400 hover:text-red-600" onClick={handleDelete} />
-      </div>
-
-      <BaseNode className="max-w-[300px]">
-        <BaseNodeHeader className="border-b flex items-center gap-2 px-3 py-1.5 bg-emerald-700 text-white">
-          <Database className="size-4" />
+    <BaseNode variant="input" className="min-w-[290px] max-w-[320px]">
+      <BaseNodeHeader variant="input">
+        <div className="flex items-center gap-2 min-w-0">
+          <BaseNodeIcon variant="input">
+            <Database className="size-3.5" />
+          </BaseNodeIcon>
           <BaseNodeHeaderTitle>Data Library</BaseNodeHeaderTitle>
+        </div>
+        <NodeHeaderActions>
           <button
             onClick={fetchFiles}
-            className="ml-auto p-0.5 rounded hover:bg-white/20 transition"
+            className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-foreground/5 transition cursor-pointer nodrag"
             title="Refresh file list"
           >
             <RefreshCw className={`size-3 ${loading ? 'animate-spin' : ''}`} />
           </button>
-        </BaseNodeHeader>
+          <NodeMenu />
+          <IconTrash
+            className="size-3.5 cursor-pointer text-muted-foreground hover:text-destructive transition-colors"
+            onClick={handleDelete}
+          />
+        </NodeHeaderActions>
+      </BaseNodeHeader>
 
-        <BaseNodeContent className="p-3 space-y-2">
-          {loading ? (
-            <div className="text-xs text-muted-foreground text-center py-3 flex items-center justify-center gap-2">
-              <RefreshCw className="size-3 animate-spin" />
-              Loading files...
-            </div>
-          ) : files.length === 0 ? (
-            <div className="text-xs text-muted-foreground text-center py-3 italic flex flex-col items-center gap-2">
-              <FolderOpen className="size-5 opacity-50" />
-              No files in Data Library.
-              <br />
-              Upload files or save workflow outputs first.
-            </div>
-          ) : (
-            <div className="space-y-1 max-h-[150px] overflow-y-auto">
-              {files.map(file => (
-                <button
-                  key={file.id}
-                  onClick={() => loadFile(file.id)}
-                  disabled={loadingFile}
-                  className={`w-full text-left px-2 py-1.5 rounded text-xs transition border ${selectedFileId === file.id
-                    ? 'bg-emerald-100 dark:bg-emerald-900 border-emerald-500'
-                    : 'hover:bg-muted border-transparent'
-                    } ${loadingFile ? 'opacity-50 cursor-wait' : ''}`}
-                >
-                  <div className="font-medium truncate">{file.name}</div>
-                  {(file.metadata as any)?.rowCount !== undefined && (
-                    <div className="text-[10px] text-muted-foreground">
-                      {(file.metadata as any).colCount ?? '?'} cols × {(file.metadata as any).rowCount} rows
-                    </div>
-                  )}
-                </button>
-              ))}
-            </div>
-          )}
-
-          {columns.length > 0 && (
-            <>
-              <div className="text-xs text-emerald-600 font-semibold text-center border-t pt-1">
-                {rows.length} rows × {columns.length} columns
-              </div>
-              <div className="flex flex-wrap gap-1">
-                {columns.slice(0, 10).map((col, i) => (
-                  <span
-                    key={i}
-                    className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-700"
-                  >
-                    {col}
-                  </span>
-                ))}
-                {columns.length > 10 && (
-                  <span className="text-[10px] text-muted-foreground">+{columns.length - 10} more</span>
+      <BaseNodeContent className="p-3 space-y-2">
+        {loading ? (
+          <div className="text-xs text-muted-foreground text-center py-3 flex items-center justify-center gap-2">
+            <RefreshCw className="size-3 animate-spin" />
+            Loading files...
+          </div>
+        ) : files.length === 0 ? (
+          <div className="text-xs text-muted-foreground text-center py-3 italic flex flex-col items-center gap-2">
+            <FolderOpen className="size-5 opacity-50" />
+            No files in Data Library.
+            <br />
+            Upload files or save workflow outputs first.
+          </div>
+        ) : (
+          <div className="space-y-1 max-h-[150px] overflow-y-auto">
+            {files.map(file => (
+              <button
+                key={file.id}
+                onClick={() => loadFile(file.id)}
+                disabled={loadingFile}
+                className={`w-full text-left px-2 py-1.5 rounded text-xs transition border ${selectedFileId === file.id
+                  ? 'bg-emerald-100 dark:bg-emerald-900 border-emerald-500'
+                  : 'hover:bg-muted border-transparent'
+                  } ${loadingFile ? 'opacity-50 cursor-wait' : ''}`}
+              >
+                <div className="font-medium truncate">{file.name}</div>
+                {(file.metadata as any)?.rowCount !== undefined && (
+                  <div className="text-[10px] text-muted-foreground">
+                    {(file.metadata as any).colCount ?? '?'} cols × {(file.metadata as any).rowCount} rows
+                  </div>
                 )}
-              </div>
-            </>
-          )}
-        </BaseNodeContent>
+              </button>
+            ))}
+          </div>
+        )}
 
-        <Handle
-          type="source"
-          position={Position.Right}
-          id="out"
-          className="w-3 h-3 bg-emerald-600"
-        />
-      </BaseNode>
-    </>
+        {columns.length > 0 && (
+          <>
+            <div className="text-xs text-emerald-600 font-semibold text-center border-t pt-1">
+              {rows.length} rows × {columns.length} columns
+            </div>
+            <div className="flex flex-wrap gap-1">
+              {columns.slice(0, 10).map((col, i) => (
+                <span
+                  key={i}
+                  className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-700"
+                >
+                  {col}
+                </span>
+              ))}
+              {columns.length > 10 && (
+                <span className="text-[10px] text-muted-foreground">+{columns.length - 10} more</span>
+              )}
+            </div>
+          </>
+        )}
+      </BaseNodeContent>
+
+      <NodeHandle
+        variant="input"
+        type="source"
+        position={Position.Right}
+        id="out"
+      />
+    </BaseNode>
   );
 });
 

@@ -1,86 +1,60 @@
-import { memo, useCallback } from "react";
-import { Handle, Position, useNodeId } from "@xyflow/react";
-import { EllipsisVertical, Rocket, Trash } from "lucide-react";
-
-import { Button } from "@repo/ui/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@repo/ui/components/ui/dropdown-menu";
+import { memo } from "react";
+import { Position, useNodeId } from "@xyflow/react";
+import { Rocket } from "lucide-react";
 
 import {
   BaseNode,
   BaseNodeContent,
   BaseNodeHeader,
   BaseNodeHeaderTitle,
+  BaseNodeIcon,
+  NodeHeaderActions,
+  NodeHandle,
 } from "@/components/dashboard/flow/Node/baseNode";
 
-import { useEditorWorkFlow } from "@/context/WorkFlowContextProvider";
 import { NodeMenu } from "./node-menu";
 import { DrawerDemo } from "@/components/dashboard/flow/Node/drawer";
 import { IconTrash } from "@tabler/icons-react";
 import { useDeleteNode } from "./settings/triggers";
 import { NodeData } from "./input-nodes/test-nodes";
 
-export const OutputNode = memo(({ data }: { data: NodeData }) => {
+export const OutputNode = memo(({ data, selected }: { data: NodeData; selected?: boolean }) => {
   const nodeId = useNodeId();
   const handleDelete = useDeleteNode();
-  // const { setNodes , setEdges } = useEditorWorkFlow();
 
   return (
-    <>
-      <Handle
-        type="target"
-        position={Position.Left}
-        className="w-6 h-6 bg-muted-foreground border-2 border-background"
-      />
-
-      <div>
-        <div className="flex justify-between items-center ">
+    <BaseNode variant="output" selected={selected} className="min-w-[280px]">
+      <BaseNodeHeader variant="output">
+        <BaseNodeIcon variant="output">
+          <Rocket className="size-4" />
+        </BaseNodeIcon>
+        <BaseNodeHeaderTitle>Output</BaseNodeHeaderTitle>
+        <NodeHeaderActions>
+          {data?.result && <DrawerDemo data={data.result} />}
           <NodeMenu />
           <IconTrash
-            className="size-4 cursor-pointer p-0 text-red-300"
+            className="size-4 cursor-pointer text-muted-foreground hover:text-destructive transition-colors"
             onClick={handleDelete}
           />
-        </div>
+        </NodeHeaderActions>
+      </BaseNodeHeader>
 
-        <BaseNode>
-          <BaseNodeHeader className="border-b flex items-center gap-2">
-            <Rocket className="size-4" />
-            <BaseNodeHeaderTitle>click to see output</BaseNodeHeaderTitle>
-            {
-              data?.result && (
-                <DrawerDemo data={data.result} />
-              )
-            }
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="nodrag">
-                  <EllipsisVertical className="size-4" />
-                </Button>
-              </DropdownMenuTrigger>
+      <BaseNodeContent className="p-3.5 text-xs">
+        {data?.result ? (
+          <div className="font-mono bg-muted/40 p-2 rounded-md border border-border/50 max-h-[140px] overflow-auto">
+            {typeof data.result === 'object' ? JSON.stringify(data.result, null, 2) : String(data.result)}
+          </div>
+        ) : (
+          <p className="text-muted-foreground text-center py-3 italic">
+            Run workflow to see output...
+          </p>
+        )}
+      </BaseNodeContent>
 
-              <DropdownMenuContent align="end">
-                <DropdownMenuLabel>Node Actions</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-
-                <DropdownMenuItem>Text</DropdownMenuItem>
-                <DropdownMenuItem>File</DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </BaseNodeHeader>
-
-          <BaseNodeContent>
-            <p>{data?.result}</p>
-          </BaseNodeContent>
-        </BaseNode>
-      </div>
-    </>
+      <NodeHandle variant="output" type="target" position={Position.Left} />
+    </BaseNode>
   );
 });
 
 OutputNode.displayName = "OutputNode";
+

@@ -8,6 +8,9 @@ import {
   BaseNodeContent,
   BaseNodeHeader,
   BaseNodeHeaderTitle,
+  BaseNodeIcon,
+  NodeHeaderActions,
+  NodeHandle,
 } from "@/components/dashboard/flow/Node/baseNode";
 import { NodeMenu } from "../node-menu";
 import { IconTrash } from "@tabler/icons-react";
@@ -137,22 +140,25 @@ export const TabInputNode = memo(({ id, data }: { id: string; data: any }) => {
   }, [deskBlockId, currentTabName, selectedDatasetId, handleSelectDataset]);
 
   return (
-    <>
-      <div className="flex justify-between items-center px-2 pt-1">
-        <NodeMenu />
-        <IconTrash className="size-4 cursor-pointer text-red-400 hover:text-red-600" onClick={handleDelete} />
-      </div>
-
-      <BaseNode className="min-w-[320px] max-w-[360px]">
-        <BaseNodeHeader className="border-b flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-t-md">
-          <Inbox className="size-4" />
-          <BaseNodeHeaderTitle className="text-white text-sm">
-            Tab Input
-          </BaseNodeHeaderTitle>
-          <Badge variant="outline" className="ml-auto text-[10px] border-white/30 text-white/90">
-            {incomingList.length > 0 ? `${incomingList.length} Available` : 'Empty'}
+    <BaseNode variant="input" className="min-w-[320px] max-w-[360px]">
+      <BaseNodeHeader variant="input">
+        <div className="flex items-center gap-2 min-w-0">
+          <BaseNodeIcon variant="input">
+            <Inbox className="size-3.5" />
+          </BaseNodeIcon>
+          <BaseNodeHeaderTitle>Tab Input</BaseNodeHeaderTitle>
+          <Badge variant="outline" className="text-[10px] font-mono border-sky-500/30 text-sky-700 dark:text-sky-300">
+            {incomingList.length > 0 ? `${incomingList.length} In` : 'Empty'}
           </Badge>
-        </BaseNodeHeader>
+        </div>
+        <NodeHeaderActions>
+          <NodeMenu />
+          <IconTrash
+            className="size-3.5 cursor-pointer text-muted-foreground hover:text-destructive transition-colors"
+            onClick={handleDelete}
+          />
+        </NodeHeaderActions>
+      </BaseNodeHeader>
 
         <BaseNodeContent className="p-3 space-y-2.5">
           {/* Target tab label */}
@@ -260,15 +266,13 @@ export const TabInputNode = memo(({ id, data }: { id: string; data: any }) => {
           )}
         </BaseNodeContent>
 
-        {/* Output Handle to connect to other nodes */}
-        <Handle
-          type="source"
-          position={Position.Right}
-          id="out"
-          className="w-3 h-3 bg-cyan-500 border border-background"
-        />
-      </BaseNode>
-    </>
+      <NodeHandle
+        variant="input"
+        type="source"
+        position={Position.Right}
+        id="out"
+      />
+    </BaseNode>
   );
 });
 

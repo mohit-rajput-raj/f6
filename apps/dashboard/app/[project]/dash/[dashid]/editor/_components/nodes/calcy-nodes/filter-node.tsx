@@ -1,13 +1,16 @@
 'use client';
 
 import { memo, useCallback } from 'react';
-import { Handle, Position, useReactFlow } from '@xyflow/react';
+import { Position, useReactFlow } from '@xyflow/react';
 import { Filter as FilterIcon } from 'lucide-react';
 import {
   BaseNode,
   BaseNodeContent,
   BaseNodeHeader,
   BaseNodeHeaderTitle,
+  BaseNodeIcon,
+  NodeHeaderActions,
+  NodeHandle,
 } from "@/components/dashboard/flow/Node/baseNode";
 import { NodeMenu } from "../node-menu";
 import { IconTrash } from "@tabler/icons-react";
@@ -52,81 +55,85 @@ export const FilterNode = memo(({ id, data }: { id: string; data: NodeData & { c
   const availableColumns = data.inputColumns ?? [];
 
   return (
-    <>
-      <div className="flex justify-between items-center px-2 pt-1">
-        <NodeMenu />
-        <IconTrash className="size-4 cursor-pointer text-red-400 hover:text-red-600" onClick={handleDelete} />
-      </div>
-
-      <BaseNode className="min-w-[320px]">
-        <BaseNodeHeader className="border-b flex items-center gap-2 px-3 py-1.5 bg-purple-800 text-white">
-          <FilterIcon className="size-4" />
+    <BaseNode variant="transform" className="min-w-[320px]">
+      <BaseNodeHeader variant="transform">
+        <div className="flex items-center gap-2 min-w-0">
+          <BaseNodeIcon variant="transform">
+            <FilterIcon className="size-3.5" />
+          </BaseNodeIcon>
           <BaseNodeHeaderTitle>Filter</BaseNodeHeaderTitle>
-        </BaseNodeHeader>
+        </div>
+        <NodeHeaderActions>
+          <NodeMenu />
+          <IconTrash
+            className="size-3.5 cursor-pointer text-muted-foreground hover:text-destructive transition-colors"
+            onClick={handleDelete}
+          />
+        </NodeHeaderActions>
+      </BaseNodeHeader>
 
-        <BaseNodeContent className="p-4 space-y-4">
-          <div className="space-y-1.5">
-            <Label className="text-xs">Column</Label>
-            <Select
-              value={config.column}
-              onValueChange={(v) => updateConfig({ column: v })}
-              disabled={availableColumns.length === 0}
-            >
-              <SelectTrigger className="h-9">
-                <SelectValue placeholder={availableColumns.length === 0 ? "Connect upstream node first" : "Select column"} />
-              </SelectTrigger>
-              <SelectContent>
-                {availableColumns.map(col => (
-                  <SelectItem key={col} value={col}>{col}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+      <BaseNodeContent className="p-3.5 space-y-3">
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground">Column</Label>
+          <Select
+            value={config.column}
+            onValueChange={(v) => updateConfig({ column: v })}
+            disabled={availableColumns.length === 0}
+          >
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue placeholder={availableColumns.length === 0 ? "Connect upstream node first" : "Select column"} />
+            </SelectTrigger>
+            <SelectContent>
+              {availableColumns.map(col => (
+                <SelectItem key={col} value={col}>{col}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground">Condition</Label>
+          <Select
+            value={config.condition}
+            onValueChange={(v) => updateConfig({ condition: v as FilterCondition })}
+          >
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="text-exact">is exactly</SelectItem>
+              <SelectItem value="text-contains">contains</SelectItem>
+              <SelectItem value="text-starts">starts with</SelectItem>
+              <SelectItem value="text-ends">ends with</SelectItem>
+              <SelectItem value="number-eq">equals</SelectItem>
+              <SelectItem value="number-gt">greater than</SelectItem>
+              <SelectItem value="number-gte">≥</SelectItem>
+              <SelectItem value="number-lt">less than</SelectItem>
+              <SelectItem value="number-lte">≤</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground">Value</Label>
+          <Input
+            value={config.value ?? ''}
+            onChange={e => updateConfig({ value: e.target.value })}
+            placeholder="e.g. A or 42"
+            className="h-8 text-xs nodrag"
+          />
+        </div>
+
+        {data.rowCount !== undefined && (
+          <div className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium text-center pt-2.5 border-t border-border/40">
+            {data.rowCount} rows after filter • {data.result?.columns?.length ?? '?'} cols
           </div>
+        )}
+      </BaseNodeContent>
 
-          <div className="space-y-1.5">
-            <Label className="text-xs">Condition</Label>
-            <Select
-              value={config.condition}
-              onValueChange={(v) => updateConfig({ condition: v as FilterCondition })}
-            >
-              <SelectTrigger className="h-9">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="text-exact">is exactly</SelectItem>
-                <SelectItem value="text-contains">contains</SelectItem>
-                <SelectItem value="text-starts">starts with</SelectItem>
-                <SelectItem value="text-ends">ends with</SelectItem>
-                <SelectItem value="number-eq">equals</SelectItem>
-                <SelectItem value="number-gt">greater than</SelectItem>
-                <SelectItem value="number-gte">≥</SelectItem>
-                <SelectItem value="number-lt">less than</SelectItem>
-                <SelectItem value="number-lte">≤</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-1.5">
-            <Label className="text-xs">Value</Label>
-            <Input
-              value={config.value ?? ''}
-              onChange={e => updateConfig({ value: e.target.value })}
-              placeholder="e.g. A or 42"
-              className="h-9"
-            />
-          </div>
-
-          {data.rowCount !== undefined && (
-            <div className="text-xs text-emerald-600 font-medium text-center pt-3 border-t">
-              {data.rowCount} rows after filter • {data.result?.columns?.length ?? '?'} cols
-            </div>
-          )}
-        </BaseNodeContent>
-
-        <Handle type="target" position={Position.Left} id="in" className="w-3 h-3 bg-purple-600" />
-        <Handle type="source" position={Position.Right} id="out" className="w-3 h-3 bg-purple-600" />
-      </BaseNode>
-    </>
+      <NodeHandle variant="transform" type="target" position={Position.Left} id="in" />
+      <NodeHandle variant="transform" type="source" position={Position.Right} id="out" />
+    </BaseNode>
   );
 });
 

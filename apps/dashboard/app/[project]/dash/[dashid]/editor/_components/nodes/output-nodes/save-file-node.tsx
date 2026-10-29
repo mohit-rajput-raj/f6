@@ -1,7 +1,7 @@
 'use client';
 
 import { memo, useCallback, useState, useEffect } from 'react';
-import { Handle, Position, useReactFlow } from '@xyflow/react';
+import { Position, useReactFlow } from '@xyflow/react';
 import { Save, Folder, FileSpreadsheet, RefreshCw, CheckCircle2, Copy, Check } from 'lucide-react';
 import Image from 'next/image';
 import {
@@ -9,6 +9,9 @@ import {
   BaseNodeContent,
   BaseNodeHeader,
   BaseNodeHeaderTitle,
+  BaseNodeIcon,
+  NodeHeaderActions,
+  NodeHandle,
 } from "@/components/dashboard/flow/Node/baseNode";
 import { NodeMenu } from "../node-menu";
 import { IconTrash } from "@tabler/icons-react";
@@ -33,7 +36,7 @@ interface Dataset {
   data: any[][];
 }
 
-export const SaveFileNode = memo(({ id, data }: { id: string; data: any }) => {
+export const SaveFileNode = memo(({ id, data, selected }: { id: string; data: any; selected?: boolean }) => {
   const { setNodes } = useReactFlow();
   const handleDelete = useDeleteNode();
   const { data: session } = useSession();
@@ -184,22 +187,23 @@ export const SaveFileNode = memo(({ id, data }: { id: string; data: any }) => {
   const colCount = dataset?.columns?.length ?? 0;
 
   return (
-    <>
-      <div className="flex justify-between items-center px-2 pt-1">
-        <NodeMenu />
-        <IconTrash className="size-4 cursor-pointer text-red-400 hover:text-red-600" onClick={handleDelete} />
-      </div>
-
-      <BaseNode className="min-w-[320px] shadow-lg border-indigo-500/20">
-        <BaseNodeHeader className="border-b flex items-center justify-between px-3 py-1.5 bg-gradient-to-r from-indigo-700 to-indigo-600 text-white">
-          <div className="flex items-center gap-2">
-            <Save className="size-4" />
-            <BaseNodeHeaderTitle>Save to Files</BaseNodeHeaderTitle>
-          </div>
-          <span className="text-[10px] bg-white/20 px-1.5 py-0.5 rounded font-mono">
-            Output
-          </span>
-        </BaseNodeHeader>
+    <BaseNode variant="output" selected={selected} className="min-w-[320px]">
+      <BaseNodeHeader variant="output">
+        <BaseNodeIcon variant="output">
+          <Save className="size-4" />
+        </BaseNodeIcon>
+        <BaseNodeHeaderTitle>Save to Files</BaseNodeHeaderTitle>
+        <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-emerald-500/30 text-emerald-600 dark:text-emerald-400">
+          Output
+        </Badge>
+        <NodeHeaderActions>
+          <NodeMenu />
+          <IconTrash
+            className="size-4 cursor-pointer text-muted-foreground hover:text-destructive transition-colors"
+            onClick={handleDelete}
+          />
+        </NodeHeaderActions>
+      </BaseNodeHeader>
 
         <BaseNodeContent className="p-3.5 space-y-3">
           {/* Auto Save Toggle (Slide Button) */}
@@ -388,39 +392,42 @@ export const SaveFileNode = memo(({ id, data }: { id: string; data: any }) => {
           </Button>
         </BaseNodeContent>
 
-        {/* Input Handles (Left) */}
-        <Handle
-          type="target"
-          position={Position.Left}
-          id="data"
-          className="w-3 h-3 bg-indigo-600 top-[25%]"
-          title="Dataset (columns & data)"
-        />
-        <Handle
-          type="target"
-          position={Position.Left}
-          id="file-name"
-          className="w-3 h-3 bg-emerald-600 top-[55%]"
-          title="Dynamic File Name (Text)"
-        />
-        <Handle
-          type="target"
-          position={Position.Left}
-          id="folder-name"
-          className="w-3 h-3 bg-amber-600 top-[82%]"
-          title="Dynamic Folder Path (e.g. A/B/C)"
-        />
+      {/* Input Handles (Left) */}
+      <NodeHandle
+        variant="output"
+        type="target"
+        position={Position.Left}
+        id="data"
+        style={{ top: '25%' }}
+        title="Dataset (columns & data)"
+      />
+      <NodeHandle
+        variant="input"
+        type="target"
+        position={Position.Left}
+        id="file-name"
+        style={{ top: '55%' }}
+        title="Dynamic File Name (Text)"
+      />
+      <NodeHandle
+        variant="logic"
+        type="target"
+        position={Position.Left}
+        id="folder-name"
+        style={{ top: '82%' }}
+        title="Dynamic Folder Path (e.g. A/B/C)"
+      />
 
-        {/* Pass-through Output Handle (Right) */}
-        <Handle
-          type="source"
-          position={Position.Right}
-          id="out"
-          className="w-3 h-3 bg-indigo-600 top-[50%]"
-          title="Pass-through Dataset"
-        />
-      </BaseNode>
-    </>
+      {/* Pass-through Output Handle (Right) */}
+      <NodeHandle
+        variant="output"
+        type="source"
+        position={Position.Right}
+        id="out"
+        style={{ top: '50%' }}
+        title="Pass-through Dataset"
+      />
+    </BaseNode>
   );
 });
 

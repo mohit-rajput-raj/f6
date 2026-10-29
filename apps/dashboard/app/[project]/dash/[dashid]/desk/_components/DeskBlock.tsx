@@ -33,6 +33,8 @@ import {
   Shield,
   UserCheck,
   X,
+  Workflow,
+  ExternalLink,
 } from "lucide-react";
 import { useSession } from "@/lib/auth-client";
 import { BlockPasswordModal } from "./BlockPasswordModal";
@@ -1028,78 +1030,138 @@ export function DeskBlock({
 
       {/* ─── Tab Bar ───────────────────────────────────────── */}
       <div className="flex items-center justify-between px-3 py-1.5 bg-muted/40 border-b border-border">
-        <div className="flex items-center gap-1 overflow-x-auto">
-          {childBlocks.map((child) => (
-            <button
-              key={child.id}
-              onClick={() => setActiveChildId(child.id)}
-              onDoubleClick={() =>
-                !isViewer && startRename(child.id, child.name)
-              }
-              className={`text-xs px-3 py-1.5 rounded-md font-medium transition-all whitespace-nowrap flex items-center gap-1.5 ${
-                activeChildId === child.id
-                  ? "bg-secondary text-secondary-foreground border border-border shadow-sm"
-                  : "text-muted-foreground hover:text-foreground hover:bg-muted border border-transparent"
-              }`}
-            >
-              {child.isPasswordProtected && (
-                <Lock className="size-3 text-amber-500 shrink-0" />
-              )}
-              {renamingTabId === child.id ? (
-                <input
-                  autoFocus
-                  value={renameValue}
-                  onChange={(e) => setRenameValue(e.target.value)}
-                  onBlur={commitRename}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") commitRename();
-                    if (e.key === "Escape") setRenamingTabId(null);
-                  }}
-                  onClick={(e) => e.stopPropagation()}
-                  className="bg-transparent border-none outline-none text-xs w-20 text-foreground"
-                />
-              ) : (
-                <span>{child.name}</span>
-              )}
-              {child.coOwnerEmail && (
-                <span
-                  className="inline-flex items-center gap-1.5 pl-0.5 pr-1.5 py-0.5 rounded-full bg-background/80 hover:bg-background text-foreground/80 border border-border/60 transition-colors shadow-2xs"
-                  title={`Co-owner: ${child.coOwnerEmail}`}
+        <div className="flex items-center gap-1.5 overflow-x-auto py-0.5">
+          {childBlocks.map((child) => {
+            const isActive = activeChildId === child.id;
+            return (
+              <div
+                key={child.id}
+                className={`group inline-flex items-center rounded-lg border text-xs font-medium transition-all whitespace-nowrap shadow-2xs overflow-hidden ${
+                  isActive
+                    ? "bg-secondary text-secondary-foreground border-border shadow-xs"
+                    : "bg-background/80 hover:bg-muted/50 text-muted-foreground hover:text-foreground border-border/70 hover:border-border"
+                }`}
+              >
+                {/* ─── Tab Name & Status ───────────────────── */}
+                <button
+                  type="button"
+                  onClick={() => setActiveChildId(child.id)}
+                  onDoubleClick={() =>
+                    !isViewer && startRename(child.id, child.name)
+                  }
+                  className={`flex items-center gap-1.5 px-3 py-1.5 cursor-pointer transition-colors outline-none ${
+                    isActive
+                      ? "text-foreground font-semibold"
+                      : "text-muted-foreground group-hover:text-foreground"
+                  }`}
                 >
-                  <Avatar className="size-4 rounded-full ring-1 ring-border/50 shrink-0">
-                    <AvatarImage
-                      src={getEmailAvatar(child.coOwnerEmail)}
-                      alt={child.coOwnerEmail}
-                      className="object-cover"
+                  {child.isPasswordProtected && (
+                    <Lock className="size-3 text-amber-500 shrink-0" />
+                  )}
+                  {renamingTabId === child.id ? (
+                    <input
+                      autoFocus
+                      value={renameValue}
+                      onChange={(e) => setRenameValue(e.target.value)}
+                      onBlur={commitRename}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") commitRename();
+                        if (e.key === "Escape") setRenamingTabId(null);
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                      className="bg-transparent border-none outline-none text-xs w-20 text-foreground"
                     />
-                    <AvatarFallback className="text-[8px] bg-muted font-semibold text-foreground">
-                      {child.coOwnerEmail.charAt(0).toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-                  <span className="max-w-[75px] truncate text-[10px] font-normal">
-                    {child.coOwnerEmail.split("@")[0]}
-                  </span>
-                </span>
-              )}
-            </button>
-          ))}
+                  ) : (
+                    <span>{child.name}</span>
+                  )}
+                  {child.coOwnerEmail && (
+                    <span
+                      className="inline-flex items-center gap-1.5 pl-0.5 pr-1.5 py-0.5 rounded-full bg-background/90 text-foreground/80 border border-border/60 transition-colors shadow-2xs"
+                      title={`Co-owner: ${child.coOwnerEmail}`}
+                    >
+                      <Avatar className="size-3.5 rounded-full ring-1 ring-border/50 shrink-0">
+                        <AvatarImage
+                          src={getEmailAvatar(child.coOwnerEmail)}
+                          alt={child.coOwnerEmail}
+                          className="object-cover"
+                        />
+                        <AvatarFallback className="text-[8px] bg-muted font-semibold text-foreground">
+                          {child.coOwnerEmail.charAt(0).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span className="max-w-[75px] truncate text-[10px] font-normal">
+                        {child.coOwnerEmail.split("@")[0]}
+                      </span>
+                    </span>
+                  )}
+                </button>
+
+                {/* ─── Editor Button Inside the Border ─────── */}
+                {!isViewer && (
+                  <>
+                    <div
+                      className={`h-4 w-px shrink-0 ${
+                        isActive ? "bg-border" : "bg-border/60"
+                      }`}
+                    />
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openEditor(child);
+                      }}
+                      className={`inline-flex items-center gap-1 px-2.5 py-1.5 text-[10px] font-semibold transition-colors cursor-pointer outline-none ${
+                        isActive
+                          ? "text-primary hover:bg-background/80 hover:text-primary"
+                          : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                      }`}
+                      title={`Open Workflow Editor for ${child.name}`}
+                    >
+                      <Workflow className="size-2.5 shrink-0" />
+                      <span>Editor</span>
+                    </button>
+                  </>
+                )}
+              </div>
+            );
+          })}
         </div>
-        {!isViewer && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleAddTab}
-            disabled={isAddingTab}
-            className="h-7 text-xs px-2.5 gap-1 text-muted-foreground hover:text-foreground hover:bg-muted font-medium cursor-pointer shrink-0"
-          >
-            {isAddingTab ? (
-              <Loader2 className="size-3 animate-spin" />
-            ) : (
-              <Plus className="size-3.5" />
-            )}
-            Add Tab
-          </Button>
-        )}
+        <div className="flex items-center gap-1.5 shrink-0 ml-2">
+          {!isViewer && activeChild && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => openEditor(activeChild)}
+              className="h-7 text-xs px-2.5 gap-1.5 bg-background hover:bg-muted text-foreground font-semibold border-border shadow-2xs cursor-pointer"
+              title={`Open Workflow Editor for active tab "${activeChild.name}"`}
+            >
+              {activeChild.isPasswordProtected ? (
+                <KeyRound className="size-3.5 text-amber-500" />
+              ) : (
+                <Workflow className="size-3.5 text-primary" />
+              )}
+              <span>Open Editor</span>
+            </Button>
+          )}
+
+          {!isViewer && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleAddTab}
+              disabled={isAddingTab}
+              className="h-7 text-xs px-2.5 gap-1 text-muted-foreground hover:text-foreground hover:bg-muted font-medium cursor-pointer shrink-0"
+            >
+              {isAddingTab ? (
+                <Loader2 className="size-3 animate-spin" />
+              ) : (
+                <Plus className="size-3.5" />
+              )}
+              Add Tab
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* ─── Active Tab Content ────────────────────────────── */}

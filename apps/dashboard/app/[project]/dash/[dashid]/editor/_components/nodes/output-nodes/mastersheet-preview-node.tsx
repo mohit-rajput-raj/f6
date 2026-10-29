@@ -1,10 +1,16 @@
 'use client';
 
 import { memo, useState, useCallback } from 'react';
-import { Handle, Position, useReactFlow } from '@xyflow/react';
+import { Position, useReactFlow } from '@xyflow/react';
 import { Table2, Hash, Save, Loader2 } from 'lucide-react';
 import {
-  BaseNode, BaseNodeContent, BaseNodeHeader, BaseNodeHeaderTitle,
+  BaseNode,
+  BaseNodeContent,
+  BaseNodeHeader,
+  BaseNodeHeaderTitle,
+  BaseNodeIcon,
+  NodeHeaderActions,
+  NodeHandle,
 } from "@/components/dashboard/flow/Node/baseNode";
 import { NodeMenu } from "../node-menu";
 import { IconTrash } from "@tabler/icons-react";
@@ -20,12 +26,10 @@ import { Button } from "@repo/ui/components/ui/button";
  *                      so the desk page knows which node's output to show.
  * data.result        = { columns, data } — set by execution engine
  * 
- * Now also supports:
- * - save-trigger input port: when connected to an ActionButtonNode, 
- *   triggers saving the mastersheet to DB
+ * - save-trigger input port: triggers saving the mastersheet to DB
  * - Built-in save button for manual saves
  */
-export const MasterSheetPreviewNode = memo(({ id, data }: { id: string; data: any }) => {
+export const MasterSheetPreviewNode = memo(({ id, data, selected }: { id: string; data: any; selected?: boolean }) => {
   const { setNodes } = useReactFlow();
   const handleDelete = useDeleteNode();
   const mastersheetId: string = data.mastersheetId ?? '';
@@ -44,93 +48,101 @@ export const MasterSheetPreviewNode = memo(({ id, data }: { id: string; data: an
   const result = data.result ?? null;
 
   return (
-    <>
-      <div className="flex justify-between items-center px-2 pt-1">
-        <NodeMenu />
-        <IconTrash className="size-4 cursor-pointer text-red-400 hover:text-red-600" onClick={handleDelete} />
-      </div>
-
-      <BaseNode className="min-w-[280px]">
-        <BaseNodeHeader className="border-b flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-t-md">
+    <BaseNode variant="output" selected={selected} className="min-w-[280px]">
+      <BaseNodeHeader variant="output">
+        <BaseNodeIcon variant="output">
           <Table2 className="size-4" />
-          <BaseNodeHeaderTitle className="text-white">Master Sheet Preview</BaseNodeHeaderTitle>
-          <Badge variant="outline" className="text-[10px] border-white/30 text-white/80 ml-auto">
-            → Desk Bottom
-          </Badge>
-        </BaseNodeHeader>
+        </BaseNodeIcon>
+        <BaseNodeHeaderTitle>Master Sheet Preview</BaseNodeHeaderTitle>
+        <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-emerald-500/30 text-emerald-600 dark:text-emerald-400">
+          → Desk Bottom
+        </Badge>
+        <NodeHeaderActions>
+          <NodeMenu />
+          <IconTrash
+            className="size-4 cursor-pointer text-muted-foreground hover:text-destructive transition-colors"
+            onClick={handleDelete}
+          />
+        </NodeHeaderActions>
+      </BaseNodeHeader>
 
-        <BaseNodeContent className="p-3 space-y-3">
-          {/* MasterSheet ID input */}
-          <div className="space-y-1">
-            <label className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider flex items-center gap-1">
-              <Hash className="size-3" />
-              MasterSheet ID
-            </label>
-            <input
-              value={mastersheetId}
-              onChange={(e) => updateMastersheetId(e.target.value)}
-              className="w-full h-7 px-2 text-xs border rounded bg-background focus:outline-none focus:ring-1 focus:ring-indigo-500 nodrag"
-              placeholder="e.g. attendance, marks..."
-            />
-            <p className="text-[9px] text-muted-foreground">
-              Type this ID in the Desk's MasterSheet panel to show this data.
-            </p>
-          </div>
-
-          {/* Data preview */}
-          {result && result.columns?.length > 0 ? (
-            <div className="space-y-1">
-              <div className="text-xs text-indigo-600 font-semibold text-center">
-                {result.data.length} rows × {result.columns.length} columns
-              </div>
-              <div className="flex flex-wrap gap-1">
-                {result.columns.slice(0, 5).map((col: string, i: number) => (
-                  <span
-                    key={i}
-                    className="text-[10px] px-1.5 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-700"
-                  >
-                    {col}
-                  </span>
-                ))}
-                {result.columns.length > 5 && (
-                  <span className="text-[10px] text-muted-foreground">
-                    +{result.columns.length - 5}
-                  </span>
-                )}
-              </div>
-              <div className="text-[10px] text-center text-indigo-500 font-medium">
-                ✅ Data will show in Desk MasterSheet panel
-              </div>
-            </div>
-          ) : (
-            <div className="text-xs text-muted-foreground text-center py-2 italic">
-              Connect input data, then execute to preview
-            </div>
-          )}
-
-          {/* Save status */}
-          {lastSaveStatus && (
-            <div className={`text-[10px] text-center font-medium rounded px-2 py-1 ${lastSaveStatus === 'saved'
-              ? 'bg-emerald-50 dark:bg-emerald-950 text-emerald-600'
-              : lastSaveStatus === 'error'
-                ? 'bg-red-50 dark:bg-red-950 text-red-500'
-                : 'bg-zinc-50 dark:bg-zinc-900 text-muted-foreground'
-              }`}>
-              {lastSaveStatus === 'saved' ? '✅ Saved to DB' : lastSaveStatus === 'error' ? '❌ Save failed' : lastSaveStatus}
-            </div>
-          )}
-
-        </BaseNodeContent>
-
-        {/* Input handle — data */}
-        <Handle type="target" position={Position.Left} id="in" className="w-3 h-3 bg-indigo-600" style={{ top: '50%' }} />
-
-        {/* Handle labels */}
-        <div className="absolute left-[-4px] text-[7px] text-indigo-500 font-medium" style={{ top: '47%', transform: 'translateX(-100%)' }}>
-          Data
+      <BaseNodeContent className="p-3.5 space-y-3">
+        {/* MasterSheet ID input */}
+        <div className="space-y-1">
+          <label className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider flex items-center gap-1">
+            <Hash className="size-3 text-muted-foreground" />
+            MasterSheet ID
+          </label>
+          <input
+            value={mastersheetId}
+            onChange={(e) => updateMastersheetId(e.target.value)}
+            className="w-full h-7 px-2 text-xs border border-border/60 rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-emerald-500 nodrag"
+            placeholder="e.g. attendance, marks..."
+          />
+          <p className="text-[9px] text-muted-foreground">
+            Type this ID in the Desk's MasterSheet panel to show this data.
+          </p>
         </div>
-      </BaseNode>
-    </>
+
+        {/* Data preview */}
+        {result && result.columns?.length > 0 ? (
+          <div className="space-y-1.5">
+            <div className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold text-center">
+              {result.data.length} rows × {result.columns.length} columns
+            </div>
+            <div className="flex flex-wrap gap-1">
+              {result.columns.slice(0, 5).map((col: string, i: number) => (
+                <span
+                  key={i}
+                  className="text-[10px] px-1.5 py-0.5 rounded-md bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20"
+                >
+                  {col}
+                </span>
+              ))}
+              {result.columns.length > 5 && (
+                <span className="text-[10px] text-muted-foreground self-center">
+                  +{result.columns.length - 5}
+                </span>
+              )}
+            </div>
+            <div className="text-[10px] text-center text-emerald-600 dark:text-emerald-400 font-medium">
+              ✅ Data will show in Desk MasterSheet panel
+            </div>
+          </div>
+        ) : (
+          <div className="text-xs text-muted-foreground text-center py-2 italic">
+            Connect input data, then execute to preview
+          </div>
+        )}
+
+        {/* Save status */}
+        {lastSaveStatus && (
+          <div className={`text-[10px] text-center font-medium rounded-md px-2 py-1 ${
+            lastSaveStatus === 'saved'
+              ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'
+              : lastSaveStatus === 'error'
+                ? 'bg-destructive/10 text-destructive border border-destructive/20'
+                : 'bg-muted text-muted-foreground border border-border/50'
+          }`}>
+            {lastSaveStatus === 'saved' ? '✅ Saved to DB' : lastSaveStatus === 'error' ? '❌ Save failed' : lastSaveStatus}
+          </div>
+        )}
+      </BaseNodeContent>
+
+      {/* Input handle — data */}
+      <NodeHandle
+        variant="output"
+        type="target"
+        position={Position.Left}
+        id="in"
+        style={{ top: '50%' }}
+      />
+
+      {/* Handle labels */}
+      <div className="absolute left-[-4px] text-[8px] text-emerald-600 dark:text-emerald-400 font-medium select-none pointer-events-none" style={{ top: '47%', transform: 'translateX(-100%)' }}>
+        Data
+      </div>
+    </BaseNode>
   );
 });
 

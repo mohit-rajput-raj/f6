@@ -7,14 +7,33 @@ import React, {
   useEffect,
   useMemo,
 } from "react";
-import { Plus, Camera, X, Settings2, Loader2, ArrowDown, ShieldAlert, ArrowLeft, Search } from "lucide-react";
+import {
+  Plus,
+  Camera,
+  X,
+  Settings2,
+  Loader2,
+  ArrowDown,
+  ShieldAlert,
+  ArrowLeft,
+  Search,
+  Table2,
+  History,
+  FileSpreadsheet,
+  Sparkles,
+} from "lucide-react";
 import { Button } from "@/components/ui/components";
+import { Badge } from "@repo/ui/components/ui/badge";
 import { toast } from "sonner";
 import { useSession } from "@/lib/auth-client";
 import { useDeskStore, type DeskBlockState } from "@/stores/desk-store";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { scanTableImage } from "./ocr-actions";
 import { getSharedDeskAccess, getWorkflowOwner } from "./desk-share-actions";
+import {
+  getDeskMasterSheet,
+  generateDeskMasterSheet,
+} from "../(documents)/data-library/master-sheet-actions";
 import { DeskOwnerHeader } from "./_components/DeskOwnerHeader";
 import { DeskChatBox } from "./_components/DeskChatBox";
 import {
@@ -54,6 +73,24 @@ export default function DeskPage() {
   const params = useParams();
   const dashid = params?.dashid as string;
 
+  const chatCurrentUser = useMemo(() => {
+    if (!sessionData?.user) return null;
+    return {
+      id: sessionData.user.id,
+      name:
+        sessionData.user.name ||
+        sessionData.user.email?.split("@")[0] ||
+        "User",
+      email: sessionData.user.email || "",
+      image: sessionData.user.image,
+    };
+  }, [
+    sessionData?.user?.id,
+    sessionData?.user?.name,
+    sessionData?.user?.email,
+    sessionData?.user?.image,
+  ]);
+
   // ─── Granular Zustand selectors (prevents full re-render on every store change) ───
   const blocks = useDeskStore((s) => s.blocks);
   const isLoading = useDeskStore((s) => s.isLoading);
@@ -87,10 +124,56 @@ export default function DeskPage() {
     ? masterSheets[activeSheetName]
     : null;
 
+  // ─── Master Sheet State & Tab ──────────────────────────────
+  const queryClient = useQueryClient();
+  const [hasMasterSheetOverride, setHasMasterSheetOverride] = useState<boolean | null>(null);
+  const [isGeneratingSheet, setIsGeneratingSheet] = useState(false);
+  const [masterSheetTab, setMasterSheetTab] = useState<"sheet" | "history">("sheet");
+
+  // Deduplicated MasterSheet fetch via TanStack Query (shares cache with MasterSheetPanel)
+  const { data: masterSheetRecord, isLoading: isCheckingSheet } = useQuery({
+    queryKey: ["desk-master-sheet", dashid],
+    queryFn: async () => {
+      if (!dashid || !userId) return null;
+      return await getDeskMasterSheet(dashid, userId);
+    },
+    enabled: Boolean(dashid && userId),
+    staleTime: 2 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
+
+  const hasMasterSheet = hasMasterSheetOverride ?? Boolean(masterSheetRecord);
+
+  const handleGenerateMasterSheet = async () => {
+    if (!dashid || !userId) {
+      toast.error("Please log in to generate Master Sheet");
+      return;
+    }
+    setIsGeneratingSheet(true);
+    try {
+      const newSheet = await generateDeskMasterSheet({
+        dashid,
+        userId,
+        name: ownerData?.workflowName || "Master Sheet",
+      });
+      if (newSheet) {
+        setHasMasterSheetOverride(true);
+        useDeskStore.getState().setDeskMasterSheetData(newSheet.data);
+        queryClient.invalidateQueries({ queryKey: ["desk-master-sheet", dashid] });
+        toast.success("Master Sheet generated successfully!");
+      }
+    } catch (err: any) {
+      console.error("Failed to generate master sheet:", err);
+      toast.error(err?.message || "Failed to generate Master Sheet");
+    } finally {
+      setIsGeneratingSheet(false);
+    }
+  };
+
   const router = useRouter();
   const pathname = usePathname();
 
-  // ─── Load workflow / desk owner details ────────────────────
+  // ─── Load workflow / desk owner details (cached for 5 minutes) ────
   const {
     data: ownerData,
     refetch: refetchOwner,
@@ -102,6 +185,8 @@ export default function DeskPage() {
       return await getWorkflowOwner(dashid);
     },
     enabled: !!dashid,
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 
   // ─── Reset blocks on dashid switch ──────────────────────
@@ -134,9 +219,9 @@ export default function DeskPage() {
         permission: access.permission === "viewer" ? "viewer" : "editor",
       });
 
-      // Parallel fetch: blocks initialization + active server runs
+      // Parallel fetch: blocks initialization (skip duplicate access check) + active server runs
       const [dbBlocks, activeRuns] = await Promise.all([
-        initializeDefaultDesk(dashid, userId!),
+        initializeDefaultDesk(dashid, userId!, true),
         getActiveDeskRuns(dashid).catch(() => []),
       ]);
 
@@ -180,6 +265,18 @@ export default function DeskPage() {
         };
       });
 
+      // Snapshot freshly loaded DB blocks to prevent false auto-save triggers on initial load
+      const snapshot: Record<string, string> = {};
+      mappedBlocks.forEach((block) => {
+        snapshot[block.id] = JSON.stringify({
+          textInputs: block.textInputs,
+          sheets: block.sheets,
+          checkboxFields: block.checkboxFields,
+        });
+      });
+      prevBlockSnapshotRef.current = snapshot;
+      isInitialLoadRef.current = false;
+
       setBlocks(mappedBlocks);
       setServerRunningBlocks(runningMap);
 
@@ -197,8 +294,8 @@ export default function DeskPage() {
       return { access, blocks: mappedBlocks, activeRuns };
     },
     enabled: !!dashid && !!userId,
-    staleTime: 0,
-    refetchOnMount: "always",
+    staleTime: 60 * 1000,
+    refetchOnMount: false,
     refetchOnWindowFocus: false,
   });
 
@@ -237,19 +334,20 @@ export default function DeskPage() {
 
   // Watch blocks for changes and trigger save — ONLY for blocks that actually changed
   useEffect(() => {
-    // Skip saving on initial load (blocks just came from DB, no changes)
-    if (isInitialLoadRef.current) {
-      // Snapshot current blocks state so we can diff later
-      const snapshot: Record<string, string> = {};
-      blocks.forEach((block) => {
-        snapshot[block.id] = JSON.stringify({
-          textInputs: block.textInputs,
-          sheets: block.sheets,
-          checkboxFields: block.checkboxFields,
+    // Skip if initial load hasn't finished yet or blocks is empty
+    if (isInitialLoadRef.current || blocks.length === 0) {
+      if (blocks.length > 0) {
+        const snapshot: Record<string, string> = {};
+        blocks.forEach((block) => {
+          snapshot[block.id] = JSON.stringify({
+            textInputs: block.textInputs,
+            sheets: block.sheets,
+            checkboxFields: block.checkboxFields,
+          });
         });
-      });
-      prevBlockSnapshotRef.current = snapshot;
-      isInitialLoadRef.current = false;
+        prevBlockSnapshotRef.current = snapshot;
+        isInitialLoadRef.current = false;
+      }
       return;
     }
 
@@ -261,6 +359,12 @@ export default function DeskPage() {
         checkboxFields: block.checkboxFields,
       });
       const prevKey = prevBlockSnapshotRef.current[block.id];
+
+      // If we don't have a snapshot for this block yet, initialize it without saving
+      if (prevKey === undefined) {
+        prevBlockSnapshotRef.current[block.id] = currentKey;
+        return;
+      }
 
       if (currentKey !== prevKey) {
         prevBlockSnapshotRef.current[block.id] = currentKey;
@@ -1154,7 +1258,16 @@ export default function DeskPage() {
           ownerData={ownerData ?? null}
           currentUserId={userId}
           currentUserEmail={userEmail}
-          isOwner={!isGuest}
+          isOwner={Boolean(
+            deskData?.access?.isOwner ??
+              (ownerData
+                ? Boolean(
+                    (userId && ownerData.id === userId) ||
+                    (userEmail &&
+                      ownerData.email?.toLowerCase() === userEmail.toLowerCase())
+                  )
+                : !isGuest)
+          )}
           isLoading={isOwnerLoading}
           onRefresh={() => {
             refetchOwner();
@@ -1345,11 +1458,106 @@ export default function DeskPage() {
         {/* ─── AI Updated Merged Preview ───────────────── */}
         <UpdatedMergedPreview />
 
-        {/* ─── Master Sheet Panel ────────────────────────── */}
-        <MasterSheetPanel />
+        {/* ─── Master Sheet & Version History Workspace ────────────── */}
+        {isCheckingSheet ? (
+          <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-card p-8 flex items-center justify-center gap-2 text-xs text-muted-foreground">
+            <Loader2 className="size-4 animate-spin text-foreground" />
+            <span>Checking Master Sheet status...</span>
+          </div>
+        ) : !hasMasterSheet ? (
+          /* Empty / Not Generated State: User must click button to generate */
+          <div className="rounded-2xl border border-dashed border-zinc-300 dark:border-zinc-800 bg-card/60 backdrop-blur-xs p-8 sm:p-10 text-center flex flex-col items-center justify-center gap-4 transition-all">
+            <div className="size-14 rounded-2xl bg-zinc-100 dark:bg-zinc-800/80 border border-zinc-200 dark:border-zinc-700/60 flex items-center justify-center text-zinc-700 dark:text-zinc-200 shadow-2xs">
+              <FileSpreadsheet className="size-7" />
+            </div>
 
-        {/* ─── Sheet Version History ──────────────────────── */}
-        <MasterSheetHistoryPanel />
+            <div className="max-w-md space-y-1.5">
+              <div className="flex items-center justify-center gap-2">
+                <h3 className="text-base font-bold text-zinc-900 dark:text-zinc-100">
+                  Master Sheet
+                </h3>
+                <Badge
+                  variant="outline"
+                  className="text-[10px] font-normal border-zinc-300 dark:border-zinc-700 text-zinc-500"
+                >
+                  Not Generated
+                </Badge>
+              </div>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">
+                This desk does not have a Master Sheet yet. Click below to generate the master sheet to aggregate data blocks, maintain real-time spreadsheets, and track version snapshots.
+              </p>
+            </div>
+
+            {!isViewer && (
+              <Button
+                type="button"
+                onClick={handleGenerateMasterSheet}
+                disabled={isGeneratingSheet}
+                className="h-9 px-5 text-xs bg-zinc-900 text-zinc-100 dark:bg-zinc-100 dark:text-zinc-900 hover:bg-zinc-800 dark:hover:bg-zinc-200 font-semibold cursor-pointer gap-2 shadow-xs transition-all"
+              >
+                {isGeneratingSheet ? (
+                  <Loader2 className="size-3.5 animate-spin" />
+                ) : (
+                  <Sparkles className="size-3.5" />
+                )}
+                <span>Generate Master Sheet</span>
+              </Button>
+            )}
+          </div>
+        ) : (
+          /* Master Sheet + Version History in clean Tabs */
+          <div className="space-y-3">
+            {/* Tabs Navigation Bar */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-0.5">
+              <div className="flex items-center gap-1.5 bg-zinc-100 dark:bg-zinc-900/90 p-1 rounded-xl border border-zinc-200 dark:border-zinc-800 w-full sm:w-auto">
+                <button
+                  type="button"
+                  onClick={() => setMasterSheetTab("sheet")}
+                  className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-all ${
+                    masterSheetTab === "sheet"
+                      ? "bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-2xs border border-zinc-200 dark:border-zinc-700 font-semibold"
+                      : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100"
+                  }`}
+                >
+                  <Table2 className="size-3.5" />
+                  <span>Master Sheet</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setMasterSheetTab("history")}
+                  className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-all ${
+                    masterSheetTab === "history"
+                      ? "bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-2xs border border-zinc-200 dark:border-zinc-700 font-semibold"
+                      : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100"
+                  }`}
+                >
+                  <History className="size-3.5" />
+                  <span>Sheet Version History</span>
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2 self-end sm:self-center">
+                <Badge
+                  variant="outline"
+                  className="text-[10px] font-mono border-zinc-200 dark:border-zinc-800 text-zinc-500"
+                >
+                  Desk: {ownerData?.workflowName || dashid?.slice(0, 8)}
+                </Badge>
+              </div>
+            </div>
+
+            {/* Tab 1: Master Sheet Panel */}
+            <div className={masterSheetTab === "sheet" ? "block" : "hidden"}>
+              <MasterSheetPanel />
+            </div>
+
+            {/* Tab 2: Sheet Version History */}
+            <div className={masterSheetTab === "history" ? "block" : "hidden"}>
+              <MasterSheetHistoryPanel />
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ─── Pop-up ChatBox from Extreme Right Screen ─────────── */}
@@ -1357,19 +1565,7 @@ export default function DeskPage() {
         dashid={dashid}
         deskName={ownerData?.workflowName || "Desk"}
         userEmail={userEmail}
-        currentUser={
-          sessionData?.user
-            ? {
-                id: sessionData.user.id,
-                name:
-                  sessionData.user.name ||
-                  sessionData.user.email?.split("@")[0] ||
-                  "User",
-                email: sessionData.user.email || "",
-                image: sessionData.user.image,
-              }
-            : null
-        }
+        currentUser={chatCurrentUser}
       />
     </div>
   );
